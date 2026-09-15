@@ -1,0 +1,43 @@
+{
+  "schema": "nodefusion.ucore-chapter-coverage/1",
+  "generated_utc": "2026-09-15",
+  "manifest": "nodefusion/manifests/ucore.toml",
+  "strict_invariants": {
+    "blockers": 0,
+    "semantic_dropped_from_interactive": 0,
+    "snapshot_failures": 0,
+    "manifest_unresolved": 0
+  },
+  "chapter": {
+    "chapter": 1,
+    "run": "ucore-ch1-probe",
+    "status": "complete",
+    "percent": 100.0,
+    "semantic_events": 165,
+    "semantic_unknown": 0,
+    "snapshots": 3,
+    "manifest_cells": 0,
+    "metrics_applicable": 6,
+    "metrics_not_applicable": [
+      "bcache_hit_rate",
+      "bcache_hits",
+      "bcache_reads",
+      "context_switches",
+      "disk_io",
+      "execs",
+      "forks",
+      "kalloc",
+      "kfree",
+      "log_commits",
+      "page_table_maps",
+      "vm_maps",
+      "vm_unmaps"
+    ],
+    "trace_bytes": 2300273,
+    "trace_sha256": "da10b0a0e85888a4cc2cb6011681c1069d3516101d1568a1651acca44cfb20fc",
+    "html_bytes": 131010,
+    "html_sha256": "813af21b0145d928ef9a8007d14ccdddcfea93280c4a20919bafaa41c18cd631",
+    "kernel_elf_bytes": 20880,
+    "kernel_elf_sha256": "6d9f1bfed86d6a24cf8909debbd78e949a858c22135c3e950bd942b9f7895771"
+  }
+}

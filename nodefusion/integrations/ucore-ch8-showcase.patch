@@ -1,0 +1,12 @@
+diff --git a/os/sync.c b/os/sync.c
+index 652ffb3..5d7772c 100644
+--- a/os/sync.c
++++ b/os/sync.c
+@@ -33,6 +33,7 @@ void mutex_lock(struct mutex *m)
+ 		while (m->locked) {
+ 			yield();
+ 		}
++		m->locked = 1;
+ 		debugf("lock spin mutex after some trials");
+ 		return;
+ 	}

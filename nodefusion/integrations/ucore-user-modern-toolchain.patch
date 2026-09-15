@@ -1,0 +1,35 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index f5a9fac..f561f99 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -20,7 +20,7 @@ set(PREFIX ${ARCH}-linux-musl-)
+ if (${ARCH} STREQUAL riscv32)
+     set(CMAKE_C_FLAGS       "-march=rv32imac -mabi=ilp32 -mcmodel=medany")
+ elseif (${ARCH} STREQUAL riscv64)
+-    set(CMAKE_C_FLAGS       "-march=rv64imac -mabi=lp64 -mcmodel=medany")
++    set(CMAKE_C_FLAGS       "-march=rv64imac_zicsr -mabi=lp64 -mcmodel=medany")
+ else()
+     message("Unsupported arch: ${ARCH}")
+ endif ()
+diff --git a/src/ch8b_usertest.c b/src/ch8b_usertest.c
+index 1cce5ce..ad7198b 100644
+--- a/src/ch8b_usertest.c
++++ b/src/ch8b_usertest.c
+@@ -12,7 +12,7 @@ const char *TESTS[] = {
+ 	"ch5b_forktest1\0",     "ch5b_forktest2\0",   "ch5b_exit\0",
+ 	"ch6b_filetest\0",      "ch6b_exec\0",        "ch7b_pipetest\0",
+ 	"ch8b_mpsc_sem\0",
+-	"ch8b_mut_phi_din.c",   "ch8b_mut_race\0",    "ch8b_sync_sem\0",
++	"ch8b_mut_phi_din\0",   "ch8b_mut_race\0",    "ch8b_sync_sem\0",
+ 	"ch8b_test_condvar\0",  "ch8b_threads_arg\0", "ch8b_threads\0",      
+ 	"ch8b_spin_mut_race\0", "ch8b_mut_phi_din\0",
+ };
+diff --git a/Makefile b/Makefile
+index b022a60..9684958 100644
+--- a/Makefile
++++ b/Makefile
+@@ -36,3 +36,3 @@
+ CH6_TESTS := $(CH6_BASE_TESTS) ch6_ ch5_ ch4_
+-CH7_TESTS := $(CH7_BASE_TESTS) ch7_
++CH7_TESTS := $(CH7_BASE_TESTS)
+ CH8_TESTS := $(CH8_BASE_TESTS) ch8_

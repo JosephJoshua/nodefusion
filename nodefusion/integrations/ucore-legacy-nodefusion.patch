@@ -1,0 +1,123 @@
+diff --git a/os/kalloc.c b/os/kalloc.c
+--- a/os/kalloc.c
++++ b/os/kalloc.c
+@@ -1,6 +1,7 @@
+ #include "kalloc.h"
+ #include "defs.h"
+ #include "riscv.h"
++#include "nftrace.h"
+ 
+ extern char ekernel[];
+ 
+@@ -12,6 +13,10 @@ struct {
+ 	struct linklist *freelist;
+ } kmem;
+ 
++static uint64 nf_free_pages;
++static uint64 nf_used_pages;
++static int nftrace_ready;
++
+ void freerange(void *pa_start, void *pa_end)
+ {
+ 	char *p;
+@@ -23,6 +28,8 @@ void freerange(void *pa_start, void *pa_end)
+ void kinit()
+ {
+ 	freerange(ekernel, (void *)PHYSTOP);
++	nftrace_ready = 1;
++	nftrace_allocator_state(nf_free_pages, nf_used_pages);
+ }
+ 
+ // Free the page of physical memory pointed at by v,
+@@ -40,6 +47,9 @@ void kfree(void *pa)
+ 	l = (struct linklist *)pa;
+ 	l->next = kmem.freelist;
+ 	kmem.freelist = l;
++	nf_free_pages++;
++	if (nftrace_ready)
++		nftrace_page_free((uint64)pa, 1, nf_free_pages, nf_used_pages);
+ }
+ 
+ // Allocate one 4096-byte page of physical memory.
+@@ -51,7 +61,11 @@ void *kalloc(void)
+ 	l = kmem.freelist;
+ 	if (l) {
+ 		kmem.freelist = l->next;
++		nf_free_pages--;
++		nf_used_pages++;
+ 		memset((char *)l, 5, PGSIZE); // fill with junk
+ 	}
++	if (nftrace_ready)
++		nftrace_page_alloc((uint64)l, 1, nf_free_pages, nf_used_pages);
+ 	return (void *)l;
+ }
+diff --git a/os/vm.c b/os/vm.c
+--- a/os/vm.c
++++ b/os/vm.c
+@@ -1,6 +1,13 @@
+ #include "vm.h"
+ #include "defs.h"
+ #include "riscv.h"
++#include "nftrace.h"
++
++__attribute__((noinline))
++void nodefusion_pagetable_map(uint64 va, uint64 pa, uint64 flags)
++{
++	__asm__ volatile("" : : "r"(va), "r"(pa), "r"(flags) : "memory");
++}
+ 
+ pagetable_t kernel_pagetable;
+ 
+@@ -124,6 +131,7 @@ int mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
+ 			return -1;
+ 		}
+ 		*pte = PA2PTE(pa) | perm | PTE_V;
++		nodefusion_pagetable_map(a, pa, perm | PTE_V);
+ 		if (a == last)
+ 			break;
+ 		a += PGSIZE;
+diff --git a/os/nftrace.h b/os/nftrace.h
+new file mode 100644
+--- /dev/null
++++ b/os/nftrace.h
+@@ -0,0 +1,13 @@
++#ifndef NFTRACE_H
++#define NFTRACE_H
++#include "types.h"
++enum { NFT_KALLOC = 1, NFT_PROC_FORK = 2, NFT_THREAD_CREATE = 3,
++       NFT_SCHED_SWITCH = 4, NFT_KFREE = 5, NFT_ALLOCATOR_STATE = 6 };
++struct nftrace_record { uint64 type; uint64 a[4]; };
++void nftrace_commit_point(const struct nftrace_record *record);
++void nftrace_page_alloc(uint64 pa, uint64 pages, uint64 free_pages, uint64 used_pages);
++void nftrace_page_free(uint64 pa, uint64 pages, uint64 free_pages, uint64 used_pages);
++void nftrace_allocator_state(uint64 free_pages, uint64 used_pages);
++void nftrace_proc_fork(uint64 parent_task, uint64 child_task);
++void nftrace_thread_create(uint64 parent_task, uint64 child_task);
++#endif
+diff --git a/os/nftrace.c b/os/nftrace.c
+new file mode 100644
+--- /dev/null
++++ b/os/nftrace.c
+@@ -0,0 +1,22 @@
++#include "nftrace.h"
++__attribute__((noinline))
++void nftrace_commit_point(const struct nftrace_record *record)
++{
++	if (record != 0)
++		__asm__ volatile("" : : "r"(*(volatile const uint64 *)record) : "memory");
++}
++static inline void emit(uint64 type, uint64 a0, uint64 a1, uint64 a2, uint64 a3)
++{
++	const struct nftrace_record record = { type, { a0, a1, a2, a3 } };
++	nftrace_commit_point(&record);
++}
++void nftrace_page_alloc(uint64 pa, uint64 pages, uint64 free_pages, uint64 used_pages)
++{ emit(NFT_KALLOC, pa, pages, free_pages, used_pages); }
++void nftrace_page_free(uint64 pa, uint64 pages, uint64 free_pages, uint64 used_pages)
++{ emit(NFT_KFREE, pa, pages, free_pages, used_pages); }
++void nftrace_allocator_state(uint64 free_pages, uint64 used_pages)
++{ emit(NFT_ALLOCATOR_STATE, free_pages, used_pages, 0, 0); }
++void nftrace_proc_fork(uint64 parent_task, uint64 child_task)
++{ emit(NFT_PROC_FORK, parent_task, child_task, 0, 0); }
++void nftrace_thread_create(uint64 parent_task, uint64 child_task)
++{ emit(NFT_THREAD_CREATE, parent_task, child_task, 0, 0); }

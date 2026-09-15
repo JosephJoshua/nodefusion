@@ -1,0 +1,494 @@
+# uCore Tutorial — C/RISC-V process + thread kernel
+# Baseline verified against LearningOS/uCore-Tutorial-Code ch8 at
+# 7728a992c20ce43627fbc319ccb4f5765e807cba. Kernel facts live here; the host
+# pipeline remains kernel-neutral.
+
+[kernel]
+name   = "ucore"
+family = "ucore"
+arches = ["riscv64"]
+derive_feature_absence_from_symbols = true
+# `digits` is the small console formatter's stable global across all eight
+# historical trees (the process/thread split only appears in ch8).  It is
+# intentionally a variable-only discriminator: ch1 has no DWARF process type
+# or task symbol yet.
+detect = { all_symbol = ["digits", "SBI_SHUTDOWN"] }
+
+# ---------------------------------------------------------------- processes
+
+[[entity]]
+name  = "process"
+role  = "process"
+type  = "proc"
+label = "进程"
+
+[[entity.source]]
+kind         = "table"
+completeness = "total"
+when         = { type_exists = "proc" }
+steps = [
+  { static = "pool" },
+  { iter = "array" },
+]
+
+[entity.liveness]
+skip_when = { field = "state", equals = "P_UNUSED" }
+
+[entity.fields]
+pid         = { path = "pid",         reader = "i32",  role = "id" }
+state       = { path = "state",       reader = "enum", enum = "procstate", role = "state" }
+
+[entity.optional_fields]
+pagetable   = { path = "pagetable",   reader = "ptr", role = "address_space_root" }
+max_page    = { path = "max_page",    reader = "u64" }
+ustack_base = { path = "ustack_base", reader = "u64" }
+exit_code   = { path = "exit_code",   reader = "u64", role = "exit_code" }
+files       = { path = "files",       reader = "array<ptr>" }
+
+[entity.optional_relations]
+parent = { path = "parent", reader = "ptr", links_to = "process" }
+
+# uCore ch8 schedules threads, not processes. Enumerating the nested fixed
+# arrays is exhaustive, and the inverse process edge lets a process inherit all
+# of its threads' sched_context values without a host-side uCore branch.
+[[entity]]
+name  = "thread"
+role  = "thread"
+type  = "thread"
+label = "线程"
+
+[[entity.source]]
+kind         = "table"
+completeness = "total"
+when         = { type_exists = "thread" }
+steps = [
+  { static = "pool" },
+  { iter = "array" },
+  { field = "threads" },
+  { iter = "array" },
+]
+
+[entity.liveness]
+skip_when = { field = "state", equals = "T_UNUSED" }
+
+[entity.fields]
+tid        = { path = "tid",        reader = "i32", role = "id" }
+state      = { path = "state",      reader = "enum", enum = "threadstate", role = "state" }
+ustack     = { path = "ustack",     reader = "u64" }
+kstack     = { path = "kstack",     reader = "u64" }
+trapframe  = { path = "trapframe",  reader = "ptr", role = "trap_context" }
+context    = { path = "context",    reader = "struct", role = "sched_context" }
+exit_code  = { path = "exit_code",  reader = "u64", role = "exit_code" }
+
+[entity.relations]
+process = { path = "process", reader = "ptr", links_to = "process", inverse = "threads" }
+
+[entity.table]
+empty = "当前没有活跃线程。"
+
+  [[entity.table.column]]
+  key = "slot"
+  label = "槽位"
+  synthetic = true
+  [[entity.table.column]]
+  key = "tid"
+  label = "TID"
+  [[entity.table.column]]
+  key = "state"
+  label = "状态"
+  [[entity.table.column]]
+  key = "ustack"
+  label = "用户栈"
+  format = "hex"
+  [[entity.table.column]]
+  key = "kstack"
+  label = "内核栈"
+  format = "hex"
+  [[entity.table.column]]
+  key = "exit_code"
+  label = "退出码"
+
+# -------------------------------------------------------------- resources
+
+[[entity]]
+name  = "bcache"
+type  = "buf"
+label = "缓冲区缓存 (bcache)"
+
+[[entity.source]]
+kind         = "table"
+completeness = "total"
+when         = { type_exists = "buf" }
+steps = [
+  { static = "bcache" },
+  { field = "buf" },
+  { iter = "array" },
+]
+
+[entity.fields]
+dev     = { path = "dev",     reader = "u32" }
+blockno = { path = "blockno", reader = "u32" }
+valid   = { path = "valid",   reader = "i32" }
+refcnt  = { path = "refcnt",  reader = "u32" }
+
+[entity.table]
+show_when_any = ["refcnt", "valid"]
+empty = "当前没有被占用或有效的缓冲块。"
+
+  [[entity.table.column]]
+  key = "slot"
+  label = "槽位"
+  synthetic = true
+  [[entity.table.column]]
+  key = "dev"
+  label = "设备"
+  [[entity.table.column]]
+  key = "blockno"
+  label = "块号"
+  [[entity.table.column]]
+  key = "valid"
+  label = "有效"
+  format = "bool"
+  [[entity.table.column]]
+  key = "refcnt"
+  label = "引用数"
+
+[[entity]]
+name  = "filepool"
+type  = "file"
+label = "系统打开文件表"
+
+[[entity.source]]
+kind         = "table"
+completeness = "total"
+when         = { type_exists = "file" }
+steps = [
+  { static = "filepool" },
+  { iter = "array" },
+]
+
+[entity.liveness]
+skip_when = { field = "ref", equals = 0 }
+
+[entity.fields]
+type     = { path = "type",     reader = "i32" }
+ref      = { path = "ref",      reader = "i32" }
+readable = { path = "readable", reader = "u8" }
+writable = { path = "writable", reader = "u8" }
+inode    = { path = "ip",       reader = "ptr" }
+off      = { path = "off",      reader = "u32" }
+
+[entity.optional_fields]
+pipe     = { path = "pipe",     reader = "ptr" }
+
+[entity.table]
+empty = "当前没有打开文件。"
+
+  [[entity.table.column]]
+  key = "slot"
+  label = "槽位"
+  synthetic = true
+  [[entity.table.column]]
+  key = "type"
+  label = "类型"
+  [[entity.table.column]]
+  key = "ref"
+  label = "引用数"
+  [[entity.table.column]]
+  key = "readable"
+  label = "可读"
+  format = "bool"
+  [[entity.table.column]]
+  key = "writable"
+  label = "可写"
+  format = "bool"
+  [[entity.table.column]]
+  key = "off"
+  label = "偏移"
+
+[[entity]]
+name  = "itable"
+type  = "inode"
+label = "inode 缓存"
+
+[[entity.source]]
+kind         = "table"
+completeness = "total"
+when         = { type_exists = "inode" }
+steps = [
+  { static = "itable" },
+  { field = "inode" },
+  { iter = "array" },
+]
+
+[entity.liveness]
+skip_when = { field = "ref", equals = 0 }
+
+[entity.fields]
+dev   = { path = "dev",   reader = "u32" }
+inum  = { path = "inum",  reader = "u32" }
+ref   = { path = "ref",   reader = "i32" }
+valid = { path = "valid", reader = "i32" }
+type  = { path = "type",  reader = "i16" }
+size  = { path = "size",  reader = "u32" }
+
+[entity.table]
+empty = "当前没有活跃 inode。"
+
+  [[entity.table.column]]
+  key = "slot"
+  label = "槽位"
+  synthetic = true
+  [[entity.table.column]]
+  key = "dev"
+  label = "设备"
+  [[entity.table.column]]
+  key = "inum"
+  label = "inum"
+  [[entity.table.column]]
+  key = "ref"
+  label = "引用数"
+  [[entity.table.column]]
+  key = "valid"
+  label = "已加载"
+  format = "bool"
+  [[entity.table.column]]
+  key = "type"
+  label = "类型"
+  [[entity.table.column]]
+  key = "size"
+  label = "大小"
+
+# --------------------------------------------------------------- watches
+
+[[watch]]
+subsystem = "panic"
+match     = { fn = ["shutdown"] }
+snapshot  = "always"
+args      = 2
+throttle  = 0
+
+[[watch]]
+subsystem = "nftrace"
+match     = { fn = ["nftrace_commit_point"] }
+skip      = true
+
+[[watch]]
+subsystem = "lifecycle"
+match     = { fn = ["fork", "exec", "exit", "sys_exit", "sys_thread_create", "uvmcopy"] }
+snapshot  = "event"
+args      = 4
+throttle  = 0
+
+# Assembly has no source-file attribution.
+[[watch]]
+subsystem = "sched"
+match     = { fn = ["swtch"] }
+args      = 2
+throttle  = 0
+
+# These functions have symbol addresses but no source-file attribution in the
+# optimized ch8 DWARF. Keep their ownership explicit instead of teaching the
+# host a uCore-specific exception.
+[[watch]]
+subsystem = "fs"
+match     = { fn = ["iput"] }
+args      = 5
+throttle  = 0
+
+[[watch]]
+subsystem = "bcache"
+match     = { fn = ["bget"] }
+inlined   = true
+args      = 3
+throttle  = 0
+
+[[watch]]
+subsystem = "proc"
+match     = { file = "os/proc.c" }
+args      = 4
+throttle  = 0
+
+[[watch]]
+subsystem = "syscall"
+match     = { file = "os/syscall.c" }
+args      = 6
+throttle  = 0
+
+[[watch]]
+subsystem = "trap"
+match     = { file = ["os/trap.c", "os/timer.c", "os/plic.c", "os/sbi.c"] }
+args      = 4
+throttle  = 0
+
+[[watch]]
+subsystem = "phys"
+match     = { file = ["os/kalloc.c", "os/nftrace.c"] }
+args      = 4
+throttle  = 0
+
+[[watch]]
+subsystem = "vm"
+match     = { file = ["os/vm.c", "os/loader.c"] }
+args      = 6
+throttle  = 0
+
+[[watch]]
+subsystem = "fs"
+match     = { file = ["os/fs.c", "os/bio.c"] }
+args      = 5
+throttle  = 0
+
+[[watch]]
+subsystem = "file"
+match     = { file = ["os/file.c", "os/pipe.c"] }
+args      = 4
+throttle  = 0
+
+[[watch]]
+subsystem = "disk"
+match     = { file = "os/virtio_disk.c" }
+args      = 3
+throttle  = 0
+
+[[watch]]
+subsystem = "sync"
+match     = { file = ["os/sync.c", "os/queue.c"] }
+args      = 3
+throttle  = 0
+
+# --------------------------------------------------------------- semantics
+
+[absent]
+"log.commit" = { why = "feature", evidence = "LearningOS uCore ch8 has no journal or transaction layer: os/fs.c updates bitmap, inode, and data blocks directly through bread()/bwrite(), while os/log.h only defines console log-level macros. There is no redo log, commit record, recovery pass, or crash-atomic commit operation to observe." }
+
+[event]
+kalloc = "phys.alloc"
+kfree = "phys.free"
+nodefusion_pagetable_map = { kind = "pagetable.map", args = ["va", "pa", "flags"], resource = "pagetable" }
+mappages = { kind = "vm.map", resource = "pagetable" }
+uvmmap = "vm.grow"
+uvmunmap = { kind = "vm.unmap", resource = "pagetable" }
+uvmfree = "vm.free"
+uvmcopy = { kind = "vm.copy", resource = "vm" }
+copyout = "vm.copyout"
+copyin = "vm.copyin"
+copyinstr = "vm.translate_str"
+walkaddr = "vm.translate_buffer"
+kvm_init = "vm.kernel_init"
+kvmmake = "vm.init"
+bin_loader = "vm.from_elf"
+
+proc_init = "proc.initproc"
+allocproc = "proc.alloc"
+freeproc = { kind = "proc.free", args = ["process"] }
+fork = "proc.fork"
+exec = "proc.exec"
+exit = "proc.exit"
+wait = "proc.wait"
+allocthread = "thread.alloc_res"
+freethread = "thread.free_res"
+
+scheduler = { kind = "sched.enter", resource = "sched" }
+sched = { kind = "sched.yield_to_scheduler", resource = "sched" }
+yield = { kind = "sched.yield", resource = "sched" }
+swtch = { kind = "sched.switch", args = ["old_ctx", "new_ctx"] }
+
+trap_init = "trap.init"
+usertrap = "trap.usertrap"
+usertrapret = "trap.userret"
+kerneltrap = "trap.kerneltrap"
+unknown_trap = "trap.kernel"
+devintr = { kind = "interrupt.dispatch", resource = "interrupt" }
+set_timer = { kind = "interrupt.clock", resource = "interrupt" }
+
+syscall = "syscall.dispatch"
+sys_clone = "syscall.fork"
+sys_exec = "syscall.exec"
+sys_exit = "syscall.exit"
+sys_wait = "syscall.waitpid"
+sys_openat = "syscall.open"
+sys_close = "syscall.close"
+sys_read = "syscall.read"
+sys_write = "syscall.write"
+sys_pipe = "syscall.pipe"
+sys_thread_create = "syscall.thread_create"
+sys_mutex_create = "syscall.mutex_create"
+sys_mutex_lock = "syscall.mutex_lock"
+sys_mutex_unlock = "syscall.mutex_unlock"
+sys_semaphore_create = "syscall.semaphore_create"
+sys_semaphore_up = "syscall.semaphore_up"
+sys_semaphore_down = "syscall.semaphore_down"
+sys_condvar_create = "syscall.condvar_create"
+sys_condvar_signal = "syscall.condvar_signal"
+sys_condvar_wait = "syscall.condvar_wait"
+
+binit = { kind = "bcache.init", resource = "bcache" }
+bget = { kind = "bcache.get", resource = "bcache" }
+bread = { kind = "bcache.read", resource = "bcache" }
+bwrite = { kind = "bcache.write", resource = "bcache" }
+brelse = { kind = "bcache.release", resource = "bcache" }
+virtio_disk_rw = { kind = "disk.io", args = ["buf", "write"] }
+virtio_disk_intr = "disk.interrupt"
+balloc = { kind = "disk.balloc", resource = "disk" }
+bfree = { kind = "disk.bfree", resource = "disk" }
+
+ialloc = { kind = "inode.alloc", resource = "inode" }
+iget = { kind = "inode.get", resource = "inode" }
+iput = { kind = "inode.put", resource = "inode" }
+iupdate = { kind = "inode.update", resource = "inode" }
+bmap = { kind = "inode.bmap", resource = "inode" }
+readi = { kind = "inode.read", resource = "inode" }
+writei = { kind = "inode.write", resource = "inode" }
+namei = { kind = "inode.namei", resource = "inode" }
+dirlookup = { kind = "inode.dirlookup", resource = "inode" }
+filealloc = "file.alloc"
+fileclose = "file.close"
+inoderead = "file.read"
+inodewrite = "file.write"
+pipealloc = { kind = "pipe.alloc", resource = "pipe" }
+piperead = { kind = "pipe.read", resource = "pipe" }
+pipewrite = { kind = "pipe.write", resource = "pipe" }
+pipeclose = { kind = "pipe.close", resource = "pipe" }
+
+shutdown = { kind = "kernel.panic", args = ["reason"] }
+
+# ----------------------------------------------------------------- profile
+
+[profile]
+kernel_elf   = "build/kernel"
+kernel_image = "build/kernel"
+build = "set -e; CHAPTER=1; [ -f os/syscall.c ] && CHAPTER=2; [ -f os/proc.c ] && CHAPTER=3; [ -f os/vm.c ] && CHAPTER=4; [ -f os/queue.c ] && CHAPTER=5; [ -f nfs/fs.c ] && CHAPTER=6; [ -f os/pipe.c ] && CHAPTER=7; [ -f os/proc.h ] && grep -q 'struct thread' os/proc.h 2>/dev/null && CHAPTER=8; if [ \"$CHAPTER\" -ge 6 ]; then rm -f os/link_app.S os/kernel_app.ld; else rm -f os/initproc.S; fi; if [ -d user ] && [ \"$CHAPTER\" -ge 2 ]; then cmake -S user -B user/build -DARCH=riscv64 -DCHAPTER=$CHAPTER -DCMAKE_BUILD_TYPE=Release -DCMAKE_SYSTEM_NAME=Generic -DCMAKE_SYSTEM_PROCESSOR=riscv64 -DCMAKE_C_COMPILER=riscv64-linux-musl-gcc -DCMAKE_ASM_COMPILER=riscv64-linux-musl-gcc >/dev/null && cmake --build user/build -j8 >/dev/null && make -C user CHAPTER=$CHAPTER target >/dev/null; fi; if [ \"$CHAPTER\" -ge 2 ] && [ \"$CHAPTER\" -le 4 ]; then python3 scripts/pack.py && python3 scripts/kernelld.py; fi; make build; if [ \"$CHAPTER\" -ge 6 ] && [ -f nfs/fs.c ]; then cc nfs/fs.c -I nfs -o nfs/fs && nfs/fs nfs/fs.img user/target/bin/* && cp nfs/fs.img nfs/fs-copy.img; fi"
+detect_files = ["os/main.c", "os/syscall.c", "os/proc.c", "os/vm.c", "os/queue.c", "os/proc.h", "os/pipe.c", "nfs/fs.c"]
+required_tools = ["qemu-system-riscv64", "riscv64-unknown-elf-gcc", "riscv64-linux-musl-gcc", "cmake", "cc"]
+machine_opts = [
+  "-machine virt",
+  "-bios default",
+  "-kernel build/kernel",
+  "-m 128M",
+]
+interactive = true
+prompt = ">> "
+ready_markers = ["C user shell"]
+# User-space assertions deliberately print the same ``[PANIC ...]`` prefix as
+# the kernel logger and then return a non-zero test status.  Treating that text
+# as a kernel panic truncates aggregate suites halfway through; the shell's
+# exit line and QEMU termination provide unambiguous outcomes instead.
+panic_markers = ["core dumped"]
+halt_markers = []
+stdin_preload = true
+stdin_pad = "\n"
+exit_marker = 'Shell: Process \d+ exited with code (-?\d+)'
+build_deviation = "NodeFusion's uCore integration adds an observation-only nftrace producer and a noinline per-PTE map hook. The showcase also applies the ch8 spinning-mutex acquisition assignment and fixes one test-list filename. On modern GCC, the user build explicitly enables Zicsr; on macOS CMake is configured as a Generic RISC-V cross build. QEMU uses its current built-in OpenSBI because the repository's old rustsbi-qemu.bin does not boot under QEMU 10.2.2."
+
+[[profile.device]]
+file = "nfs/fs-copy.img"
+built_when = { file = "Makefile", contains = "fs-copy.img:" }
+opts = [
+  "-drive file=nfs/fs-copy.img,if=none,format=raw,id=x0",
+  "-device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0",
+]
+
+[syscalls]
+files = ["os/syscall_ids.h"]
+pattern = '#define\s+SYS_(?P<name>\w+)\s+(?P<num>\d+)'
