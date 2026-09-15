@@ -1,0 +1,1096 @@
+# StarryOS — Linux-compatible, process/thread split
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[kernel]
+name   = "starry"
+family = "arceos"
+
+
+builds_on = "arceos"
+arches = ["riscv64", "x86_64", "aarch64", "loongarch64"]
+detect = { any_type = ["starry_kernel::task::process::topology::Process"] }
+
+# ---------------------------------------------------------------- process
+
+[[entity]]
+name  = "process"
+role  = "process"
+
+# （syscall::fs::pidfd / syscall::signal / syscall::task::job /
+
+
+type  = "starry_kernel::task::process::topology::Process"
+label = "进程"
+
+
+
+# SpinLock<BTreeMap<TgidNumber, Arc<Process>>>。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[[entity.source]]
+kind         = "tree"
+completeness = "reachable_only"
+reason       = "从 init 往下走。孤儿进程由 init 收养，所以正常情况下能走全；但这是内核的性质，不是这里保证的"
+steps = [
+  { static = "starry_kernel::task::process::topology::INIT_PROC" },
+  { unwrap = ["LazyInit", "Arc"] },
+  { walk   = { children = "children", via = ["SpinLock", "btreemap", "Arc"] }, key = "newtype<u32>" },
+]
+
+[entity.fields]
+pid = { path = "pid", reader = "newtype<u32>", role = "id" }
+
+
+
+
+
+
+
+
+
+
+exit_code    = { path = "tg.exit_code",    reader = "i32",  role = "exit_code" }
+group_exited = { path = "tg.group_exited", reader = "bool" }
+
+
+
+
+
+
+
+
+
+#   btree_opts(map) -> height 8 / node 0 / len 54 / keys 8 / vals 56
+
+
+
+
+thread_tids  = { path = "tg.threads.map", reader = "btreemap<newtype<u32>, unit>" }
+
+
+
+
+
+
+
+
+
+
+
+# starry-1f85a279.elf + starry-forkecho-ram512：
+#   Process.identity            +0     Weak<PidIdentity>
+#   PidIdentity.state           +24    IrqMutex<PidIdentityState>
+
+#     SpinLock.__0              +0     BaseSpinLock<RawState, ..>
+#     BaseSpinLock.data         +8     UnsafeCell<PidIdentityState>
+
+#     ProcessLifecycle::Live.__0 +0    Weak<ProcessData>
+#   ProcessData.aspace          +576   IrqMutex<Arc<Mutex<AddrSpace>>>
+#   Mutex.data                  +16    UnsafeCell<AddrSpace>
+#   AddrSpace.pt                +0     PageTable
+#   PageTable.inner             +24    PageTableRef
+#   PageTableRef.root           +0     Frame
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+pgtbl = { path = "identity", reader = "weak<field<state, newtype<spinlock<field<process_lifecycle, variant<Live, field<__0, weak<field<aspace, newtype<spinlock<arc<mutex<field<pt, field<inner, field<root, field<paddr, usize>>>>>>>>>>>>>>>>>", role = "address_space_root" }
+
+[entity.relations]
+parent   = { path = "parent",   reader = "spinlock<weak>",   links_to = "process" }
+
+
+
+
+
+
+
+#     `pub type StrongMap<K, V> = alloc::collections::btree_map::BTreeMap<K, V>;`
+
+
+
+
+
+children = { path = "children", reader = "spinlock<btreemap<newtype<u32>, arc>>", links_to = "process" }
+
+
+#   threads = { path = "tg", reader = "spinlock<struct>", links_to = "thread" }
+
+
+
+#   Process size=152        tg +8  SpinLock<ThreadGroup>
+#   ThreadGroup size=64     threads +0  BTreeSet<TidNumber>
+#                           exit_code +56  group_exited +60
+
+
+
+
+
+
+
+# ---------------------------------------------------------------- thread
+
+# where `state` actually lives. Starry threads are ArceOS tasks underneath,
+# so this entity reuses the arceos family's inner type.
+[[entity]]
+name  = "thread"
+type  = "ax_task::task::TaskInner"
+label = "线程"
+
+
+
+source_combine = "union"
+
+
+
+
+
+
+
+
+
+#   ax_task::api::TASK_REGISTRY @0xffffffff80524b80
+#     LazyLock<SpinRwLock<BTreeMap<u64, Weak<RRTask<TaskInner,5>>>>,
+#              fn() -> SpinRwLock<...>>
+
+
+
+
+
+[[entity.source]]
+kind         = "registry"
+completeness = "partial"
+reason       = "TASK_REGISTRY 装的是 Weak：任务退出后表项还在、但升不上来。所以这里枚举到的是**还活着的**那些，不是历史上全部"
+
+
+
+
+
+
+
+
+#   LazyLock            size=48
+#     value       +0    OnceLock<SpinRwLock<BTreeMap<…>>>   size=40
+#        __0      +0      LazyInit<SpinRwLock<BTreeMap<…>>>
+#     initializer +40   UnsafeCell<Option<fn() -> …>>
+
+
+steps = [
+  { static     = "ax_task::api::TASK_REGISTRY" },
+  { field      = "value" },
+  { field      = "__0" },
+  { unwrap     = ["LazyInit", "SpinRwLock"] },
+
+
+
+  #   BTreeMap<u64, Weak<RRTask<TaskInner,5>>>
+
+
+  { iter       = "btreemap", key = "u64" },
+
+
+
+  #   [4] iter btreemap -> MaybeDangling<alloc::sync::Weak<…RRTask<TaskInner,5>>>
+  { unwrap     = ["MaybeDangling", "Weak"] },
+  { descend_to = "ax_task::task::TaskInner" },
+]
+
+
+
+
+
+
+
+#   ax_task::run_queue::RUN_QUEUES @0xffffffff80d95538
+
+#   AxRunQueue                          size=32 {cpu_id:0, scheduler:8}
+#   BaseSpinLock<RawState,RRScheduler>  size=24 {_phantom:0, lock:0, data:8}
+#   RRScheduler<TaskInner,5>            size=16 {ready_queue:0}
+#   List<Arc<RRTask<TaskInner,5>>>      size=16 {list:0}
+#   RawList<…>                          size=16 {head:0, len:8}
+#   RRTask<TaskInner,5>                 size=960 {inner:0, time_slice:896,
+#                                                 links:904}
+#     Links{entry:0,inserted:16} -> UnsafeCell{value:0} -> ListEntry{next:0,prev:8}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#   ...
+
+
+
+
+
+
+
+
+[[entity.source]]
+kind         = "registry"
+completeness = "partial"
+reason       = "各 CPU 就绪队列里排着的任务；正在跑的那个和已退出的不在这条链上"
+steps = [
+  { static     = "ax_task::run_queue::RUN_QUEUES" },
+  { iter       = "array" },
+  { unwrap     = ["MaybeUninit", "NonNull"] },
+  { field      = "scheduler" },
+  { unwrap     = ["BaseSpinLock"] },
+  { field      = "ready_queue" },
+  { iter = "list", link = "links", next = "next", terminator = "circular_headed" },
+  { descend_to = "ax_task::task::TaskInner" },
+]
+
+
+
+
+
+
+#   _percpu_start、_percpu_end、_percpu_load_start、_percpu_load_end
+
+
+
+
+
+
+#   ax_percpu::layout::INSTALLED_LAYOUT @0xffffffff80d95f08
+#     PerCpuLayout size=48 {region:0, template_base:24, area_size:32,
+#                           required_alignment:40}
+#     PerCpuRegion size=24 {runtime_base:0, area_stride:8, area_count:16}
+#     runtime_base  = 0xffffffe081002000   area_stride = 0x41000
+
+
+
+#     template_base = 0xffffffff80d31140   area_size = 0x58a  align = 0x40
+
+
+
+
+
+
+
+
+
+
+
+#   tid=1  is_idle=1  is_init=0  state=2
+
+
+
+
+
+
+
+
+
+
+
+[[entity.source]]
+kind         = "registry"
+completeness = "partial"
+reason       = "每个 CPU 的 idle 任务；就绪队列里没有它，队列空了才轮到它跑"
+steps = [
+  { percpu = "ax_task::run_queue::IDLE_TASK", layout = "ax_percpu::layout::INSTALLED_LAYOUT" },
+  { unwrap     = ["MaybeUninit", "LazyInit", "Arc"] },
+  { descend_to = "ax_task::task::TaskInner" },
+]
+
+[entity.fields]
+id    = { path = "id",    reader = "newtype<u64>", role = "id" }
+name  = { path = "name",  reader = "spinlock<string>", role = "name" }
+
+
+
+state = { path = "state", reader = "atomic<enum>", enum = "ax_task::task::TaskState", role = "state" }
+
+
+#   ax_task::task::TaskInner  sched_priority +816  core::sync::atomic::Atomic<i32>
+
+
+
+
+priority = { path = "sched_priority", reader = "atomic<i32>", role = "priority" }
+
+
+
+
+#   ctx +376  UnsafeCell<ax_cpu::riscv::context::TaskContext>
+
+
+
+
+
+
+ctx   = { path = "ctx",   reader = "struct", role = "sched_context" }
+
+# ------------------------------------------------------------- relations
+
+
+
+
+
+
+
+
+
+
+
+#   AxTaskExt.__0       +0     extern_trait::Repr { __0: *mut (), __1: *mut () }
+
+#   Thread.proc_data    +0     Arc<ProcessData>
+#   ProcessData.proc    +1120  Arc<Process>
+
+
+
+
+
+[entity.relations]
+process = { path = "task_ext", links_to = "process", inverse = "threads", reader = "variant<Some, field<__0, field<__0, field<__0, ptr<astype<starry_kernel::task::Thread, field<proc_data, arc<field<proc, arc>>>>>>>>>" }
+
+
+
+
+
+
+
+
+[entity.table]
+empty = "这一帧没有枚举到活着的线程。注册表装的是 Weak，退出的任务升不上来。"
+column = [
+  { key = "slot",     label = "槽位", synthetic = true },
+  { key = "id",       label = "TID" },
+  { key = "name",     label = "名字" },
+  { key = "state",    label = "状态" },
+  { key = "priority", label = "优先级" },
+]
+
+# ---------------------------------------------------------------- watches
+
+
+
+# starry-kernel / starry-signal / starry-vm / starry-fatfs / starryos。
+
+
+
+
+
+
+[[watch]]
+subsystem = "panic"
+match     = { fn = ["rust_begin_unwind", "__rust_alloc_error_handler",
+                    "handle_alloc_error"] }
+snapshot  = "always"
+args      = 2
+throttle  = 0
+
+[[watch]]
+subsystem = "task"
+match     = { module = "starry_kernel::task" }
+args      = 2
+throttle  = 0
+
+[[watch]]
+subsystem = "syscall"
+match     = { module = "starry_kernel::syscall" }
+args      = 3          # syscalls want more args than anything else
+throttle  = 0
+
+[[watch]]
+subsystem = "trap"
+match     = { module = "starry_kernel::trap" }
+args      = 2
+throttle  = 0
+
+# Metric-bearing entry points inside otherwise high-volume modules must be
+# exact.  These narrow rules precede the diagnostic module-wide rules below,
+# so each address is selected once with throttle 0.
+[[watch]]
+subsystem = "mm"
+match     = { module = "starry_kernel::mm::loader", fn = ["load_user_app"] }
+args      = 2
+throttle  = 0
+
+[[watch]]
+subsystem = "mm"
+match     = { module = "starry_kernel::mm" }
+args      = 2
+throttle  = 64
+
+[[watch]]
+subsystem = "fs"
+match     = { module = ["starry_kernel::file", "starry_kernel::pseudofs"] }
+args      = 2
+throttle  = 64
+
+[[watch]]
+subsystem = "ipc"
+match     = { module = "starry_kernel::ipc" }
+args      = 2
+throttle  = 64
+
+
+
+
+
+
+[[watch]]
+subsystem = "ax-task"
+match     = { module = "ax_task" }
+args      = 2
+throttle  = 0
+
+
+
+#   ax_cpu::riscv::context::context_switch_raw
+
+
+
+
+
+
+
+[[watch]]
+subsystem = "sched"
+match     = { module = "ax_cpu", fn = ["context_switch*"] }
+args      = 2
+throttle  = 0
+
+[[watch]]
+subsystem = "ax-mm"
+match     = { module = "ax_mm::backend", fn = ["map", "unmap"] }
+args      = 2
+throttle  = 0
+
+[[watch]]
+subsystem = "ax-mm"
+match     = { module = "ax_mm" }
+args      = 2
+throttle  = 64
+
+[[watch]]
+subsystem = "ax-alloc"
+match     = { module = "ax_alloc", fn = ["dealloc_pages"] }
+args      = 3
+throttle  = 0
+
+[[watch]]
+subsystem = "ax-alloc"
+match     = { module = "ax_alloc" }
+args      = 1
+throttle  = 256
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#     cache::device::{impl#3}::read_block  →  runtime::lifecycle::io::read_blocks
+
+
+
+
+
+
+[[watch]]
+subsystem = "disk"
+match     = { module = "ax_fs_ng::block::runtime::lifecycle::io", fn = ["read_blocks", "write_blocks_with_flags"] }
+args      = 2
+throttle  = 0
+
+[[watch]]
+subsystem = "disk"
+match     = { module = "ax_fs_ng::block::runtime::lifecycle::io" }
+args      = 2
+throttle  = 64
+
+[[watch]]
+subsystem = "fs"
+match     = { module = "ax_fs_ng::block::cache::device", fn = ["read_block", "write_block"] }
+args      = 2
+throttle  = 0
+
+[[watch]]
+subsystem = "fs"
+match     = { module = "ax_fs_ng::block::cache::device" }
+args      = 2
+throttle  = 64
+
+
+
+
+
+
+
+
+#   _RNvMs0_...7journalINtB5_7Jbd2Dev...E6commitB17_
+
+
+
+
+
+
+
+
+
+#     `CloneTransaction::commit`、`CowCloneTransaction::commit`、
+
+
+
+
+
+
+
+
+
+[[watch]]
+subsystem = "fs"
+match     = { module = "rsext4::blockdev::journal", fn = ["commit", "commit_for_filesystem_sync"] }
+inlined   = true
+args      = 2
+throttle  = 0
+
+
+
+
+
+
+
+
+[[watch]]
+subsystem = "mm"
+match     = { module = "page_table_generic::table", fn = ["map_page"] }
+inlined   = true
+args      = 4
+throttle  = 0
+
+
+
+#     fs        1036      ax-task    193      ax-alloc    16
+#     syscall    433      task        66      ipc         15
+#                         mm          49      ax-mm       13
+#                                             panic        3
+#                                             trap         1
+#                                             sched        1
+#     ─────────────────────────────────────────────────────
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# ---------------------------------------------------------------- profile
+
+
+
+
+
+[profile]
+
+
+
+
+
+kernel_elf   = "target/riscv64gc-unknown-none-elf/release/starryos"
+
+
+
+
+kernel_image = "target/riscv64gc-unknown-none-elf/release/starryos.bin"
+
+
+
+
+
+
+
+
+
+build = """
+CARGO_PROFILE_RELEASE_DEBUG=2 {mv} cargo xtask starry build --config os/StarryOS/configs/board/qemu-riscv64.toml 2>&1 | tail -20\
+"""
+
+
+
+
+
+
+
+
+
+detect_files = [
+  "xtask/src/main.rs",
+  "os/StarryOS/starryos/Cargo.toml",
+  "scripts/axbuild/src/starry/mod.rs",
+]
+
+
+required_tools = ["qemu-system-riscv64", "cargo", "rust-objcopy"]
+
+
+
+
+
+
+
+
+
+
+
+
+#     cargo xtask starry rootfs --arch riscv64
+
+
+machine_opts = [
+    "-machine virt",
+    "-bios default",
+    "-kernel target/riscv64gc-unknown-none-elf/release/starryos.bin",
+    "-m 512M",
+    "-cpu rv64",
+    "-device nvme,drive=disk0,serial=tgoskits,max_ioqpairs=64,msix_qsize=65",
+    "-drive id=disk0,if=none,format=raw,snapshot=on,file=tmp/axbuild/rootfs/rootfs-riscv64-alpine.img",
+    "-device virtio-net-pci,netdev=net0",
+    "-netdev user,id=net0",
+]
+
+
+protect = ["tmp/axbuild/rootfs/rootfs-riscv64-alpine.img"]
+
+
+
+
+
+interactive = true
+prompt      = "root@starry:"
+
+
+
+
+
+
+
+
+ready_markers = [
+  "platform = riscv-virtio,qemu",
+  "kmod subsystem initialized",
+  "HOSTNAME=starry",
+]
+
+
+#   [starry_kernel::entry:162] shutdown: unmount_all failed (best-effort)
+
+
+
+
+
+
+
+
+
+
+
+
+
+done_markers = []
+
+build_deviation = "本次观测的内核用 CARGO_PROFILE_RELEASE_DEBUG=2 编，仓库默认的 release（[profile.release] 只设了 lto = false）不带任何调试信息，没有 DWARF 就解不出结构、也挂不上观察点。只加调试段，不改优化等级、不改 feature、不动仓库里任何文件。"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#   starry-forkecho  trap.page_fault 351、trap.page_fault_handler 351
+#   starry-fsprobe   trap.page_fault 323、handle_user_page_fault  323
+
+
+
+
+
+
+
+[event]
+
+"starry_kernel::task::ops::do_exit"                = "proc.exit"
+"starry_kernel::task::user::handle_user_page_fault" = "trap.page_fault_handler"
+"starry_kernel::task::signal::send_signal_to_process" = "signal.raise"
+
+
+
+
+
+
+
+
+
+
+
+
+#   arceos   axruntime::lang_items::panic    = kernel.panic
+#   rcore    os::lang_items::panic           = kernel.panic
+#   xv6      panic                           = kernel.panic
+
+"ax_runtime::lang_items::panic"        = "kernel.panic"
+"alloc::alloc::handle_alloc_error"     = "panic.alloc"
+"__rustc::__rust_alloc_error_handler"  = "panic.alloc_handler"
+
+
+
+
+#   0xffffffff8024f840  kernel.panic         -> rust_begin_unwind
+#   0xffffffff8047fc08  panic.alloc          -> alloc::alloc::handle_alloc_error
+#   0xffffffff80001168  panic.alloc_handler  -> __rustc::__rust_alloc_error_handler
+
+
+
+
+
+# trap.page_fault_handler 351、proc.exit 20、signal.raise 20、func.* 2113。
+
+
+
+
+
+
+
+
+
+#   arceos  axalloc::default_impl::_::__rust_alloc
+
+#   arceos  axmm::backend::{impl#0}::map
+#   starry  ax_mm::backend::{impl#0}::map
+
+
+"ax_alloc::buddy_slab::_::__rust_alloc"        = "heap.alloc"
+"ax_alloc::buddy_slab::_::__rust_alloc_zeroed" = "heap.alloc_zeroed"
+"ax_alloc::buddy_slab::_::__rust_dealloc"      = "heap.free"
+"ax_alloc::buddy_slab::_::__rust_realloc"      = "heap.realloc"
+"ax_alloc::buddy_slab::global_add_memory"      = "heap.add_memory"
+"ax_alloc::buddy_slab::global_init"            = "heap.init"
+
+"ax_mm::backend::{impl#0}::map"                = "vm.map"
+"ax_mm::backend::{impl#0}::unmap"              = "vm.unmap"
+"ax_mm::init_memory_management"                = "vm.init"
+"ax_mm::new_kernel_aspace"                     = "vm.aspace_create"
+
+
+
+"page_table_generic::table::PageTableRef::map_page" = { kind = "pagetable.map", resource = "pagetable", args = ["self", "vaddr", "paddr", "page_size"] }
+
+
+
+
+#     cache::device::{impl#3}::read_block   →  lifecycle::io::read_blocks
+#     cache::device::{impl#3}::write_block  →  lifecycle::io::write_blocks_with_flags
+
+
+
+
+
+
+
+"ax_fs_ng::block::runtime::lifecycle::io::read_blocks"             = { kind = "disk.io", operation = "read" }
+"ax_fs_ng::block::runtime::lifecycle::io::write_blocks_with_flags" = { kind = "disk.io", operation = "write" }
+"ax_fs_ng::block::cache::device::{impl#3}::read_block<ax_fs_ng::block::NativeHandleBlockDevice>"  = "bcache.read"
+"ax_fs_ng::block::cache::device::{impl#3}::write_block<ax_fs_ng::block::NativeHandleBlockDevice>" = "bcache.write"
+
+
+
+
+
+
+
+
+"starry_kernel::mm::loader::load_user_app"     = "proc.exec"
+
+
+
+
+
+
+
+
+
+
+
+
+"ax_alloc::buddy_slab::GlobalAllocator::alloc_pages"   = "phys.alloc"
+"ax_alloc::buddy_slab::GlobalAllocator::dealloc_pages" = "phys.free"
+
+
+
+
+
+
+
+# starry-a48c7e74.elf，ffffffff8030425c）：
+
+
+
+
+"ax_cpu::riscv::context::context_switch_raw"   = { kind = "sched.switch", args = ["old_ctx", "new_ctx"] }
+"ax_task::api::yield_now"                      = "sched.yield"
+"ax_task::api::spawn_task"                     = "proc.create"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+"starry_kernel::syscall::fs::fd_ops::sys_close"      = "syscall.close"
+"starry_kernel::syscall::fs::fd_ops::sys_dup"        = "syscall.dup"
+"starry_kernel::syscall::fs::io::sys_read"           = "syscall.read"
+"starry_kernel::syscall::fs::io::sys_write"          = "syscall.write"
+"starry_kernel::syscall::fs::ctl::sys_linkat"        = "syscall.linkat"
+"starry_kernel::syscall::fs::ctl::sys_unlinkat"      = "syscall.unlinkat"
+"starry_kernel::syscall::mm::mmap::sys_mmap"         = "syscall.mmap"
+"starry_kernel::syscall::mm::mmap::sys_munmap"       = "syscall.munmap"
+"starry_kernel::syscall::task::thread::sys_getpid"   = "syscall.getpid"
+"starry_kernel::syscall::task::thread::sys_gettid"   = "syscall.gettid"
+"starry_kernel::syscall::task::wait::sys_waitpid"    = "syscall.waitpid"
+"starry_kernel::syscall::signal::sys_kill"           = "syscall.kill"
+
+
+
+
+
+
+
+
+
+
+
+"starry_kernel::syscall::fs::fd_ops::sys_openat"       = "syscall.open"
+"starry_kernel::syscall::fs::stat::sys_fstatat"        = "syscall.fstat"
+"starry_kernel::syscall::fs::pipe::sys_pipe2"          = "syscall.pipe"
+"starry_kernel::syscall::mm::brk::sys_brk"             = "syscall.sbrk"
+"starry_kernel::syscall::time::sys_clock_gettime"      = "syscall.get_time"
+"starry_kernel::syscall::signal::sys_rt_sigaction"     = "syscall.sigaction"
+"starry_kernel::syscall::signal::sys_rt_sigprocmask"   = "syscall.sigprocmask"
+"starry_kernel::syscall::signal::sys_rt_sigreturn"     = "syscall.sigreturn"
+
+
+
+
+
+
+
+
+
+"starry_kernel::syscall::task::execve::sys_execve"     = "syscall.exec"
+"starry_kernel::syscall::task::execve::sys_execveat"   = "syscall.exec"
+"starry_kernel::syscall::task::schedule::sys_nanosleep"       = "syscall.sleep"
+"starry_kernel::syscall::task::schedule::sys_clock_nanosleep" = "syscall.sleep"
+
+
+
+
+
+
+
+
+
+
+
+"starry_kernel::syscall::task::clone::sys_clone" = { kind = "proc.fork", resource = "process", args = ["return_slot", "uctx", "flags", "stack", "parent_tid", "tls", "child_tid"], classify = { arg = "flags", mask = 65536, set = "thread.create" } }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#   622 send_signal_to_process_data(&data,sig) 20
+#   674 publish_process_signal(...)            20
+
+
+
+
+
+
+
+
+
+
+
+
+
+# （send_signal_to_thread / send_signal_to_task / send_signal_thread_inner），
+
+
+
+
+
+
+
+#   0xffffffff803336b6  rsext4::blockdev::journal::Jbd2Dev::commit
+
+
+
+
+
+
+"rsext4::blockdev::journal::Jbd2Dev::commit" = "log.commit"

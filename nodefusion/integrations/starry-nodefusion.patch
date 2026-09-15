@@ -1,0 +1,336 @@
+diff --git a/memory/ax-alloc/Cargo.toml b/memory/ax-alloc/Cargo.toml
+index a712663..54555d8 100644
+--- a/memory/ax-alloc/Cargo.toml
++++ b/memory/ax-alloc/Cargo.toml
+@@ -15,0 +16,3 @@ tracking = ["dep:ax-percpu", "dep:axbacktrace"]
++# Emit NodeFusion's optional guest semantic records.  The Starry kernel owns
++# the wire implementation; ax-alloc only calls its allocation-result hook.
++nodefusion-trace = []
+diff --git a/memory/ax-alloc/src/buddy_slab.rs b/memory/ax-alloc/src/buddy_slab.rs
+index 981688e..d567ee8 100644
+--- a/memory/ax-alloc/src/buddy_slab.rs
++++ b/memory/ax-alloc/src/buddy_slab.rs
+@@ -188,0 +189,2 @@ impl GlobalAllocator {
++        let (free_pages, used_pages) = self.page_counts();
++        crate::trace_allocator_state(free_pages, used_pages);
+@@ -199,0 +202,2 @@ impl GlobalAllocator {
++        let (free_pages, used_pages) = self.page_counts();
++        crate::trace_allocator_state(free_pages, used_pages);
+@@ -230 +234,8 @@ impl GlobalAllocator {
+-        let addr = result.map_err(crate::AllocError::from)?;
++        let addr = match result.map_err(crate::AllocError::from) {
++            Ok(addr) => addr,
++            Err(err) => {
++                let (free_pages, used_pages) = self.page_counts();
++                crate::trace_page_alloc(0, num_pages, free_pages, used_pages);
++                return Err(err);
++            }
++        };
+@@ -233,0 +245,2 @@ impl GlobalAllocator {
++        let (free_pages, used_pages) = self.page_counts();
++        crate::trace_page_alloc(addr, num_pages, free_pages, used_pages);
+@@ -263 +276,8 @@ impl GlobalAllocator {
+-        let addr = result.map_err(crate::AllocError::from)?;
++        let addr = match result.map_err(crate::AllocError::from) {
++            Ok(addr) => addr,
++            Err(err) => {
++                let (free_pages, used_pages) = self.page_counts();
++                crate::trace_page_alloc(0, num_pages, free_pages, used_pages);
++                return Err(err);
++            }
++        };
+@@ -266,0 +287,2 @@ impl GlobalAllocator {
++        let (free_pages, used_pages) = self.page_counts();
++        crate::trace_page_alloc(addr, num_pages, free_pages, used_pages);
+@@ -288,0 +311,2 @@ impl GlobalAllocator {
++        let (free_pages, used_pages) = self.page_counts();
++        crate::trace_page_free(pos, num_pages, free_pages, used_pages);
+@@ -313,0 +338,10 @@ impl GlobalAllocator {
++    /// Return free and allocated page counts from one allocator snapshot.
++    fn page_counts(&self) -> (usize, usize) {
++        let inner = self.inner.lock_irqsave();
++        let allocated = inner.allocated_bytes();
++        (
++            inner.managed_bytes().saturating_sub(allocated) / PAGE_SIZE,
++            allocated / PAGE_SIZE,
++        )
++    }
++
+diff --git a/memory/ax-alloc/src/lib.rs b/memory/ax-alloc/src/lib.rs
+index 006cde0..112e364 100644
+--- a/memory/ax-alloc/src/lib.rs
++++ b/memory/ax-alloc/src/lib.rs
+@@ -20,0 +21,76 @@ const PAGE_SIZE: usize = 0x1000;
++#[cfg(feature = "nodefusion-trace")]
++unsafe extern "C" {
++    fn nodefusion_trace_page_alloc(
++        vaddr: usize,
++        num_pages: usize,
++        free_pages: usize,
++        used_pages: usize,
++    );
++    fn nodefusion_trace_page_free(
++        vaddr: usize,
++        num_pages: usize,
++        free_pages: usize,
++        used_pages: usize,
++    );
++    fn nodefusion_trace_allocator_state(free_pages: usize, used_pages: usize);
++}
++
++/// Report an allocation result after allocator locks have been released.
++#[cfg(feature = "nodefusion-trace")]
++#[inline(always)]
++pub(crate) fn trace_page_alloc(
++    vaddr: usize,
++    num_pages: usize,
++    free_pages: usize,
++    used_pages: usize,
++) {
++    // SAFETY: enabling `nodefusion-trace` is a link-time contract with the
++    // Starry kernel, which exports this allocation-free callback.
++    unsafe { nodefusion_trace_page_alloc(vaddr, num_pages, free_pages, used_pages) }
++}
++
++#[cfg(not(feature = "nodefusion-trace"))]
++#[inline(always)]
++pub(crate) fn trace_page_alloc(
++    _vaddr: usize,
++    _num_pages: usize,
++    _free_pages: usize,
++    _used_pages: usize,
++) {
++}
++
++/// Report a deallocation after allocator locks have been released.
++#[cfg(feature = "nodefusion-trace")]
++#[inline(always)]
++pub(crate) fn trace_page_free(
++    vaddr: usize,
++    num_pages: usize,
++    free_pages: usize,
++    used_pages: usize,
++) {
++    // SAFETY: same link-time contract as `trace_page_alloc`.
++    unsafe { nodefusion_trace_page_free(vaddr, num_pages, free_pages, used_pages) }
++}
++
++#[cfg(not(feature = "nodefusion-trace"))]
++#[inline(always)]
++pub(crate) fn trace_page_free(
++    _vaddr: usize,
++    _num_pages: usize,
++    _free_pages: usize,
++    _used_pages: usize,
++) {
++}
++
++/// Report the exact page-backend state after a byte-allocator mutation.
++#[cfg(feature = "nodefusion-trace")]
++#[inline(always)]
++pub(crate) fn trace_allocator_state(free_pages: usize, used_pages: usize) {
++    // SAFETY: same link-time contract as `trace_page_alloc`.
++    unsafe { nodefusion_trace_allocator_state(free_pages, used_pages) }
++}
++
++#[cfg(not(feature = "nodefusion-trace"))]
++#[inline(always)]
++pub(crate) fn trace_allocator_state(_free_pages: usize, _used_pages: usize) {}
++
+diff --git a/os/StarryOS/configs/board/qemu-riscv64.toml b/os/StarryOS/configs/board/qemu-riscv64.toml
+index 4a5d23a..d0e324a 100644
+--- a/os/StarryOS/configs/board/qemu-riscv64.toml
++++ b/os/StarryOS/configs/board/qemu-riscv64.toml
+@@ -1,0 +2 @@ features = [
++  "starryos/nodefusion-trace",
+diff --git a/os/StarryOS/kernel/Cargo.toml b/os/StarryOS/kernel/Cargo.toml
+index f0419c5..9251370 100644
+--- a/os/StarryOS/kernel/Cargo.toml
++++ b/os/StarryOS/kernel/Cargo.toml
+@@ -88,0 +89 @@ memtrack = ["axbacktrace/alloc", "ax-alloc/tracking"]
++nodefusion-trace = ["ax-alloc/nodefusion-trace"]
+diff --git a/os/StarryOS/kernel/src/root.rs b/os/StarryOS/kernel/src/root.rs
+index 7feabaf..0304eda 100644
+--- a/os/StarryOS/kernel/src/root.rs
++++ b/os/StarryOS/kernel/src/root.rs
+@@ -37,0 +38,2 @@ mod namespace;
++#[cfg(feature = "nodefusion-trace")]
++mod nftrace;
+diff --git a/os/StarryOS/kernel/src/syscall/task/clone.rs b/os/StarryOS/kernel/src/syscall/task/clone.rs
+index 23ace5e..05270d5 100644
+--- a/os/StarryOS/kernel/src/syscall/task/clone.rs
++++ b/os/StarryOS/kernel/src/syscall/task/clone.rs
+@@ -598,0 +599,6 @@ impl CloneArgs {
++        #[cfg(feature = "nodefusion-trace")]
++        crate::nftrace::clone_created(
++            flags.contains(CloneFlags::THREAD),
++            curr_thread.tid().get() as u64,
++            root_tid.get() as u64,
++        );
+diff --git a/os/StarryOS/kernel/src/tracepoint/sched.rs b/os/StarryOS/kernel/src/tracepoint/sched.rs
+index 8c582e7..6982a1d 100644
+--- a/os/StarryOS/kernel/src/tracepoint/sched.rs
++++ b/os/StarryOS/kernel/src/tracepoint/sched.rs
+@@ -46 +46,9 @@ impl SchedTracepoint for SchedTracepointImpl {
+-        trace_sched_switch(trace_tid(prev_task), trace_tid(next_task), prev_state);
++        let (prev_task_id, prev_tid) = trace_identity(prev_task);
++        let (next_task_id, next_tid) = trace_identity(next_task);
++        trace_sched_switch(
++            visible_tid(prev_task_id, prev_tid),
++            visible_tid(next_task_id, next_tid),
++            prev_state,
++        );
++        #[cfg(feature = "nodefusion-trace")]
++        crate::nftrace::sched_switch(prev_task_id, next_task_id, prev_tid, next_tid);
+@@ -49,0 +58,2 @@ impl SchedTracepoint for SchedTracepointImpl {
++const NO_LINUX_TID: u64 = u64::MAX;
++
+@@ -53,2 +63,3 @@ impl SchedTracepoint for SchedTracepointImpl {
+-fn trace_tid(task_id: TaskId) -> u64 {
+-    task_by_id(task_id)
++fn trace_identity(task_id: TaskId) -> (u64, u64) {
++    let scheduler_id = task_id.as_u64();
++    let tid = task_by_id(task_id)
+@@ -56 +67,6 @@ fn trace_tid(task_id: TaskId) -> u64 {
+-        .unwrap_or_else(|| task_id.as_u64())
++        .unwrap_or(NO_LINUX_TID);
++    (scheduler_id, tid)
++}
++
++fn visible_tid(scheduler_id: u64, tid: u64) -> u64 {
++    if tid == NO_LINUX_TID { scheduler_id } else { tid }
+diff --git a/os/StarryOS/starryos/Cargo.toml b/os/StarryOS/starryos/Cargo.toml
+index 4d21341..4c33b59 100644
+--- a/os/StarryOS/starryos/Cargo.toml
++++ b/os/StarryOS/starryos/Cargo.toml
+@@ -30,0 +31 @@ lockdep = ["ax-std/lockdep"]
++nodefusion-trace = ["starry-kernel/nodefusion-trace"]
+diff --git a/os/StarryOS/kernel/src/nftrace.rs b/os/StarryOS/kernel/src/nftrace.rs
+new file mode 100644
+index 0000000..f9f803a
+--- /dev/null
++++ b/os/StarryOS/kernel/src/nftrace.rs
+@@ -0,0 +1,123 @@
++//! NodeFusion's optional in-kernel semantic channel.
++//!
++//! The QEMU plugin watches `nftrace_commit_point` and copies the five-u64
++//! record from guest memory at function entry.  Keep this layout synchronized
++//! with `nodefusion/spec/event-stream.md` section 2.4.
++
++use ax_memory_addr::VirtAddr;
++use ax_runtime::hal::mem::virt_to_phys;
++
++const NFT_KALLOC: u64 = 1;
++const NFT_PROC_FORK: u64 = 2;
++const NFT_THREAD_CREATE: u64 = 3;
++const NFT_SCHED_SWITCH: u64 = 4;
++const NFT_KFREE: u64 = 5;
++const NFT_ALLOCATOR_STATE: u64 = 6;
++
++#[repr(C)]
++#[derive(Clone, Copy)]
++pub struct NfTraceRecord {
++    type_: u64,
++    a: [u64; 4],
++}
++
++/// Stable observation point.  The volatile read prevents the record and call
++/// from being optimized away; the plugin observes `record` in a0 before the
++/// function body executes.
++#[unsafe(no_mangle)]
++#[inline(never)]
++pub extern "C" fn nftrace_commit_point(record: *const NfTraceRecord) {
++    if !record.is_null() {
++        // SAFETY: every caller passes a live stack record for this call.
++        core::hint::black_box(unsafe { core::ptr::read_volatile(record) });
++    }
++}
++
++#[inline(always)]
++fn emit(type_: u64, a0: u64, a1: u64) {
++    emit4(type_, a0, a1, 0, 0);
++}
++
++#[inline(always)]
++fn emit4(type_: u64, a0: u64, a1: u64, a2: u64, a3: u64) {
++    let record = NfTraceRecord {
++        type_,
++        a: [a0, a1, a2, a3],
++    };
++    nftrace_commit_point(&record);
++}
++
++/// Called by ax-alloc after all allocator locks have been released.
++#[unsafe(no_mangle)]
++pub extern "C" fn nodefusion_trace_page_alloc(
++    vaddr: usize,
++    num_pages: usize,
++    free_pages: usize,
++    used_pages: usize,
++) {
++    let paddr = if vaddr == 0 {
++        0
++    } else {
++        virt_to_phys(VirtAddr::from(vaddr)).as_usize()
++    };
++    emit4(
++        NFT_KALLOC,
++        paddr as u64,
++        num_pages as u64,
++        free_pages as u64,
++        used_pages as u64,
++    );
++}
++
++/// Called by ax-alloc after all allocator locks have been released.
++#[unsafe(no_mangle)]
++pub extern "C" fn nodefusion_trace_page_free(
++    vaddr: usize,
++    num_pages: usize,
++    free_pages: usize,
++    used_pages: usize,
++) {
++    let paddr = virt_to_phys(VirtAddr::from(vaddr)).as_usize();
++    emit4(
++        NFT_KFREE,
++        paddr as u64,
++        num_pages as u64,
++        free_pages as u64,
++        used_pages as u64,
++    );
++}
++
++/// Called after a byte-heap mutation that may grow or shrink its page backing.
++#[unsafe(no_mangle)]
++pub extern "C" fn nodefusion_trace_allocator_state(free_pages: usize, used_pages: usize) {
++    emit(
++        NFT_ALLOCATOR_STATE,
++        free_pages as u64,
++        used_pages as u64,
++    );
++}
++
++pub(crate) fn clone_created(is_thread: bool, parent_tid: u64, child_tid: u64) {
++    emit(
++        if is_thread {
++            NFT_THREAD_CREATE
++        } else {
++            NFT_PROC_FORK
++        },
++        parent_tid,
++        child_tid,
++    );
++}
++
++pub(crate) fn sched_switch(
++    prev_task_id: u64,
++    next_task_id: u64,
++    prev_tid: u64,
++    next_tid: u64,
++) {
++    let record = NfTraceRecord {
++        type_: NFT_SCHED_SWITCH,
++        a: [prev_task_id, next_task_id, prev_tid, next_tid],
++    };
++    nftrace_commit_point(&record);
++}
