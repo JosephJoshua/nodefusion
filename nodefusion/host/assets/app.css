@@ -1,0 +1,288 @@
+/* NodeFusion 通用可视化前端样式。
+   刻意保持信息密度：这是一个工程观测界面，不是宣传页。 */
+
+:root {
+  --bg: #0d1117;
+  --bg2: #161b22;
+  --bg3: #1c2230;
+  --line: #2a3140;
+  --fg: #e6edf3;
+  --fg2: #9aa7b5;
+  --fg3: #6b7784;
+  --accent: #4aa3ff;
+  --ok: #3fb950;
+  --warn: #d29922;
+  --err: #f85149;
+  --purple: #a371f7;
+  --mono: ui-monospace, "Cascadia Code", "Consolas", "DejaVu Sans Mono", monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0; height: 100%;
+  background: var(--bg); color: var(--fg);
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 13px;
+}
+
+#app { display: flex; flex-direction: column; height: 100vh; }
+
+/* ---------------------------------------------------------------- header */
+
+header {
+  background: var(--bg2); border-bottom: 1px solid var(--line);
+  padding: 8px 14px; display: flex; align-items: center; gap: 16px;
+  flex-wrap: wrap;
+}
+header h1 {
+  margin: 0; font-size: 15px; font-weight: 600; letter-spacing: .5px;
+}
+header h1 span { color: var(--accent); }
+.hmeta { display: flex; gap: 14px; flex-wrap: wrap; color: var(--fg2); font-size: 12px; }
+.hmeta b { color: var(--fg); font-weight: 500; }
+
+.badge {
+  padding: 2px 9px; border-radius: 10px; font-size: 11px; font-weight: 600;
+}
+.badge.completed { background: rgba(63,185,80,.15); color: var(--ok); }
+.badge.panic, .badge.boot_failed, .badge.qemu_error {
+  background: rgba(248,81,73,.15); color: var(--err);
+}
+.badge.timeout, .badge.qemu_exited, .badge.unknown {
+  background: rgba(210,153,34,.15); color: var(--warn);
+}
+
+/* ------------------------------------------------------------- capability */
+
+.capability {
+  background: rgba(210,153,34,.08); border-bottom: 1px solid var(--line);
+  padding: 5px 14px; font-size: 12px; color: var(--warn);
+  display: flex; align-items: center;
+}
+.capability.coverage-complete { background: rgba(63,185,80,.08); color: var(--ok); }
+.capability details { width: 100%; }
+.capability summary {
+  cursor: pointer; list-style: none; display: flex; align-items: center;
+  justify-content: space-between; gap: 12px;
+}
+.capability summary::-webkit-details-marker { display: none; }
+.capability .cap-headline { font-weight: 600; }
+.capability .cap-more { color: var(--fg3); font-size: 11px; font-weight: 400; }
+.capability ul { margin: 3px 0 0 16px; padding: 0; color: var(--fg2); }
+.capability li { margin: 3px 0; overflow-wrap: anywhere; }
+.inline-disclosure summary { cursor: pointer; color: var(--fg2); }
+.inline-disclosure .disclosure-body { margin-top: 5px; color: var(--fg3); }
+
+/* ------------------------------------------------------------------ time */
+
+.timebar {
+  background: var(--bg2); border-bottom: 1px solid var(--line);
+  padding: 7px 14px; display: flex; align-items: center; gap: 10px;
+}
+.timebar button {
+  background: var(--bg3); border: 1px solid var(--line); color: var(--fg);
+  border-radius: 4px; padding: 3px 10px; cursor: pointer; font-size: 12px;
+}
+.timebar button:hover { border-color: var(--accent); color: var(--accent); }
+.timebar input[type=range] { flex: 1; accent-color: var(--accent); }
+.tlabel { font-family: var(--mono); font-size: 12px; color: var(--fg2); white-space: nowrap; }
+.tlabel b { color: var(--fg); }
+
+#minimap { width: 100%; height: 34px; display: block; cursor: pointer; }
+.minimapwrap { background: var(--bg2); border-bottom: 1px solid var(--line); padding: 0 14px 6px; }
+
+/* ------------------------------------------------------------------ body */
+
+.main { flex: 1; display: flex; min-height: 0; }
+.left { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.right {
+  width: 380px; border-left: 1px solid var(--line); background: var(--bg2);
+  overflow: auto; padding: 10px 12px; flex-shrink: 0;
+}
+
+nav.tabs {
+  display: flex; gap: 2px; background: var(--bg2);
+  border-bottom: 1px solid var(--line); padding: 0 8px;
+}
+nav.tabs button {
+  background: none; border: none; border-bottom: 2px solid transparent;
+  color: var(--fg2); padding: 7px 12px; cursor: pointer; font-size: 12.5px;
+}
+nav.tabs button.on { color: var(--fg); border-bottom-color: var(--accent); }
+
+.panel { flex: 1; overflow: auto; padding: 12px 14px; display: none; }
+.panel.on { display: block; }
+
+/* ----------------------------------------------------------------- cards */
+
+.cards { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.card {
+  background: var(--bg2); border: 1px solid var(--line); border-radius: 6px;
+  padding: 8px 12px; min-width: 116px;
+}
+.card .v { font-size: 18px; font-family: var(--mono); }
+.card .l { font-size: 11px; color: var(--fg3); margin-top: 2px; }
+.card .s { font-size: 11px; color: var(--fg3); margin-top: 3px;
+  font-family: var(--mono); white-space: nowrap; }
+
+h3 { font-size: 13px; margin: 16px 0 7px; color: var(--fg); font-weight: 600; }
+h3:first-child { margin-top: 0; }
+.hint { color: var(--fg3); font-size: 11.5px; margin: 4px 0 8px; line-height: 1.5; }
+/* 挨着数字的次要说明（比如抽样类别的"实际 57～14592"）。压暗是要的：
+   它是个区间，不该跟旁边那个精确计数抢同样的分量。 */
+.dim { color: var(--fg3); font-size: 11px; }
+
+/* ---------------------------------------------------------------- tables */
+
+table { border-collapse: collapse; width: 100%; font-size: 12px; }
+th {
+  text-align: left; color: var(--fg3); font-weight: 500; padding: 4px 8px;
+  border-bottom: 1px solid var(--line); position: sticky; top: 0;
+  background: var(--bg); white-space: nowrap;
+}
+td { padding: 3px 8px; border-bottom: 1px solid rgba(42,49,64,.5); }
+td.mono, th.mono { font-family: var(--mono); }
+tr.sel td { background: rgba(74,163,255,.15); }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover td { background: rgba(255,255,255,.04); }
+
+.tag {
+  display: inline-block; padding: 1px 6px; border-radius: 3px;
+  font-size: 10.5px; font-family: var(--mono);
+}
+.st-RUNNING  { background: rgba(63,185,80,.18);  color: var(--ok); }
+.st-RUNNABLE { background: rgba(74,163,255,.18); color: var(--accent); }
+.st-SLEEPING { background: rgba(163,113,247,.18); color: var(--purple); }
+.st-ZOMBIE   { background: rgba(248,81,73,.18);  color: var(--err); }
+.st-USED, .st-UNUSED { background: rgba(107,119,132,.18); color: var(--fg3); }
+
+/* 三态里那两个"没有数"的态。**它们必须跟"有数是 0"看着不一样** —— 一个是
+   量出来的 0，一个是压根没量。都灰，但灰得不一样：挂上没响的还是正文色系
+   （它是这趟的事实），声明没有的整行压到 fg3（它跟这趟无关）。 */
+tr.k-silent td:first-child { color: var(--fg2); }
+tr.k-absent  td { color: var(--fg3); }
+.tag.why-empty       { background: rgba(107,119,132,.18); color: var(--fg2); }
+.tag.why-feature     { background: rgba(210,153,34,.15);  color: var(--warn); }
+.tag.why-granularity { background: rgba(163,113,247,.18); color: var(--purple); }
+
+.unknown { color: var(--warn); font-style: italic; }
+
+/* 字段状态。三种情况值都是 null，但**必须长得不一样**：
+     absent       这个内核没有这个字段  —— 内核的性质，正常
+     empty        字段在，这一刻是空    —— 这一刻的值，正常
+     undecodable  本该有却没读出来      —— 我们的故障，要显眼
+   混成同一个 '—' 的话，"rCore 没有 chan"和"解码挂了"在屏幕上就是同一句话。 */
+.fs-absent      { background: rgba(107,119,132,.18); color: var(--fg3); }
+.fs-empty       { background: rgba(107,119,132,.10); color: var(--fg3); font-style: italic; }
+.fs-undecodable { background: rgba(210,153,34,.18);  color: var(--warn); }
+
+/* 角色：跨内核通用的那几个概念。字段名各内核不同，角色是同一个。 */
+.role { margin-left: 5px; font-size: 9.5px; color: var(--accent); opacity: .8; }
+
+/* ------------------------------------------------------------ phys memory */
+
+#physcanvas {
+  image-rendering: pixelated; border: 1px solid var(--line);
+  background: #05070a; cursor: crosshair; max-width: 100%;
+}
+.legend { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0; font-size: 11.5px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; }
+
+/* ---------------------------------------------------------------- events */
+
+.filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+.filters input, .filters select {
+  background: var(--bg3); border: 1px solid var(--line); color: var(--fg);
+  border-radius: 4px; padding: 3px 7px; font-size: 12px;
+}
+.filters input[type=text] { min-width: 190px; }
+#evscroll { height: calc(100vh - 300px); overflow: auto; border: 1px solid var(--line); border-radius: 5px; }
+
+/* ---------------------------------------------------------------- detail */
+
+.dsec { margin-bottom: 14px; }
+.dsec .t { font-size: 11px; color: var(--fg3); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 5px; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 12px; }
+.kv .k { color: var(--fg3); white-space: nowrap; }
+.kv .v { font-family: var(--mono); word-break: break-all; }
+.delta.up { color: var(--ok); }
+.delta.down { color: var(--err); }
+
+pre.console {
+  background: #05070a; border: 1px solid var(--line); border-radius: 5px;
+  padding: 10px; font-family: var(--mono); font-size: 12px; color: var(--fg2);
+  white-space: pre-wrap; word-break: break-all; max-height: 70vh; overflow: auto;
+}
+
+canvas.chart { width: 100%; height: 130px; display: block; background: var(--bg2);
+  border: 1px solid var(--line); border-radius: 5px; margin-bottom: 10px; }
+
+/* --------------------------------------------------------------- compare */
+
+.cmp { display: flex; gap: 10px; }
+.cmp > div { flex: 1; min-width: 0; }
+.cmphead {
+  background: var(--bg3); border: 1px solid var(--line); border-radius: 5px;
+  padding: 6px 10px; margin-bottom: 8px; font-size: 12px;
+}
+.cmpdiff { color: var(--accent); font-family: var(--mono); }
+
+.err-box {
+  background: rgba(248,81,73,.1); border: 1px solid var(--err);
+  border-radius: 6px; padding: 12px; color: var(--err); margin: 20px;
+}
+
+
+/* ------------------------------------------------- 物理内存图的坐标与图例 */
+/*
+ * 原来这张图是一片没有坐标的方块，谁也看不出哪里是哪里。
+ * 左边补一列物理地址刻度之后，"内核镜像在最上面、用户页在高地址"
+ * 这种结构才真正看得见。
+ */
+.physwrap { position: relative; padding-left: 86px; margin-bottom: 8px; }
+.physwrap canvas {
+  /* 128 行 × 256 列的原始比例是 2:1，铺满宽度会有 590px 高，
+     加上图例就把主角挤出屏幕了。这里非等比压扁：格子变成矮长方形，
+     但"一格 = 一页"的对应关系不变，整张图反而更容易一眼扫完。 */
+  width: 100%; height: 360px; display: block; image-rendering: pixelated;
+  border: 1px solid var(--line); border-radius: 4px; background: #05070a;
+}
+.physaxis { position: absolute; left: 0; top: 0; bottom: 0; width: 82px; }
+.physaxis .atick {
+  position: absolute; right: 6px; transform: translateY(-50%);
+  font-family: var(--mono); font-size: 10px; color: var(--fg3);
+  white-space: nowrap;
+}
+.physaxis .atick::after {
+  content: ''; position: absolute; right: -6px; top: 50%;
+  width: 4px; height: 1px; background: var(--line);
+}
+
+.legend2 {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+  gap: 2px 12px; margin: 6px 0 8px;
+}
+.legend2 .lgitem { display: flex; gap: 6px; align-items: flex-start; font-size: 11.5px; }
+.legend2 .lgitem i {
+  width: 11px; height: 11px; border-radius: 2px; flex: none; margin-top: 3px;
+  border: 1px solid rgba(255,255,255,.18);
+}
+.legend2 .lgitem b { color: var(--fg); font-weight: 600; }
+.legend2 .lgdef { color: var(--fg3); display: block; line-height: 1.3; font-size: 11px; }
+
+/* 变化摘要条 */
+.deltabar {
+  margin: 0 10px 8px; padding: 7px 12px; font-size: 12px;
+  background: var(--bg2); border: 1px solid var(--line);
+  border-left: 3px solid var(--accent); border-radius: 5px;
+  color: var(--fg2); font-family: var(--mono);
+}
+.deltabar b { color: var(--fg); }
+.deltabar .up { color: var(--ok); }
+.deltabar .down { color: var(--err); }
+
+.physopt { font-size: 12px; color: var(--fg2); margin: 4px 0 6px;
+  display: flex; align-items: center; gap: 6px; }
+.physopt label { cursor: pointer; }
+.physaxis .atick.gap { color: #6e7681; font-size: 9px; font-style: italic; }

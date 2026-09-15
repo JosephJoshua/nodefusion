@@ -1,0 +1,2394 @@
+[
+ {
+  "chapter": "ch1",
+  "built": true,
+  "build_error": "",
+  "text_size": 7406,
+  "src_files": 8,
+  "structs": {
+   "Stdout": {
+    "size": 0,
+    "path": "os::console::Stdout",
+    "fields": {},
+    "field_types": {}
+   }
+  },
+  "enums": {},
+  "globals": {
+   "TASK_MANAGER": null,
+   "PROCESSOR": null,
+   "INITPROC": null,
+   "PID2TCB": null,
+   "PID2PCB": null,
+   "APP_MANAGER": null,
+   "KERNEL_SPACE": null,
+   "FRAME_ALLOCATOR": null,
+   "PID_ALLOCATOR": null,
+   "ROOT_INODE": null,
+   "BLOCK_DEVICE": null,
+   "BLOCK_CACHE_MANAGER": null
+  },
+  "layout": {
+   "kind": null,
+   "cap": null,
+   "offsets": {},
+   "notes": {
+    "task": "这个内核里没有 TaskControlBlock（各章内核结构不同，可能本章就没有这个东西）",
+    "task-chain": "这个内核里既没有 TaskManager 也没有 AppManager（ch1 本来就没有任务/批处理的概念）。",
+    "task_context": "这个内核里没有 TaskContext（各章内核结构不同，可能本章就没有这个东西）",
+    "task_manager": "这个内核里没有 TaskManager（各章内核结构不同，可能本章就没有这个东西）",
+    "task_manager_inner": "这个内核里没有 TaskManagerInner（各章内核结构不同，可能本章就没有这个东西）"
+   }
+  }
+ },
+ {
+  "chapter": "ch2",
+  "built": true,
+  "build_error": "",
+  "text_size": 13270,
+  "src_files": 17,
+  "structs": {
+   "TrapContext": {
+    "size": 272,
+    "path": "os::trap::context::TrapContext",
+    "fields": {
+     "x": 0,
+     "sstatus": 256,
+     "sepc": 264
+    },
+    "field_types": {
+     "x": "[usize; 32]",
+     "sstatus": "Sstatus",
+     "sepc": "usize"
+    }
+   },
+   "AppManager": {
+    "size": 152,
+    "path": "os::batch::AppManager",
+    "fields": {
+     "num_app": 0,
+     "current_app": 8,
+     "app_start": 16
+    },
+    "field_types": {
+     "num_app": "usize",
+     "current_app": "usize",
+     "app_start": "[usize; 17]"
+    }
+   },
+   "KernelStack": {
+    "size": 8192,
+    "path": "os::batch::KernelStack",
+    "fields": {
+     "data": 0
+    },
+    "field_types": {
+     "data": "[u8; 8192]"
+    }
+   },
+   "Stdout": {
+    "size": 0,
+    "path": "os::console::Stdout",
+    "fields": {},
+    "field_types": {}
+   }
+  },
+  "enums": {},
+  "globals": {
+   "TASK_MANAGER": null,
+   "PROCESSOR": null,
+   "INITPROC": null,
+   "PID2TCB": null,
+   "PID2PCB": null,
+   "APP_MANAGER": [
+    {
+     "sym": "_ZN66_$LT$os..batch..APP_MANAGER$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17h13da4f20721423f2E.llvm.12508800305187641169",
+     "addr": 2149806080,
+     "size": 168
+    },
+    {
+     "sym": "_ZN66_$LT$os..batch..APP_MANAGER$u20$as$u20$core..ops..deref..Deref$GT$5deref17hb1671aa8838f01fbE.llvm.12508800305187641169",
+     "addr": 2149584402,
+     "size": 64
+    }
+   ],
+   "KERNEL_SPACE": null,
+   "FRAME_ALLOCATOR": null,
+   "PID_ALLOCATOR": null,
+   "ROOT_INODE": null,
+   "BLOCK_DEVICE": null,
+   "BLOCK_CACHE_MANAGER": null
+  },
+  "layout": {
+   "kind": 3,
+   "cap": null,
+   "offsets": {
+    "rcore.appmgr_app_start": 16,
+    "rcore.appmgr_current": 8,
+    "rcore.appmgr_from_lazy": 8,
+    "rcore.appmgr_num_app": 0
+   },
+   "notes": {
+    "task": "这个内核里没有 TaskControlBlock（各章内核结构不同，可能本章就没有这个东西）",
+    "task-chain": "这一章是批处理内核：没有任务表，只有 AppManager 记录应用总数和当前跑到第几个。没有进程概念，因此不存在进程列表。",
+    "task_context": "这个内核里没有 TaskContext（各章内核结构不同，可能本章就没有这个东西）",
+    "task_manager": "这个内核里没有 TaskManager（各章内核结构不同，可能本章就没有这个东西）",
+    "task_manager_inner": "这个内核里没有 TaskManagerInner（各章内核结构不同，可能本章就没有这个东西）"
+   }
+  }
+ },
+ {
+  "chapter": "ch3",
+  "built": true,
+  "build_error": "",
+  "text_size": 15140,
+  "src_files": 24,
+  "structs": {
+   "TaskManager": {
+    "size": 1944,
+    "path": "os::task::TaskManager",
+    "fields": {
+     "inner": 0,
+     "num_app": 1936
+    },
+    "field_types": {
+     "num_app": "usize",
+     "inner": "UPSafeCell<os::task::TaskManagerInner>"
+    }
+   },
+   "TaskManagerInner": {
+    "size": 1928,
+    "path": "os::task::TaskManagerInner",
+    "fields": {
+     "tasks": 0,
+     "current_task": 1920
+    },
+    "field_types": {
+     "tasks": "[TaskControlBlock; 16]",
+     "current_task": "usize"
+    }
+   },
+   "TaskControlBlock": {
+    "size": 120,
+    "path": "os::task::task::TaskControlBlock",
+    "fields": {
+     "task_cx": 0,
+     "task_status": 112
+    },
+    "field_types": {
+     "task_status": "TaskStatus",
+     "task_cx": "TaskContext"
+    }
+   },
+   "TaskContext": {
+    "size": 112,
+    "path": "os::task::context::TaskContext",
+    "fields": {
+     "ra": 0,
+     "sp": 8,
+     "s": 16
+    },
+    "field_types": {
+     "ra": "usize",
+     "sp": "usize",
+     "s": "[usize; 12]"
+    }
+   },
+   "TrapContext": {
+    "size": 272,
+    "path": "os::trap::context::TrapContext",
+    "fields": {
+     "x": 0,
+     "sstatus": 256,
+     "sepc": 264
+    },
+    "field_types": {
+     "x": "[usize; 32]",
+     "sstatus": "Sstatus",
+     "sepc": "usize"
+    }
+   },
+   "KernelStack": {
+    "size": 8192,
+    "path": "os::loader::KernelStack",
+    "fields": {
+     "data": 0
+    },
+    "field_types": {
+     "data": "[u8; 8192]"
+    }
+   },
+   "Stdout": {
+    "size": 0,
+    "path": "os::console::Stdout",
+    "fields": {},
+    "field_types": {}
+   }
+  },
+  "enums": {
+   "os::task::task::TaskStatus": {
+    "UnInit": 0,
+    "Ready": 1,
+    "Running": 2,
+    "Exited": 3
+   }
+  },
+  "globals": {
+   "TASK_MANAGER": [
+    {
+     "sym": "_ZN66_$LT$os..task..TASK_MANAGER$u20$as$u20$core..ops..deref..Deref$GT$5deref17hd2156ede5f3614b5E",
+     "addr": 2149584700,
+     "size": 64
+    },
+    {
+     "sym": "_ZN66_$LT$os..task..TASK_MANAGER$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17h2a7c0945051aa009E.llvm.2334784403989422479",
+     "addr": 2150166824,
+     "size": 1952
+    }
+   ],
+   "PROCESSOR": null,
+   "INITPROC": null,
+   "PID2TCB": null,
+   "PID2PCB": null,
+   "APP_MANAGER": null,
+   "KERNEL_SPACE": null,
+   "FRAME_ALLOCATOR": null,
+   "PID_ALLOCATOR": null,
+   "ROOT_INODE": null,
+   "BLOCK_DEVICE": null,
+   "BLOCK_CACHE_MANAGER": null
+  },
+  "layout": {
+   "kind": 0,
+   "cap": 16,
+   "offsets": {
+    "rcore.current_task": 1928,
+    "rcore.num_app": 1936,
+    "rcore.taskmgr_from_lazy": 0,
+    "rcore.taskmgr_inner": 8,
+    "rcore.tasks": 8
+   },
+   "notes": {
+    "task-chain": "任务表是内联的定长数组（类型 [TaskControlBlock; 16]），元素直接排在 TaskManagerInner.tasks 处，不用再跟指针。"
+   }
+  }
+ },
+ {
+  "chapter": "ch4",
+  "built": true,
+  "build_error": "",
+  "text_size": 49438,
+  "src_files": 29,
+  "structs": {
+   "TaskManager": {
+    "size": 48,
+    "path": "os::task::TaskManager",
+    "fields": {
+     "num_app": 0,
+     "inner": 8
+    },
+    "field_types": {
+     "num_app": "usize",
+     "inner": "UPSafeCell<os::task::TaskManagerInner>"
+    }
+   },
+   "TaskManagerInner": {
+    "size": 32,
+    "path": "os::task::TaskManagerInner",
+    "fields": {
+     "tasks": 0,
+     "current_task": 24
+    },
+    "field_types": {
+     "tasks": "Vec<os::task::task::TaskControlBlock, alloc::alloc::Global>",
+     "current_task": "usize"
+    }
+   },
+   "TaskControlBlock": {
+    "size": 208,
+    "path": "os::task::task::TaskControlBlock",
+    "fields": {
+     "memory_set": 0,
+     "task_cx": 56,
+     "trap_cx_ppn": 168,
+     "base_size": 176,
+     "heap_bottom": 184,
+     "program_brk": 192,
+     "task_status": 200
+    },
+    "field_types": {
+     "task_cx": "TaskContext",
+     "task_status": "TaskStatus",
+     "memory_set": "MemorySet",
+     "trap_cx_ppn": "PhysPageNum",
+     "base_size": "usize",
+     "heap_bottom": "usize",
+     "program_brk": "usize"
+    }
+   },
+   "TaskContext": {
+    "size": 112,
+    "path": "os::task::context::TaskContext",
+    "fields": {
+     "ra": 0,
+     "sp": 8,
+     "s": 16
+    },
+    "field_types": {
+     "ra": "usize",
+     "sp": "usize",
+     "s": "[usize; 12]"
+    }
+   },
+   "TrapContext": {
+    "size": 296,
+    "path": "os::trap::context::TrapContext",
+    "fields": {
+     "x": 0,
+     "sstatus": 256,
+     "sepc": 264,
+     "kernel_satp": 272,
+     "kernel_sp": 280,
+     "trap_handler": 288
+    },
+    "field_types": {
+     "x": "[usize; 32]",
+     "sstatus": "Sstatus",
+     "sepc": "usize",
+     "kernel_satp": "usize",
+     "kernel_sp": "usize",
+     "trap_handler": "usize"
+    }
+   },
+   "MemorySet": {
+    "size": 56,
+    "path": "os::mm::memory_set::MemorySet",
+    "fields": {
+     "page_table": 0,
+     "areas": 32
+    },
+    "field_types": {
+     "page_table": "PageTable",
+     "areas": "Vec<os::mm::memory_set::MapArea, alloc::alloc::Global>"
+    }
+   },
+   "PageTable": {
+    "size": 32,
+    "path": "os::mm::page_table::PageTable",
+    "fields": {
+     "frames": 0,
+     "root_ppn": 24
+    },
+    "field_types": {
+     "root_ppn": "PhysPageNum",
+     "frames": "Vec<os::mm::frame_allocator::FrameTracker, alloc::alloc::Global>"
+    }
+   },
+   "MapArea": {
+    "size": 48,
+    "path": "os::mm::memory_set::MapArea",
+    "fields": {
+     "vpn_range": 0,
+     "data_frames": 16,
+     "map_perm": 40,
+     "map_type": 41
+    },
+    "field_types": {
+     "vpn_range": "SimpleRange<os::mm::address::VirtPageNum>",
+     "data_frames": "BTreeMap<os::mm::address::VirtPageNum, os::mm::frame_allocator::FrameTracker, alloc::alloc::Global>",
+     "map_type": "MapType",
+     "map_perm": "MapPermission"
+    }
+   },
+   "FrameTracker": {
+    "size": 8,
+    "path": "os::mm::frame_allocator::FrameTracker",
+    "fields": {
+     "ppn": 0
+    },
+    "field_types": {
+     "ppn": "PhysPageNum"
+    }
+   },
+   "PhysPageNum": {
+    "size": 8,
+    "path": "os::mm::address::PhysPageNum",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "VirtPageNum": {
+    "size": 8,
+    "path": "os::mm::address::VirtPageNum",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "PhysAddr": {
+    "size": 8,
+    "path": "os::mm::address::PhysAddr",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "VirtAddr": {
+    "size": 8,
+    "path": "os::mm::address::VirtAddr",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "Stdout": {
+    "size": 0,
+    "path": "os::console::Stdout",
+    "fields": {},
+    "field_types": {}
+   }
+  },
+  "enums": {
+   "os::task::task::TaskStatus": {
+    "UnInit": 0,
+    "Ready": 1,
+    "Running": 2,
+    "Exited": 3
+   },
+   "os::mm::memory_set::MapType": {
+    "Identical": 0,
+    "Framed": 1
+   }
+  },
+  "globals": {
+   "TASK_MANAGER": [
+    {
+     "sym": "_ZN66_$LT$os..task..TASK_MANAGER$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17h937d89663d98ebddE.llvm.8577930064819322469",
+     "addr": 2184491376,
+     "size": 56
+    },
+    {
+     "sym": "_ZN66_$LT$os..task..TASK_MANAGER$u20$as$u20$core..ops..deref..Deref$GT$5deref17h9bcb80c64c534da0E.llvm.8577930064819322469",
+     "addr": 2149615224,
+     "size": 64
+    }
+   ],
+   "PROCESSOR": null,
+   "INITPROC": null,
+   "PID2TCB": null,
+   "PID2PCB": null,
+   "APP_MANAGER": null,
+   "KERNEL_SPACE": [
+    {
+     "sym": "_ZN76_$LT$os..mm..memory_set..KERNEL_SPACE$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17h8ae03679fe500c2dE.llvm.5361988360244111607",
+     "addr": 2150936576,
+     "size": 16
+    }
+   ],
+   "FRAME_ALLOCATOR": [
+    {
+     "sym": "_ZN84_$LT$os..mm..frame_allocator..FRAME_ALLOCATOR$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17hd2cca133149e6612E.llvm.6699153765993234197",
+     "addr": 2184491320,
+     "size": 56
+    }
+   ],
+   "PID_ALLOCATOR": null,
+   "ROOT_INODE": null,
+   "BLOCK_DEVICE": null,
+   "BLOCK_CACHE_MANAGER": null
+  },
+  "layout": {
+   "kind": 1,
+   "cap": null,
+   "offsets": {
+    "rcore.current_task": 40,
+    "rcore.num_app": 0,
+    "rcore.task_root_ppn": 24,
+    "rcore.taskmgr_from_lazy": 0,
+    "rcore.taskmgr_inner": 16,
+    "rcore.tasks": 16,
+    "rcore.tasks_cap": 16,
+    "rcore.tasks_len": 32,
+    "rcore.tasks_ptr": 24
+   },
+   "notes": {
+    "task-chain": "任务表是堆上的 Vec：TaskManager->UPSafeCell<os::task::TaskManagerInner>->RefCell<os::task::TaskManagerInner>->UnsafeCell<os::task::TaskManagerInner>->TaskManagerInner.tasks。元素在堆上，需要顺 ptr 再读一跳。"
+   }
+  }
+ },
+ {
+  "chapter": "ch5",
+  "built": true,
+  "build_error": "",
+  "text_size": 63640,
+  "src_files": 32,
+  "structs": {
+   "TaskManager": {
+    "size": 32,
+    "path": "os::task::manager::TaskManager",
+    "fields": {
+     "ready_queue": 0
+    },
+    "field_types": {
+     "ready_queue": "VecDeque<alloc::sync::Arc<os::task::task::TaskControlBlock, alloc::alloc::Global>, alloc::alloc::Global>"
+    }
+   },
+   "TaskControlBlock": {
+    "size": 264,
+    "path": "os::task::task::TaskControlBlock",
+    "fields": {
+     "pid": 0,
+     "kernel_stack": 8,
+     "inner": 16
+    },
+    "field_types": {
+     "pid": "PidHandle",
+     "kernel_stack": "KernelStack",
+     "inner": "UPSafeCell<os::task::task::TaskControlBlockInner>"
+    }
+   },
+   "TaskControlBlockInner": {
+    "size": 240,
+    "path": "os::task::task::TaskControlBlockInner",
+    "fields": {
+     "memory_set": 0,
+     "children": 56,
+     "trap_cx_ppn": 80,
+     "base_size": 88,
+     "task_cx": 96,
+     "parent": 208,
+     "heap_bottom": 216,
+     "program_brk": 224,
+     "exit_code": 232,
+     "task_status": 236
+    },
+    "field_types": {
+     "trap_cx_ppn": "PhysPageNum",
+     "base_size": "usize",
+     "task_cx": "TaskContext",
+     "task_status": "TaskStatus",
+     "memory_set": "MemorySet",
+     "parent": "Option<alloc::sync::Weak<os::task::task::TaskControlBlock, alloc::alloc::Global>>",
+     "children": "Vec<alloc::sync::Arc<os::task::task::TaskControlBlock, alloc::alloc::Global>, alloc::alloc::Global>",
+     "exit_code": "i32",
+     "heap_bottom": "usize",
+     "program_brk": "usize"
+    }
+   },
+   "Processor": {
+    "size": 120,
+    "path": "os::task::processor::Processor",
+    "fields": {
+     "idle_task_cx": 0,
+     "current": 112
+    },
+    "field_types": {
+     "current": "Option<alloc::sync::Arc<os::task::task::TaskControlBlock, alloc::alloc::Global>>",
+     "idle_task_cx": "TaskContext"
+    }
+   },
+   "TaskContext": {
+    "size": 112,
+    "path": "os::task::context::TaskContext",
+    "fields": {
+     "ra": 0,
+     "sp": 8,
+     "s": 16
+    },
+    "field_types": {
+     "ra": "usize",
+     "sp": "usize",
+     "s": "[usize; 12]"
+    }
+   },
+   "TrapContext": {
+    "size": 296,
+    "path": "os::trap::context::TrapContext",
+    "fields": {
+     "x": 0,
+     "sstatus": 256,
+     "sepc": 264,
+     "kernel_satp": 272,
+     "kernel_sp": 280,
+     "trap_handler": 288
+    },
+    "field_types": {
+     "x": "[usize; 32]",
+     "sstatus": "Sstatus",
+     "sepc": "usize",
+     "kernel_satp": "usize",
+     "kernel_sp": "usize",
+     "trap_handler": "usize"
+    }
+   },
+   "PidHandle": {
+    "size": 8,
+    "path": "os::task::id::PidHandle",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "KernelStack": {
+    "size": 8,
+    "path": "os::task::id::KernelStack",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "RecycleAllocator": {
+    "size": 32,
+    "path": "os::task::id::RecycleAllocator",
+    "fields": {
+     "recycled": 0,
+     "current": 24
+    },
+    "field_types": {
+     "current": "usize",
+     "recycled": "Vec<usize, alloc::alloc::Global>"
+    }
+   },
+   "MemorySet": {
+    "size": 56,
+    "path": "os::mm::memory_set::MemorySet",
+    "fields": {
+     "page_table": 0,
+     "areas": 32
+    },
+    "field_types": {
+     "page_table": "PageTable",
+     "areas": "Vec<os::mm::memory_set::MapArea, alloc::alloc::Global>"
+    }
+   },
+   "PageTable": {
+    "size": 32,
+    "path": "os::mm::page_table::PageTable",
+    "fields": {
+     "frames": 0,
+     "root_ppn": 24
+    },
+    "field_types": {
+     "root_ppn": "PhysPageNum",
+     "frames": "Vec<os::mm::frame_allocator::FrameTracker, alloc::alloc::Global>"
+    }
+   },
+   "MapArea": {
+    "size": 48,
+    "path": "os::mm::memory_set::MapArea",
+    "fields": {
+     "vpn_range": 0,
+     "data_frames": 16,
+     "map_perm": 40,
+     "map_type": 41
+    },
+    "field_types": {
+     "vpn_range": "SimpleRange<os::mm::address::VirtPageNum>",
+     "data_frames": "BTreeMap<os::mm::address::VirtPageNum, os::mm::frame_allocator::FrameTracker, alloc::alloc::Global>",
+     "map_type": "MapType",
+     "map_perm": "MapPermission"
+    }
+   },
+   "FrameTracker": {
+    "size": 8,
+    "path": "os::mm::frame_allocator::FrameTracker",
+    "fields": {
+     "ppn": 0
+    },
+    "field_types": {
+     "ppn": "PhysPageNum"
+    }
+   },
+   "PhysPageNum": {
+    "size": 8,
+    "path": "os::mm::address::PhysPageNum",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "VirtPageNum": {
+    "size": 8,
+    "path": "os::mm::address::VirtPageNum",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "PhysAddr": {
+    "size": 8,
+    "path": "os::mm::address::PhysAddr",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "VirtAddr": {
+    "size": 8,
+    "path": "os::mm::address::VirtAddr",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "Stdout": {
+    "size": 0,
+    "path": "os::console::Stdout",
+    "fields": {},
+    "field_types": {}
+   }
+  },
+  "enums": {
+   "os::task::task::TaskStatus": {
+    "UnInit": 0,
+    "Ready": 1,
+    "Running": 2,
+    "Zombie": 3
+   },
+   "os::mm::memory_set::MapType": {
+    "Identical": 0,
+    "Framed": 1
+   }
+  },
+  "globals": {
+   "TASK_MANAGER": [
+    {
+     "sym": "_ZN75_$LT$os..task..manager..TASK_MANAGER$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17h30ff9d3ed95ff8b5E.llvm.6689672771255001838",
+     "addr": 2151883088,
+     "size": 48
+    }
+   ],
+   "PROCESSOR": [
+    {
+     "sym": "_ZN74_$LT$os..task..processor..PROCESSOR$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17ha0484729b7561b8dE.llvm.2340467946116400837",
+     "addr": 2151882768,
+     "size": 136
+    }
+   ],
+   "INITPROC": [
+    {
+     "sym": "_ZN62_$LT$os..task..INITPROC$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17hb00e23d17a6082bcE.llvm.4165862239628556833",
+     "addr": 2185437864,
+     "size": 16
+    }
+   ],
+   "PID2TCB": null,
+   "PID2PCB": null,
+   "APP_MANAGER": null,
+   "KERNEL_SPACE": [
+    {
+     "sym": "_ZN76_$LT$os..mm..memory_set..KERNEL_SPACE$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17h8ae03679fe500c2dE.llvm.14661451780932625553",
+     "addr": 2151882752,
+     "size": 16
+    }
+   ],
+   "FRAME_ALLOCATOR": [
+    {
+     "sym": "_ZN84_$LT$os..mm..frame_allocator..FRAME_ALLOCATOR$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17hd2cca133149e6612E.llvm.12421613964403356804",
+     "addr": 2151882904,
+     "size": 56
+    }
+   ],
+   "PID_ALLOCATOR": [
+    {
+     "sym": "_ZN71_$LT$os..task..id..PID_ALLOCATOR$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17h97a0847009cc3d8cE.llvm.6689672771255001838",
+     "addr": 2151882992,
+     "size": 48
+    }
+   ],
+   "ROOT_INODE": null,
+   "BLOCK_DEVICE": null,
+   "BLOCK_CACHE_MANAGER": null
+  },
+  "layout": {
+   "kind": 2,
+   "cap": null,
+   "offsets": {
+    "rcore.arc_data": 16,
+    "rcore.children_cap": 80,
+    "rcore.children_len": 96,
+    "rcore.children_ptr": 88,
+    "rcore.initproc_from_lazy": 0,
+    "rcore.processor_current": 120,
+    "rcore.processor_from_lazy": 8,
+    "rcore.tcb_exit_code": 256,
+    "rcore.tcb_inner": 24,
+    "rcore.tcb_root_ppn": 48,
+    "rcore.tcb_status": 260,
+    "rcore.tcb_trap_cx_ppn": 104
+   },
+   "notes": {
+    "task-chain": "这一章没有扁平的任务表：TaskManager 里只有就绪队列，当前任务在 PROCESSOR 里，已退出未回收的挂在父任务 children 上。完整枚举靠从 INITPROC 走进程树。",
+    "task_manager_inner": "这个内核里没有 TaskManagerInner（各章内核结构不同，可能本章就没有这个东西）"
+   }
+  }
+ },
+ {
+  "chapter": "ch6",
+  "built": true,
+  "build_error": "",
+  "text_size": 89074,
+  "src_files": 37,
+  "structs": {
+   "TaskManager": {
+    "size": 32,
+    "path": "os::task::manager::TaskManager",
+    "fields": {
+     "ready_queue": 0
+    },
+    "field_types": {
+     "ready_queue": "VecDeque<alloc::sync::Arc<os::task::task::TaskControlBlock, alloc::alloc::Global>, alloc::alloc::Global>"
+    }
+   },
+   "TaskControlBlock": {
+    "size": 288,
+    "path": "os::task::task::TaskControlBlock",
+    "fields": {
+     "inner": 0,
+     "pid": 272,
+     "kernel_stack": 280
+    },
+    "field_types": {
+     "pid": "PidHandle",
+     "kernel_stack": "KernelStack",
+     "inner": "UPSafeCell<os::task::task::TaskControlBlockInner>"
+    }
+   },
+   "TaskControlBlockInner": {
+    "size": 264,
+    "path": "os::task::task::TaskControlBlockInner",
+    "fields": {
+     "memory_set": 0,
+     "children": 56,
+     "fd_table": 80,
+     "trap_cx_ppn": 104,
+     "base_size": 112,
+     "task_cx": 120,
+     "parent": 232,
+     "heap_bottom": 240,
+     "program_brk": 248,
+     "exit_code": 256,
+     "task_status": 260
+    },
+    "field_types": {
+     "trap_cx_ppn": "PhysPageNum",
+     "base_size": "usize",
+     "task_cx": "TaskContext",
+     "task_status": "TaskStatus",
+     "memory_set": "MemorySet",
+     "parent": "Option<alloc::sync::Weak<os::task::task::TaskControlBlock, alloc::alloc::Global>>",
+     "children": "Vec<alloc::sync::Arc<os::task::task::TaskControlBlock, alloc::alloc::Global>, alloc::alloc::Global>",
+     "exit_code": "i32",
+     "fd_table": "Vec<core::option::Option<alloc::sync::Arc<(dyn os::fs::File + core::marker::Send + core::marker::Sync), alloc::alloc::Global>>, alloc::alloc::Global>",
+     "heap_bottom": "usize",
+     "program_brk": "usize"
+    }
+   },
+   "Processor": {
+    "size": 120,
+    "path": "os::task::processor::Processor",
+    "fields": {
+     "idle_task_cx": 0,
+     "current": 112
+    },
+    "field_types": {
+     "current": "Option<alloc::sync::Arc<os::task::task::TaskControlBlock, alloc::alloc::Global>>",
+     "idle_task_cx": "TaskContext"
+    }
+   },
+   "TaskContext": {
+    "size": 112,
+    "path": "os::task::context::TaskContext",
+    "fields": {
+     "ra": 0,
+     "sp": 8,
+     "s": 16
+    },
+    "field_types": {
+     "ra": "usize",
+     "sp": "usize",
+     "s": "[usize; 12]"
+    }
+   },
+   "TrapContext": {
+    "size": 296,
+    "path": "os::trap::context::TrapContext",
+    "fields": {
+     "x": 0,
+     "sstatus": 256,
+     "sepc": 264,
+     "kernel_satp": 272,
+     "kernel_sp": 280,
+     "trap_handler": 288
+    },
+    "field_types": {
+     "x": "[usize; 32]",
+     "sstatus": "Sstatus",
+     "sepc": "usize",
+     "kernel_satp": "usize",
+     "kernel_sp": "usize",
+     "trap_handler": "usize"
+    }
+   },
+   "PidHandle": {
+    "size": 8,
+    "path": "os::task::id::PidHandle",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "KernelStack": {
+    "size": 8,
+    "path": "os::task::id::KernelStack",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "RecycleAllocator": {
+    "size": 32,
+    "path": "os::task::id::RecycleAllocator",
+    "fields": {
+     "recycled": 0,
+     "current": 24
+    },
+    "field_types": {
+     "current": "usize",
+     "recycled": "Vec<usize, alloc::alloc::Global>"
+    }
+   },
+   "MemorySet": {
+    "size": 56,
+    "path": "os::mm::memory_set::MemorySet",
+    "fields": {
+     "page_table": 0,
+     "areas": 32
+    },
+    "field_types": {
+     "page_table": "PageTable",
+     "areas": "Vec<os::mm::memory_set::MapArea, alloc::alloc::Global>"
+    }
+   },
+   "PageTable": {
+    "size": 32,
+    "path": "os::mm::page_table::PageTable",
+    "fields": {
+     "frames": 0,
+     "root_ppn": 24
+    },
+    "field_types": {
+     "root_ppn": "PhysPageNum",
+     "frames": "Vec<os::mm::frame_allocator::FrameTracker, alloc::alloc::Global>"
+    }
+   },
+   "MapArea": {
+    "size": 48,
+    "path": "os::mm::memory_set::MapArea",
+    "fields": {
+     "vpn_range": 0,
+     "data_frames": 16,
+     "map_perm": 40,
+     "map_type": 41
+    },
+    "field_types": {
+     "vpn_range": "SimpleRange<os::mm::address::VirtPageNum>",
+     "data_frames": "BTreeMap<os::mm::address::VirtPageNum, os::mm::frame_allocator::FrameTracker, alloc::alloc::Global>",
+     "map_type": "MapType",
+     "map_perm": "MapPermission"
+    }
+   },
+   "FrameTracker": {
+    "size": 8,
+    "path": "os::mm::frame_allocator::FrameTracker",
+    "fields": {
+     "ppn": 0
+    },
+    "field_types": {
+     "ppn": "PhysPageNum"
+    }
+   },
+   "PhysPageNum": {
+    "size": 8,
+    "path": "os::mm::address::PhysPageNum",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "VirtPageNum": {
+    "size": 8,
+    "path": "os::mm::address::VirtPageNum",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "PhysAddr": {
+    "size": 8,
+    "path": "os::mm::address::PhysAddr",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "VirtAddr": {
+    "size": 8,
+    "path": "os::mm::address::VirtAddr",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "OSInode": {
+    "size": 32,
+    "path": "os::fs::inode::OSInode",
+    "fields": {
+     "inner": 0,
+     "readable": 24,
+     "writable": 25
+    },
+    "field_types": {
+     "readable": "bool",
+     "writable": "bool",
+     "inner": "UPSafeCell<os::fs::inode::OSInodeInner>"
+    }
+   },
+   "OSInodeInner": {
+    "size": 16,
+    "path": "os::fs::inode::OSInodeInner",
+    "fields": {
+     "inode": 0,
+     "offset": 8
+    },
+    "field_types": {
+     "offset": "usize",
+     "inode": "Arc<easy_fs::vfs::Inode, alloc::alloc::Global>"
+    }
+   },
+   "Inode": {
+    "size": 40,
+    "path": "easy_fs::vfs::Inode",
+    "fields": {
+     "fs": 0,
+     "block_device": 8,
+     "block_id": 24,
+     "block_offset": 32
+    },
+    "field_types": {
+     "block_id": "usize",
+     "block_offset": "usize",
+     "fs": "Arc<spin::mutex::Mutex<easy_fs::efs::EasyFileSystem>, alloc::alloc::Global>",
+     "block_device": "Arc<dyn easy_fs::block_dev::BlockDevice, alloc::alloc::Global>"
+    }
+   },
+   "EasyFileSystem": {
+    "size": 56,
+    "path": "easy_fs::efs::EasyFileSystem",
+    "fields": {
+     "block_device": 0,
+     "inode_bitmap": 16,
+     "data_bitmap": 32,
+     "inode_area_start_block": 48,
+     "data_area_start_block": 52
+    },
+    "field_types": {
+     "block_device": "Arc<dyn easy_fs::block_dev::BlockDevice, alloc::alloc::Global>",
+     "inode_bitmap": "Bitmap",
+     "data_bitmap": "Bitmap",
+     "inode_area_start_block": "u32",
+     "data_area_start_block": "u32"
+    }
+   },
+   "Stdin": {
+    "size": 0,
+    "path": "os::fs::stdio::Stdin",
+    "fields": {},
+    "field_types": {}
+   },
+   "Stdout": {
+    "size": 0,
+    "path": "os::console::Stdout",
+    "fields": {},
+    "field_types": {}
+   },
+   "DiskInode": {
+    "size": 128,
+    "path": "easy_fs::layout::DiskInode",
+    "fields": {
+     "size": 0,
+     "direct": 4,
+     "indirect1": 116,
+     "indirect2": 120,
+     "type_": 124
+    },
+    "field_types": {
+     "size": "u32",
+     "direct": "[u32; 28]",
+     "indirect1": "u32",
+     "indirect2": "u32",
+     "type_": "DiskInodeType"
+    }
+   },
+   "BlockCacheManager": {
+    "size": 32,
+    "path": "easy_fs::block_cache::BlockCacheManager",
+    "fields": {
+     "queue": 0
+    },
+    "field_types": {
+     "queue": "VecDeque<(usize, alloc::sync::Arc<spin::mutex::Mutex<easy_fs::block_cache::BlockCache>, alloc::alloc::Global>), alloc::alloc::Global>"
+    }
+   },
+   "BlockCache": {
+    "size": 544,
+    "path": "easy_fs::block_cache::BlockCache",
+    "fields": {
+     "block_device": 0,
+     "cache": 16,
+     "block_id": 528,
+     "modified": 536
+    },
+    "field_types": {
+     "cache": "[u8; 512]",
+     "block_id": "usize",
+     "block_device": "Arc<dyn easy_fs::block_dev::BlockDevice, alloc::alloc::Global>",
+     "modified": "bool"
+    }
+   }
+  },
+  "enums": {
+   "os::task::task::TaskStatus": {
+    "UnInit": 0,
+    "Ready": 1,
+    "Running": 2,
+    "Zombie": 3
+   },
+   "os::mm::memory_set::MapType": {
+    "Identical": 0,
+    "Framed": 1
+   }
+  },
+  "globals": {
+   "TASK_MANAGER": [
+    {
+     "sym": "_ZN75_$LT$os..task..manager..TASK_MANAGER$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17hc511a090a49c5f90E.llvm.8785172213176996822",
+     "addr": 2183320096,
+     "size": 48
+    }
+   ],
+   "PROCESSOR": [
+    {
+     "sym": "_ZN74_$LT$os..task..processor..PROCESSOR$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17h562a51b0f14b5c69E.llvm.8785172213176996822",
+     "addr": 2183320144,
+     "size": 136
+    }
+   ],
+   "INITPROC": [
+    {
+     "sym": "_ZN62_$LT$os..task..INITPROC$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17he932ecaac494870cE.llvm.8785172213176996822",
+     "addr": 2183320280,
+     "size": 16
+    }
+   ],
+   "PID2TCB": null,
+   "PID2PCB": null,
+   "APP_MANAGER": null,
+   "KERNEL_SPACE": [
+    {
+     "sym": "_ZN76_$LT$os..mm..memory_set..KERNEL_SPACE$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17hd1e4fb61b44aff9eE.llvm.3865787399584005374",
+     "addr": 2149765120,
+     "size": 16
+    }
+   ],
+   "FRAME_ALLOCATOR": [
+    {
+     "sym": "_ZN84_$LT$os..mm..frame_allocator..FRAME_ALLOCATOR$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17h78b509851c0a558dE.llvm.6624769149515796731",
+     "addr": 2183319904,
+     "size": 56
+    }
+   ],
+   "PID_ALLOCATOR": [
+    {
+     "sym": "_ZN71_$LT$os..task..id..PID_ALLOCATOR$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17hba6e41612257984eE.llvm.6624769149515796731",
+     "addr": 2183319960,
+     "size": 48
+    }
+   ],
+   "ROOT_INODE": [
+    {
+     "sym": "_ZN69_$LT$os..fs..inode..ROOT_INODE$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17h14ca954bf553d912E.llvm.4910987466699934590",
+     "addr": 2183320056,
+     "size": 16
+    }
+   ],
+   "BLOCK_DEVICE": [
+    {
+     "sym": "_ZN76_$LT$os..drivers..block..BLOCK_DEVICE$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17hc5106d1feb30af5bE.llvm.8785172213176996822",
+     "addr": 2183320072,
+     "size": 24
+    }
+   ],
+   "BLOCK_CACHE_MANAGER": [
+    {
+     "sym": "_ZN85_$LT$easy_fs..block_cache..BLOCK_CACHE_MANAGER$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17he97fe21204aa7c8dE.llvm.1156971600349101369",
+     "addr": 2183320296,
+     "size": 56
+    }
+   ]
+  },
+  "layout": {
+   "kind": 2,
+   "cap": null,
+   "offsets": {
+    "rcore.arc_data": 16,
+    "rcore.children_cap": 64,
+    "rcore.children_len": 80,
+    "rcore.children_ptr": 72,
+    "rcore.initproc_from_lazy": 0,
+    "rcore.processor_current": 120,
+    "rcore.processor_from_lazy": 8,
+    "rcore.tcb_exit_code": 264,
+    "rcore.tcb_inner": 8,
+    "rcore.tcb_root_ppn": 32,
+    "rcore.tcb_status": 268,
+    "rcore.tcb_trap_cx_ppn": 112
+   },
+   "notes": {
+    "task-chain": "这一章没有扁平的任务表：TaskManager 里只有就绪队列，当前任务在 PROCESSOR 里，已退出未回收的挂在父任务 children 上。完整枚举靠从 INITPROC 走进程树。",
+    "task_manager_inner": "这个内核里没有 TaskManagerInner（各章内核结构不同，可能本章就没有这个东西）"
+   }
+  }
+ },
+ {
+  "chapter": "ch7",
+  "built": true,
+  "build_error": "",
+  "text_size": 105126,
+  "src_files": 40,
+  "structs": {
+   "TaskManager": {
+    "size": 32,
+    "path": "os::task::manager::TaskManager",
+    "fields": {
+     "ready_queue": 0
+    },
+    "field_types": {
+     "ready_queue": "VecDeque<alloc::sync::Arc<os::task::task::TaskControlBlock, alloc::alloc::Global>, alloc::alloc::Global>"
+    }
+   },
+   "TaskControlBlock": {
+    "size": 1136,
+    "path": "os::task::task::TaskControlBlock",
+    "fields": {
+     "inner": 0,
+     "pid": 1120,
+     "kernel_stack": 1128
+    },
+    "field_types": {
+     "pid": "PidHandle",
+     "kernel_stack": "KernelStack",
+     "inner": "UPSafeCell<os::task::task::TaskControlBlockInner>"
+    }
+   },
+   "TaskControlBlockInner": {
+    "size": 1104,
+    "path": "os::task::task::TaskControlBlockInner",
+    "fields": {
+     "trap_ctx_backup": 0,
+     "task_cx": 304,
+     "signal_actions": 416,
+     "memory_set": 928,
+     "children": 984,
+     "fd_table": 1008,
+     "trap_cx_ppn": 1032,
+     "base_size": 1040,
+     "parent": 1048,
+     "handling_sig": 1056,
+     "heap_bottom": 1064,
+     "program_brk": 1072,
+     "exit_code": 1080,
+     "signals": 1084,
+     "signal_mask": 1088,
+     "killed": 1092,
+     "frozen": 1093,
+     "task_status": 1094
+    },
+    "field_types": {
+     "trap_cx_ppn": "PhysPageNum",
+     "base_size": "usize",
+     "task_cx": "TaskContext",
+     "task_status": "TaskStatus",
+     "memory_set": "MemorySet",
+     "parent": "Option<alloc::sync::Weak<os::task::task::TaskControlBlock, alloc::alloc::Global>>",
+     "children": "Vec<alloc::sync::Arc<os::task::task::TaskControlBlock, alloc::alloc::Global>, alloc::alloc::Global>",
+     "exit_code": "i32",
+     "fd_table": "Vec<core::option::Option<alloc::sync::Arc<(dyn os::fs::File + core::marker::Send + core::marker::Sync), alloc::alloc::Global>>, alloc::alloc::Global>",
+     "signals": "SignalFlags",
+     "signal_mask": "SignalFlags",
+     "handling_sig": "isize",
+     "signal_actions": "SignalActions",
+     "killed": "bool",
+     "frozen": "bool",
+     "trap_ctx_backup": "Option<os::trap::context::TrapContext>",
+     "heap_bottom": "usize",
+     "program_brk": "usize"
+    }
+   },
+   "Processor": {
+    "size": 120,
+    "path": "os::task::processor::Processor",
+    "fields": {
+     "idle_task_cx": 0,
+     "current": 112
+    },
+    "field_types": {
+     "current": "Option<alloc::sync::Arc<os::task::task::TaskControlBlock, alloc::alloc::Global>>",
+     "idle_task_cx": "TaskContext"
+    }
+   },
+   "TaskContext": {
+    "size": 112,
+    "path": "os::task::context::TaskContext",
+    "fields": {
+     "ra": 0,
+     "sp": 8,
+     "s": 16
+    },
+    "field_types": {
+     "ra": "usize",
+     "sp": "usize",
+     "s": "[usize; 12]"
+    }
+   },
+   "TrapContext": {
+    "size": 296,
+    "path": "os::trap::context::TrapContext",
+    "fields": {
+     "x": 0,
+     "sstatus": 256,
+     "sepc": 264,
+     "kernel_satp": 272,
+     "kernel_sp": 280,
+     "trap_handler": 288
+    },
+    "field_types": {
+     "x": "[usize; 32]",
+     "sstatus": "Sstatus",
+     "sepc": "usize",
+     "kernel_satp": "usize",
+     "kernel_sp": "usize",
+     "trap_handler": "usize"
+    }
+   },
+   "PidHandle": {
+    "size": 8,
+    "path": "os::task::id::PidHandle",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "KernelStack": {
+    "size": 8,
+    "path": "os::task::id::KernelStack",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "RecycleAllocator": {
+    "size": 32,
+    "path": "os::task::id::RecycleAllocator",
+    "fields": {
+     "recycled": 0,
+     "current": 24
+    },
+    "field_types": {
+     "current": "usize",
+     "recycled": "Vec<usize, alloc::alloc::Global>"
+    }
+   },
+   "MemorySet": {
+    "size": 56,
+    "path": "os::mm::memory_set::MemorySet",
+    "fields": {
+     "page_table": 0,
+     "areas": 32
+    },
+    "field_types": {
+     "page_table": "PageTable",
+     "areas": "Vec<os::mm::memory_set::MapArea, alloc::alloc::Global>"
+    }
+   },
+   "PageTable": {
+    "size": 32,
+    "path": "os::mm::page_table::PageTable",
+    "fields": {
+     "frames": 0,
+     "root_ppn": 24
+    },
+    "field_types": {
+     "root_ppn": "PhysPageNum",
+     "frames": "Vec<os::mm::frame_allocator::FrameTracker, alloc::alloc::Global>"
+    }
+   },
+   "MapArea": {
+    "size": 48,
+    "path": "os::mm::memory_set::MapArea",
+    "fields": {
+     "vpn_range": 0,
+     "data_frames": 16,
+     "map_perm": 40,
+     "map_type": 41
+    },
+    "field_types": {
+     "vpn_range": "SimpleRange<os::mm::address::VirtPageNum>",
+     "data_frames": "BTreeMap<os::mm::address::VirtPageNum, os::mm::frame_allocator::FrameTracker, alloc::alloc::Global>",
+     "map_type": "MapType",
+     "map_perm": "MapPermission"
+    }
+   },
+   "FrameTracker": {
+    "size": 8,
+    "path": "os::mm::frame_allocator::FrameTracker",
+    "fields": {
+     "ppn": 0
+    },
+    "field_types": {
+     "ppn": "PhysPageNum"
+    }
+   },
+   "PhysPageNum": {
+    "size": 8,
+    "path": "os::mm::address::PhysPageNum",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "VirtPageNum": {
+    "size": 8,
+    "path": "os::mm::address::VirtPageNum",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "PhysAddr": {
+    "size": 8,
+    "path": "os::mm::address::PhysAddr",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "VirtAddr": {
+    "size": 8,
+    "path": "os::mm::address::VirtAddr",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "OSInode": {
+    "size": 32,
+    "path": "os::fs::inode::OSInode",
+    "fields": {
+     "inner": 0,
+     "readable": 24,
+     "writable": 25
+    },
+    "field_types": {
+     "readable": "bool",
+     "writable": "bool",
+     "inner": "UPSafeCell<os::fs::inode::OSInodeInner>"
+    }
+   },
+   "OSInodeInner": {
+    "size": 16,
+    "path": "os::fs::inode::OSInodeInner",
+    "fields": {
+     "inode": 0,
+     "offset": 8
+    },
+    "field_types": {
+     "offset": "usize",
+     "inode": "Arc<easy_fs::vfs::Inode, alloc::alloc::Global>"
+    }
+   },
+   "Inode": {
+    "size": 40,
+    "path": "easy_fs::vfs::Inode",
+    "fields": {
+     "fs": 0,
+     "block_device": 8,
+     "block_id": 24,
+     "block_offset": 32
+    },
+    "field_types": {
+     "block_id": "usize",
+     "block_offset": "usize",
+     "fs": "Arc<spin::mutex::Mutex<easy_fs::efs::EasyFileSystem>, alloc::alloc::Global>",
+     "block_device": "Arc<dyn easy_fs::block_dev::BlockDevice, alloc::alloc::Global>"
+    }
+   },
+   "EasyFileSystem": {
+    "size": 56,
+    "path": "easy_fs::efs::EasyFileSystem",
+    "fields": {
+     "block_device": 0,
+     "inode_bitmap": 16,
+     "data_bitmap": 32,
+     "inode_area_start_block": 48,
+     "data_area_start_block": 52
+    },
+    "field_types": {
+     "block_device": "Arc<dyn easy_fs::block_dev::BlockDevice, alloc::alloc::Global>",
+     "inode_bitmap": "Bitmap",
+     "data_bitmap": "Bitmap",
+     "inode_area_start_block": "u32",
+     "data_area_start_block": "u32"
+    }
+   },
+   "Stdin": {
+    "size": 0,
+    "path": "os::fs::stdio::Stdin",
+    "fields": {},
+    "field_types": {}
+   },
+   "Stdout": {
+    "size": 0,
+    "path": "os::console::Stdout",
+    "fields": {},
+    "field_types": {}
+   },
+   "DiskInode": {
+    "size": 128,
+    "path": "easy_fs::layout::DiskInode",
+    "fields": {
+     "size": 0,
+     "direct": 4,
+     "indirect1": 116,
+     "indirect2": 120,
+     "type_": 124
+    },
+    "field_types": {
+     "size": "u32",
+     "direct": "[u32; 28]",
+     "indirect1": "u32",
+     "indirect2": "u32",
+     "type_": "DiskInodeType"
+    }
+   },
+   "BlockCacheManager": {
+    "size": 32,
+    "path": "easy_fs::block_cache::BlockCacheManager",
+    "fields": {
+     "queue": 0
+    },
+    "field_types": {
+     "queue": "VecDeque<(usize, alloc::sync::Arc<spin::mutex::Mutex<easy_fs::block_cache::BlockCache>, alloc::alloc::Global>), alloc::alloc::Global>"
+    }
+   },
+   "BlockCache": {
+    "size": 56,
+    "path": "easy_fs::block_cache::BlockCache",
+    "fields": {
+     "cache": 0,
+     "block_device": 24,
+     "block_id": 40,
+     "modified": 48
+    },
+    "field_types": {
+     "cache": "Vec<u8, alloc::alloc::Global>",
+     "block_id": "usize",
+     "block_device": "Arc<dyn easy_fs::block_dev::BlockDevice, alloc::alloc::Global>",
+     "modified": "bool"
+    }
+   },
+   "Pipe": {
+    "size": 16,
+    "path": "os::fs::pipe::Pipe",
+    "fields": {
+     "buffer": 0,
+     "readable": 8,
+     "writable": 9
+    },
+    "field_types": {
+     "readable": "bool",
+     "writable": "bool",
+     "buffer": "Arc<os::sync::up::UPSafeCell<os::fs::pipe::PipeRingBuffer>, alloc::alloc::Global>"
+    }
+   },
+   "PipeRingBuffer": {
+    "size": 64,
+    "path": "os::fs::pipe::PipeRingBuffer",
+    "fields": {
+     "arr": 0,
+     "head": 32,
+     "tail": 40,
+     "write_end": 48,
+     "status": 56
+    },
+    "field_types": {
+     "arr": "[u8; 32]",
+     "head": "usize",
+     "tail": "usize",
+     "status": "RingBufferStatus",
+     "write_end": "Option<alloc::sync::Weak<os::fs::pipe::Pipe, alloc::alloc::Global>>"
+    }
+   },
+   "SignalFlags": {
+    "size": 4,
+    "path": "os::task::signal::SignalFlags",
+    "fields": {
+     "bits": 0
+    },
+    "field_types": {
+     "bits": "u32"
+    }
+   },
+   "SignalActions": {
+    "size": 512,
+    "path": "os::task::action::SignalActions",
+    "fields": {
+     "table": 0
+    },
+    "field_types": {
+     "table": "[SignalAction; 32]"
+    }
+   }
+  },
+  "enums": {
+   "os::task::task::TaskStatus": {
+    "UnInit": 0,
+    "Ready": 1,
+    "Running": 2,
+    "Zombie": 3
+   },
+   "os::mm::memory_set::MapType": {
+    "Identical": 0,
+    "Framed": 1
+   }
+  },
+  "globals": {
+   "TASK_MANAGER": [
+    {
+     "sym": "_ZN75_$LT$os..task..manager..TASK_MANAGER$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17h9036c1ceb471fe25E.llvm.17798135401719562647",
+     "addr": 2183340616,
+     "size": 48
+    }
+   ],
+   "PROCESSOR": [
+    {
+     "sym": "_ZN74_$LT$os..task..processor..PROCESSOR$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17h9ae9caf7431c97f3E.llvm.12848341569821753990",
+     "addr": 2149785752,
+     "size": 136
+    }
+   ],
+   "INITPROC": [
+    {
+     "sym": "_ZN62_$LT$os..task..INITPROC$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17hb94ea44ea3a47a76E.llvm.18422011195446963361",
+     "addr": 2183340800,
+     "size": 16
+    }
+   ],
+   "PID2TCB": [
+    {
+     "sym": "_ZN70_$LT$os..task..manager..PID2TCB$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17h0ce02a32cdef04f6E.llvm.17798135401719562647",
+     "addr": 2183340664,
+     "size": 40
+    }
+   ],
+   "PID2PCB": null,
+   "APP_MANAGER": null,
+   "KERNEL_SPACE": [
+    {
+     "sym": "_ZN76_$LT$os..mm..memory_set..KERNEL_SPACE$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17h047f62e5be68f5d4E.llvm.4990318311558298183",
+     "addr": 2149785600,
+     "size": 16
+    }
+   ],
+   "FRAME_ALLOCATOR": [
+    {
+     "sym": "_ZN84_$LT$os..mm..frame_allocator..FRAME_ALLOCATOR$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17h36510e09b15964ecE.llvm.12848341569821753990",
+     "addr": 2149785696,
+     "size": 56
+    }
+   ],
+   "PID_ALLOCATOR": [
+    {
+     "sym": "_ZN71_$LT$os..task..id..PID_ALLOCATOR$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17h539e27f7f9c9a8eaE.llvm.17798135401719562647",
+     "addr": 2183340704,
+     "size": 48
+    }
+   ],
+   "ROOT_INODE": [
+    {
+     "sym": "_ZN69_$LT$os..fs..inode..ROOT_INODE$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17h87ee940a0ada084fE.llvm.3325620824058094071",
+     "addr": 2149785616,
+     "size": 16
+    }
+   ],
+   "BLOCK_DEVICE": [
+    {
+     "sym": "_ZN76_$LT$os..drivers..block..BLOCK_DEVICE$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17hab8ae0ef65b1f5a7E.llvm.15590022762609113590",
+     "addr": 2149785672,
+     "size": 24
+    }
+   ],
+   "BLOCK_CACHE_MANAGER": [
+    {
+     "sym": "_ZN85_$LT$easy_fs..block_cache..BLOCK_CACHE_MANAGER$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17h1f71d78649d8671cE.llvm.8002715568122572833",
+     "addr": 2183340816,
+     "size": 56
+    }
+   ]
+  },
+  "layout": {
+   "kind": 2,
+   "cap": null,
+   "offsets": {
+    "rcore.arc_data": 16,
+    "rcore.children_cap": 1000,
+    "rcore.children_len": 1016,
+    "rcore.children_ptr": 1008,
+    "rcore.initproc_from_lazy": 0,
+    "rcore.processor_current": 120,
+    "rcore.processor_from_lazy": 8,
+    "rcore.tcb_exit_code": 1096,
+    "rcore.tcb_inner": 16,
+    "rcore.tcb_root_ppn": 968,
+    "rcore.tcb_status": 1110,
+    "rcore.tcb_trap_cx_ppn": 1048
+   },
+   "notes": {
+    "task-chain": "这一章没有扁平的任务表：TaskManager 里只有就绪队列，当前任务在 PROCESSOR 里，已退出未回收的挂在父任务 children 上。完整枚举靠从 INITPROC 走进程树。",
+    "task_manager_inner": "这个内核里没有 TaskManagerInner（各章内核结构不同，可能本章就没有这个东西）"
+   }
+  }
+ },
+ {
+  "chapter": "ch8",
+  "built": true,
+  "build_error": "",
+  "text_size": 134702,
+  "src_files": 46,
+  "structs": {
+   "TaskManager": {
+    "size": 40,
+    "path": "os::task::manager::TaskManager",
+    "fields": {
+     "ready_queue": 0,
+     "stop_task": 32
+    },
+    "field_types": {
+     "ready_queue": "VecDeque<alloc::sync::Arc<os::task::task::TaskControlBlock, alloc::alloc::Global>, alloc::alloc::Global>",
+     "stop_task": "Option<alloc::sync::Arc<os::task::task::TaskControlBlock, alloc::alloc::Global>>"
+    }
+   },
+   "TaskControlBlock": {
+    "size": 184,
+    "path": "os::task::task::TaskControlBlock",
+    "fields": {
+     "process": 0,
+     "kstack": 8,
+     "inner": 16
+    },
+    "field_types": {
+     "process": "Weak<os::task::process::ProcessControlBlock, alloc::alloc::Global>",
+     "kstack": "KernelStack",
+     "inner": "UPSafeCell<os::task::task::TaskControlBlockInner>"
+    }
+   },
+   "TaskControlBlockInner": {
+    "size": 160,
+    "path": "os::task::task::TaskControlBlockInner",
+    "fields": {
+     "exit_code": 0,
+     "res": 8,
+     "trap_cx_ppn": 32,
+     "task_cx": 40,
+     "task_status": 152
+    },
+    "field_types": {
+     "res": "Option<os::task::id::TaskUserRes>",
+     "trap_cx_ppn": "PhysPageNum",
+     "task_cx": "TaskContext",
+     "task_status": "TaskStatus",
+     "exit_code": "Option<i32>"
+    }
+   },
+   "ProcessControlBlock": {
+    "size": 272,
+    "path": "os::task::process::ProcessControlBlock",
+    "fields": {
+     "pid": 0,
+     "inner": 8
+    },
+    "field_types": {
+     "pid": "PidHandle",
+     "inner": "UPSafeCell<os::task::process::ProcessControlBlockInner>"
+    }
+   },
+   "ProcessControlBlockInner": {
+    "size": 256,
+    "path": "os::task::process::ProcessControlBlockInner",
+    "fields": {
+     "memory_set": 0,
+     "children": 56,
+     "fd_table": 80,
+     "tasks": 104,
+     "task_res_allocator": 128,
+     "mutex_list": 160,
+     "semaphore_list": 184,
+     "condvar_list": 208,
+     "parent": 232,
+     "exit_code": 240,
+     "signals": 244,
+     "is_zombie": 248
+    },
+    "field_types": {
+     "is_zombie": "bool",
+     "memory_set": "MemorySet",
+     "parent": "Option<alloc::sync::Weak<os::task::process::ProcessControlBlock, alloc::alloc::Global>>",
+     "children": "Vec<alloc::sync::Arc<os::task::process::ProcessControlBlock, alloc::alloc::Global>, alloc::alloc::Global>",
+     "exit_code": "i32",
+     "fd_table": "Vec<core::option::Option<alloc::sync::Arc<(dyn os::fs::File + core::marker::Send + core::marker::Sync), alloc::alloc::Global>>, alloc::alloc::Global>",
+     "signals": "SignalFlags",
+     "tasks": "Vec<core::option::Option<alloc::sync::Arc<os::task::task::TaskControlBlock, alloc::alloc::Global>>, alloc::alloc::Global>",
+     "task_res_allocator": "RecycleAllocator",
+     "mutex_list": "Vec<core::option::Option<alloc::sync::Arc<dyn os::sync::mutex::Mutex, alloc::alloc::Global>>, alloc::alloc::Global>",
+     "semaphore_list": "Vec<core::option::Option<alloc::sync::Arc<os::sync::semaphore::Semaphore, alloc::alloc::Global>>, alloc::alloc::Global>",
+     "condvar_list": "Vec<core::option::Option<alloc::sync::Arc<os::sync::condvar::Condvar, alloc::alloc::Global>>, alloc::alloc::Global>"
+    }
+   },
+   "Processor": {
+    "size": 120,
+    "path": "os::task::processor::Processor",
+    "fields": {
+     "idle_task_cx": 0,
+     "current": 112
+    },
+    "field_types": {
+     "current": "Option<alloc::sync::Arc<os::task::task::TaskControlBlock, alloc::alloc::Global>>",
+     "idle_task_cx": "TaskContext"
+    }
+   },
+   "TaskContext": {
+    "size": 112,
+    "path": "os::task::context::TaskContext",
+    "fields": {
+     "ra": 0,
+     "sp": 8,
+     "s": 16
+    },
+    "field_types": {
+     "ra": "usize",
+     "sp": "usize",
+     "s": "[usize; 12]"
+    }
+   },
+   "TrapContext": {
+    "size": 296,
+    "path": "os::trap::context::TrapContext",
+    "fields": {
+     "x": 0,
+     "sstatus": 256,
+     "sepc": 264,
+     "kernel_satp": 272,
+     "kernel_sp": 280,
+     "trap_handler": 288
+    },
+    "field_types": {
+     "x": "[usize; 32]",
+     "sstatus": "Sstatus",
+     "sepc": "usize",
+     "kernel_satp": "usize",
+     "kernel_sp": "usize",
+     "trap_handler": "usize"
+    }
+   },
+   "PidHandle": {
+    "size": 8,
+    "path": "os::task::id::PidHandle",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "KernelStack": {
+    "size": 8,
+    "path": "os::task::id::KernelStack",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "RecycleAllocator": {
+    "size": 32,
+    "path": "os::task::id::RecycleAllocator",
+    "fields": {
+     "recycled": 0,
+     "current": 24
+    },
+    "field_types": {
+     "current": "usize",
+     "recycled": "Vec<usize, alloc::alloc::Global>"
+    }
+   },
+   "MemorySet": {
+    "size": 56,
+    "path": "os::mm::memory_set::MemorySet",
+    "fields": {
+     "page_table": 0,
+     "areas": 32
+    },
+    "field_types": {
+     "page_table": "PageTable",
+     "areas": "Vec<os::mm::memory_set::MapArea, alloc::alloc::Global>"
+    }
+   },
+   "PageTable": {
+    "size": 32,
+    "path": "os::mm::page_table::PageTable",
+    "fields": {
+     "frames": 0,
+     "root_ppn": 24
+    },
+    "field_types": {
+     "root_ppn": "PhysPageNum",
+     "frames": "Vec<os::mm::frame_allocator::FrameTracker, alloc::alloc::Global>"
+    }
+   },
+   "MapArea": {
+    "size": 48,
+    "path": "os::mm::memory_set::MapArea",
+    "fields": {
+     "vpn_range": 0,
+     "data_frames": 16,
+     "map_perm": 40,
+     "map_type": 41
+    },
+    "field_types": {
+     "vpn_range": "SimpleRange<os::mm::address::VirtPageNum>",
+     "data_frames": "BTreeMap<os::mm::address::VirtPageNum, os::mm::frame_allocator::FrameTracker, alloc::alloc::Global>",
+     "map_type": "MapType",
+     "map_perm": "MapPermission"
+    }
+   },
+   "FrameTracker": {
+    "size": 8,
+    "path": "os::mm::frame_allocator::FrameTracker",
+    "fields": {
+     "ppn": 0
+    },
+    "field_types": {
+     "ppn": "PhysPageNum"
+    }
+   },
+   "PhysPageNum": {
+    "size": 8,
+    "path": "os::mm::address::PhysPageNum",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "VirtPageNum": {
+    "size": 8,
+    "path": "os::mm::address::VirtPageNum",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "PhysAddr": {
+    "size": 8,
+    "path": "os::mm::address::PhysAddr",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "VirtAddr": {
+    "size": 8,
+    "path": "os::mm::address::VirtAddr",
+    "fields": {
+     "__0": 0
+    },
+    "field_types": {
+     "__0": "usize"
+    }
+   },
+   "OSInode": {
+    "size": 32,
+    "path": "os::fs::inode::OSInode",
+    "fields": {
+     "inner": 0,
+     "readable": 24,
+     "writable": 25
+    },
+    "field_types": {
+     "readable": "bool",
+     "writable": "bool",
+     "inner": "UPSafeCell<os::fs::inode::OSInodeInner>"
+    }
+   },
+   "OSInodeInner": {
+    "size": 16,
+    "path": "os::fs::inode::OSInodeInner",
+    "fields": {
+     "inode": 0,
+     "offset": 8
+    },
+    "field_types": {
+     "offset": "usize",
+     "inode": "Arc<easy_fs::vfs::Inode, alloc::alloc::Global>"
+    }
+   },
+   "Inode": {
+    "size": 40,
+    "path": "easy_fs::vfs::Inode",
+    "fields": {
+     "fs": 0,
+     "block_device": 8,
+     "block_id": 24,
+     "block_offset": 32
+    },
+    "field_types": {
+     "block_id": "usize",
+     "block_offset": "usize",
+     "fs": "Arc<spin::mutex::Mutex<easy_fs::efs::EasyFileSystem>, alloc::alloc::Global>",
+     "block_device": "Arc<dyn easy_fs::block_dev::BlockDevice, alloc::alloc::Global>"
+    }
+   },
+   "EasyFileSystem": {
+    "size": 56,
+    "path": "easy_fs::efs::EasyFileSystem",
+    "fields": {
+     "block_device": 0,
+     "inode_bitmap": 16,
+     "data_bitmap": 32,
+     "inode_area_start_block": 48,
+     "data_area_start_block": 52
+    },
+    "field_types": {
+     "block_device": "Arc<dyn easy_fs::block_dev::BlockDevice, alloc::alloc::Global>",
+     "inode_bitmap": "Bitmap",
+     "data_bitmap": "Bitmap",
+     "inode_area_start_block": "u32",
+     "data_area_start_block": "u32"
+    }
+   },
+   "Stdin": {
+    "size": 0,
+    "path": "os::fs::stdio::Stdin",
+    "fields": {},
+    "field_types": {}
+   },
+   "Stdout": {
+    "size": 0,
+    "path": "os::console::Stdout",
+    "fields": {},
+    "field_types": {}
+   },
+   "DiskInode": {
+    "size": 128,
+    "path": "easy_fs::layout::DiskInode",
+    "fields": {
+     "size": 0,
+     "direct": 4,
+     "indirect1": 116,
+     "indirect2": 120,
+     "type_": 124
+    },
+    "field_types": {
+     "size": "u32",
+     "direct": "[u32; 28]",
+     "indirect1": "u32",
+     "indirect2": "u32",
+     "type_": "DiskInodeType"
+    }
+   },
+   "BlockCacheManager": {
+    "size": 32,
+    "path": "easy_fs::block_cache::BlockCacheManager",
+    "fields": {
+     "queue": 0
+    },
+    "field_types": {
+     "queue": "VecDeque<(usize, alloc::sync::Arc<spin::mutex::Mutex<easy_fs::block_cache::BlockCache>, alloc::alloc::Global>), alloc::alloc::Global>"
+    }
+   },
+   "BlockCache": {
+    "size": 56,
+    "path": "easy_fs::block_cache::BlockCache",
+    "fields": {
+     "cache": 0,
+     "block_device": 24,
+     "block_id": 40,
+     "modified": 48
+    },
+    "field_types": {
+     "cache": "Vec<u8, alloc::alloc::Global>",
+     "block_id": "usize",
+     "block_device": "Arc<dyn easy_fs::block_dev::BlockDevice, alloc::alloc::Global>",
+     "modified": "bool"
+    }
+   },
+   "Pipe": {
+    "size": 16,
+    "path": "os::fs::pipe::Pipe",
+    "fields": {
+     "buffer": 0,
+     "readable": 8,
+     "writable": 9
+    },
+    "field_types": {
+     "readable": "bool",
+     "writable": "bool",
+     "buffer": "Arc<os::sync::up::UPSafeCell<os::fs::pipe::PipeRingBuffer>, alloc::alloc::Global>"
+    }
+   },
+   "PipeRingBuffer": {
+    "size": 64,
+    "path": "os::fs::pipe::PipeRingBuffer",
+    "fields": {
+     "arr": 0,
+     "head": 32,
+     "tail": 40,
+     "write_end": 48,
+     "status": 56
+    },
+    "field_types": {
+     "arr": "[u8; 32]",
+     "head": "usize",
+     "tail": "usize",
+     "status": "RingBufferStatus",
+     "write_end": "Option<alloc::sync::Weak<os::fs::pipe::Pipe, alloc::alloc::Global>>"
+    }
+   },
+   "SignalFlags": {
+    "size": 4,
+    "path": "os::task::signal::SignalFlags",
+    "fields": {
+     "bits": 0
+    },
+    "field_types": {
+     "bits": "u32"
+    }
+   },
+   "MutexBlocking": {
+    "size": 48,
+    "path": "os::sync::mutex::MutexBlocking",
+    "fields": {
+     "inner": 0
+    },
+    "field_types": {
+     "inner": "UPSafeCell<os::sync::mutex::MutexBlockingInner>"
+    }
+   },
+   "MutexSpin": {
+    "size": 16,
+    "path": "os::sync::mutex::MutexSpin",
+    "fields": {
+     "locked": 0
+    },
+    "field_types": {
+     "locked": "UPSafeCell<bool>"
+    }
+   },
+   "Semaphore": {
+    "size": 48,
+    "path": "os::sync::semaphore::Semaphore",
+    "fields": {
+     "inner": 0
+    },
+    "field_types": {
+     "inner": "UPSafeCell<os::sync::semaphore::SemaphoreInner>"
+    }
+   },
+   "Condvar": {
+    "size": 40,
+    "path": "os::sync::condvar::Condvar",
+    "fields": {
+     "inner": 0
+    },
+    "field_types": {
+     "inner": "UPSafeCell<os::sync::condvar::CondvarInner>"
+    }
+   }
+  },
+  "enums": {
+   "os::task::task::TaskStatus": {
+    "Ready": 0,
+    "Running": 1,
+    "Blocked": 2
+   },
+   "os::mm::memory_set::MapType": {
+    "Identical": 0,
+    "Framed": 1
+   }
+  },
+  "globals": {
+   "TASK_MANAGER": [
+    {
+     "sym": "_ZN75_$LT$os..task..manager..TASK_MANAGER$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17h14ff6e8ba9991fdbE.llvm.12698648533113070332",
+     "addr": 2183381728,
+     "size": 56
+    }
+   ],
+   "PROCESSOR": [
+    {
+     "sym": "_ZN74_$LT$os..task..processor..PROCESSOR$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17h562a51b0f14b5c69E.llvm.15902344968398821231",
+     "addr": 2149826648,
+     "size": 136
+    }
+   ],
+   "INITPROC": [
+    {
+     "sym": "_ZN62_$LT$os..task..INITPROC$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17hf2469853a01783fbE.llvm.1229041422543537779",
+     "addr": 2183381616,
+     "size": 16
+    }
+   ],
+   "PID2TCB": null,
+   "PID2PCB": [
+    {
+     "sym": "_ZN70_$LT$os..task..manager..PID2PCB$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17h61a8e74eef5009dcE.llvm.12698648533113070332",
+     "addr": 2183381784,
+     "size": 40
+    }
+   ],
+   "APP_MANAGER": null,
+   "KERNEL_SPACE": [
+    {
+     "sym": "_ZN76_$LT$os..mm..memory_set..KERNEL_SPACE$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17h62ac03199c3d6050E.llvm.9644166823261647026",
+     "addr": 2149826632,
+     "size": 16
+    }
+   ],
+   "FRAME_ALLOCATOR": [
+    {
+     "sym": "_ZN84_$LT$os..mm..frame_allocator..FRAME_ALLOCATOR$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17h78b509851c0a558dE.llvm.13532806277324071457",
+     "addr": 2149826576,
+     "size": 56
+    }
+   ],
+   "PID_ALLOCATOR": [
+    {
+     "sym": "_ZN71_$LT$os..task..id..PID_ALLOCATOR$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17hd4e69f7e3813a9bfE.llvm.12698648533113070332",
+     "addr": 2183381632,
+     "size": 48
+    }
+   ],
+   "ROOT_INODE": [
+    {
+     "sym": "_ZN69_$LT$os..fs..inode..ROOT_INODE$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17h14ca954bf553d912E.llvm.15533840573779068611",
+     "addr": 2149826560,
+     "size": 16
+    }
+   ],
+   "BLOCK_DEVICE": [
+    {
+     "sym": "_ZN76_$LT$os..drivers..block..BLOCK_DEVICE$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17hc5106d1feb30af5bE.llvm.6903123115885319078",
+     "addr": 2149826824,
+     "size": 24
+    }
+   ],
+   "BLOCK_CACHE_MANAGER": [
+    {
+     "sym": "_ZN85_$LT$easy_fs..block_cache..BLOCK_CACHE_MANAGER$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17he97fe21204aa7c8dE.llvm.3642141361038527224",
+     "addr": 2183381824,
+     "size": 56
+    }
+   ]
+  },
+  "layout": {
+   "kind": 4,
+   "cap": null,
+   "offsets": {
+    "rcore.arc_pcb_data": 16,
+    "rcore.arc_tcb_data": 16,
+    "rcore.initproc_from_lazy": 0,
+    "rcore.pcb_children_cap": 72,
+    "rcore.pcb_children_len": 88,
+    "rcore.pcb_children_ptr": 80,
+    "rcore.pcb_exit_code": 256,
+    "rcore.pcb_inner": 16,
+    "rcore.pcb_is_zombie": 264,
+    "rcore.pcb_root_ppn": 40,
+    "rcore.pcb_tasks_cap": 120,
+    "rcore.pcb_tasks_len": 136,
+    "rcore.pcb_tasks_ptr": 128,
+    "rcore.processor_current": 120,
+    "rcore.processor_from_lazy": 8,
+    "rcore.tcb_exit_code": 24,
+    "rcore.tcb_inner": 24,
+    "rcore.tcb_status": 176,
+    "rcore.tcb_trap_cx_ppn": 56
+   },
+   "notes": {
+    "task-chain": "这一章进程和线程是分开的两层：进程树从 INITPROC 顺 ProcessControlBlockInner.children 走，每个进程的线程在它的 tasks 里（Vec<Option<Arc<TaskControlBlock>>>，空位是 None）。地址空间属于进程，PROCESSOR.current 里放的是当前**线程**。",
+    "task_manager_inner": "这个内核里没有 TaskManagerInner（各章内核结构不同，可能本章就没有这个东西）"
+   }
+  }
+ }
+]
