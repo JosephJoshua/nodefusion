@@ -1,0 +1,593 @@
+# ArceOS — unikernel, 4 arches, feature-configurable
+# evidence: checked against a real build, 2026-08-31 —
+#   tg-arceos-tutorial/app-childtask, cargo xtask build --arch=riscv64
+#   with CARGO_PROFILE_RELEASE_DEBUG=2 (release strips DWARF entirely).
+#   axtask 0.3.0-preview.1, rustc nightly-2025-12-12, 6.5 MB, DWARF v4, 161 CUs.
+# every symbol, type path, field and enum below was read out of that build's
+# DWARF. offsets are NOT written here — they belong to the layout probe — but
+# each claim was confirmed to resolve.
+# WHAT THE FIRST BUILD CHANGED. the previous version of this file was written
+# from source alone and got the struct right and the symbol table wrong:
+#   * every path said `ax_task` / `ax_mm` / `ax_alloc`. the crates are called
+#     `axtask` / `axmm` / `axalloc` — no underscore. all three watch modules
+#     matched **zero** functions (axtask 33, axmm 10, axalloc 8).
+#   * `ax_task::api::TASK_REGISTRY` does not exist, and never did in this
+#     version. the cited line api.rs:37 is `pub type AxCpuMask = ...`. there is
+#     no global of BTreeMap type anywhere in the build.
+#   * so the one source marked `completeness = "total"` was fiction. ArceOS
+#     has **no** global task registry: tasks are per-CPU only.
+# the field table below, by contrast, was entirely correct — including the
+# three optional_fields, which are absent here because this build sets none of
+# smp / preempt / task-ext. that split is the lesson: reading source gets you
+# struct layout; only a build gets you the symbol table.
+
+[kernel]
+name    = "arceos"
+family  = "arceos"
+arches  = ["riscv64", "x86_64", "aarch64", "loongarch64"]
+# how to recognise this kernel from an ELF alone. confirmed: dw.find() resolves
+# it, size 256, 14 fields.
+
+
+
+
+
+
+
+
+
+
+
+
+detect  = { any_type = ["axtask::task::TaskInner",
+                        "axcpu::riscv::context::TrapFrame"] }
+
+# ---------------------------------------------------------------- tasks
+
+[[entity]]
+name = "task"
+role  = "process"
+# the STABLE inner type. deliberately not `AxTask`, which is a conditional
+# alias resolving to FifoTask / RRTask<_,5> / CFSTask by feature flag.
+# confirmed: this build chose axsched::fifo::FifoTask<axtask::task::TaskInner>
+# (size 280, inner at +0, links at +256; TaskInner itself is 256).
+type = "axtask::task::TaskInner"
+label = "任务"
+
+# The three *roles* below are COMPLEMENTARY, not alternatives: the idle slot,
+# the ready queue, and the exit queue hold disjoint sets of tasks.  The ready
+# role has mutually-exclusive measured FIFO/CFS shapes selected from this ELF's
+# scheduler type; exactly one of those two is active in a concrete build.
+# Measured on
+# arceos-childtask-evsnap by promoting each block to first place in turn:
+#   IDLE_TASK    -> idle   (3 frames)
+#   RUN_QUEUE    -> gc     (2 frames)
+#   EXITED_TASKS -> one exited task (1 frame)
+# Under the default `first`, only IDLE_TASK ever ran and the other two sets
+# were dropped without a trace -- the UI simply showed fewer rows.
+# Contrast rCore, which leaves this at the default: its five sources are the
+# five chapter shapes, mutually exclusive, and decoding ch6 memory with the ch3
+# shape yields plausible garbage rather than an error.
+source_combine = "union"
+
+# ---- what is reachable today -------------------------------------------
+# there is no total source. every route to a task in this version goes through
+# a per-CPU variable, and `percpu::def_percpu` emits a pair: `NAME` is a
+# zero-sized `NAME_WRAPPER`, `__PERCPU_NAME` is the typed storage. either name
+# works here — the plan resolves the sibling and says which one it used.
+
+# the idle task. one per CPU, always present once the run queue is up.
+# COMPILES END TO END, verified:
+#   percpu -> LazyInit -> Arc -> descend_to TaskInner (+0) -> field id (+24)
+[[entity.source]]
+kind         = "current"
+completeness = "partial"
+reason       = "每个 CPU 一个 idle 任务；这条只枚举它，不是全部任务"
+steps = [
+  { percpu     = "axtask::run_queue::IDLE_TASK" },
+  # LazyInit<Arc<FifoTask<TaskInner>>>. LazyInit{data:+0, inited:+8} — stopping
+  # ON the LazyInit rather than walking past it is deliberate: `inited` is the
+  # only thing distinguishing a live task from uninitialised MaybeUninit bytes,
+  # and those always look like data.
+  { unwrap     = ["LazyInit", "Arc"] },
+  # type-directed descent: finds `.inner` inside whichever wrapper this build
+  # chose. verified +0 for FifoTask<TaskInner>.
+  { descend_to = "axtask::task::TaskInner" },
+]
+
+# ---- what was blocked, and no longer is ---------------------------------
+# both engine gaps this file was written with are closed: the split RawVec on
+# 2026-08-31, the missing `list` reader on 2026-09-01. what remains unreachable
+# (CURRENT, below) is not a gap in NodeFusion — it is a type erased in ArceOS's
+# own source, which no amount of debug info can undo.
+
+# READY tasks. was blocked on a `list` reader; unblocked 2026-09-01.
+# FifoScheduler<T> holds `ready_queue: List<Arc<FifoTask<T>>>`, an intrusive
+# list from linked_list_r4l. measured:
+#   AxRunQueue{cpu_id:0, scheduler:8} -> BaseSpinLock -> FifoScheduler{ready_queue:0}
+#     -> List{list:0} -> RawList{head:0}
+#   FifoTask<TaskInner> size 280 {inner:0, links:256}
+#     Links{entry:0, inserted:16} -> UnsafeCell{value:0} -> ListEntry{next:0, prev:8}
+# so next_off = 256 + 0 + 0 + 0, link_off = 0 (next holds the ELEMENT address,
+# because ListEntry.next is Option<NonNull<T>> with T = FifoTask itself).
+# COMPILES END TO END, verified:
+#   percpu -> LazyInit -> field scheduler (+8) -> BaseSpinLock -> ready_queue
+#     -> iter list (next +256) -> descend_to TaskInner (+0) -> id (+24)
+[[entity.source]]
+kind         = "registry"
+completeness = "partial"
+reason       = "就绪队列里的任务；正在跑的和已退出的不在这条链上"
+when         = { type_exists = "axsched::fifo::FifoScheduler<axtask::task::TaskInner>" }
+steps = [
+  { percpu = "axtask::run_queue::RUN_QUEUE" },
+  { unwrap = ["LazyInit"] },
+  { field  = "scheduler" },
+  { unwrap = ["BaseSpinLock"] },
+  { field  = "ready_queue" },
+  # terminator is NOT measurable: a circular-headed ring and a 0-terminated
+  # chain are the same bytes. ground truth is the crate's own iterator
+  # (raw_list.rs:312 stops when next == head), and push_back_internal makes an
+  # empty-list insert self-referential — so the ring closes on the FIRST
+  # element, not on the head slot. calling this null-terminated would wrap past
+  # the end, trip cycle detection, and accuse a healthy kernel of a broken list.
+  { iter = "list", link = "links", next = "next", terminator = "circular_headed" },
+  { descend_to = "axtask::task::TaskInner" },
+]
+
+# CFS is structurally different: ready_queue is
+# BTreeMap<(isize,isize), Arc<CFSTask<TaskInner>>>.  The tuple key only orders
+# the tree; task enumeration consumes the Arc value, so `struct` preserves the
+# key address for the traversal label without inventing a tuple ABI reader.
+# Measured on arceos-f24c92ae.elf:
+#   CFScheduler.ready_queue +16
+#   LeafNode keys +0, vals +184, len +274; InternalNode.edges +280
+#   ArcInner<CFSTask<TaskInner>>.data +16; CFSTask.inner +0
+[[entity.source]]
+kind         = "registry"
+completeness = "partial"
+reason       = "CFS 就绪树里的任务；正在跑的和已退出的不在这棵树里"
+when         = { type_exists = "axsched::cfs::CFScheduler<axtask::task::TaskInner>" }
+steps = [
+  { percpu = "axtask::run_queue::RUN_QUEUE" },
+  { unwrap = ["LazyInit"] },
+  { field  = "scheduler" },
+  { unwrap = ["BaseSpinLock"] },
+  { field  = "ready_queue" },
+  { iter   = "btreemap", key = "struct" },
+  { unwrap = ["Arc"] },
+  { descend_to = "axtask::task::TaskInner" },
+]
+
+# EXITED tasks. was blocked on the split RawVec; unblocked 2026-08-31.
+# this toolchain emits `RawVec<T,A>{inner: RawVecInner<A>, _marker}`, so ptr/cap
+# hang off RawVecInner and `ptr` is type-erased to `Unique<u8>`. the element
+# type now comes from `_marker: PhantomData<T>` — the one place T survives.
+# COMPILES END TO END, verified:
+#   percpu -> iter vecdeque (elem 8) -> Arc -> TaskInner (+0) -> id (+24)
+[[entity.source]]
+kind         = "registry"
+completeness = "partial"
+reason       = "已退出待回收的任务；活着的任务不在这个队列里"
+steps = [
+  { percpu     = "axtask::run_queue::EXITED_TASKS" },
+  # VecDeque<Arc<FifoTask<TaskInner>>>. element size measured as 8 (one Arc).
+  # chasing the erased `ptr` instead would say 1, splitting every pointer into
+  # eight rows of garbage — without an error.
+  { iter       = "vecdeque" },
+  { unwrap     = ["Arc"] },
+  { descend_to = "axtask::task::TaskInner" },
+]
+
+# CURRENT task. blocked differently, and worth naming separately: the slot is
+# `axhal::percpu::CURRENT_TASK_PTR`, typed `usize` — a raw address with the
+# type erased in the source, not by the debug info. nothing can recover
+# `FifoTask<TaskInner>` from DWARF here; the manifest would have to assert it,
+# which is a different mechanism than anything this vocabulary has.
+
+[entity.fields]
+# all five confirmed present at the named types.
+id    = { path = "id",    reader = "newtype<u64>", role = "id" }         # +24 TaskId
+name  = { path = "name",  reader = "spinlock<string>", role = "name" }   # +32 BaseSpinLock<NoPreemptIrqSave, String>
+
+
+
+state = { path = "state", reader = "atomic<enum>", enum = "axtask::task::TaskState", role = "state" }  # +250 AtomicU8
+cpu   = { path = "cpu_id", reader = "atomic<u32>" }                      # +240 AtomicU32
+exit  = { path = "exit_code", reader = "atomic<i32>", role = "exit_code" }  # +244 AtomicI32
+# +120 UnsafeCell<axcpu::riscv::context::TaskContext>. this is the argument
+# `context_switch(&mut prev_ctx, &next_ctx)` is handed, so it is what makes
+# switch attribution possible: the incoming pointer equals some task's +120.
+# reader = "struct" takes the field's own address without reading memory, so
+# the UnsafeCell wrapper needs no unwrapping -- it is repr(transparent), the
+# cell and its contents are at the same address. that is also why this one
+# field still resolves in a frame whose memory read failed.
+# measured against the app-childtask build: ctx 0xffffffc08026d958 belongs to
+# the task at 0x8026d8e0, and 0x958 - 0x8e0 = 0x78 = 120.
+ctx   = { path = "ctx",   reader = "struct", role = "sched_context" }    # +120 UnsafeCell<TaskContext>
+# `state` decodes against axtask::task::TaskState, read from DWARF:
+#   Running=1  Ready=2  Blocked=3  Exited=4
+# note there is no 0 — a zero byte is uninitialised, not a state.
+# `name` builds as of 2026-08-31 — it was the last casualty of the split RawVec.
+# string_opts now walks String -> Vec<u8> -> RawVec<u8> -> RawVecInner and
+# reports that inner type (+ its offset) as string_raw_type/string_raw_base:
+#   string_str_type = String
+#   string_vec_type = Vec<u8, alloc::alloc::Global>
+#   string_raw_type = RawVecInner<alloc::alloc::Global>
+#   string_raw_base = 0
+
+# fields that exist only under some feature set. absent is NOT an error —
+# it is "absent by construction", and the probe reports which cfg caused it.
+# confirmed absent in this build, which sets none of the three features.
+[entity.optional_fields]
+on_cpu       = { path = "on_cpu",       reader = "atomic<bool>", feature = "smp" }
+need_resched = { path = "need_resched", reader = "atomic<bool>", feature = "preempt" }
+task_ext     = { path = "task_ext",     reader = "option<struct>", feature = "task-ext" }
+
+
+
+
+
+
+
+
+
+
+#   axmm::KERNEL_ASPACE
+#     : LazyInit<BaseSpinLock<NoPreemptIrqSave, AddrSpace>>   size 56
+
+
+
+#     -> axmm::aspace::AddrSpace                              size 48
+#          +0  va_range : AddrRange<VirtAddr>
+#          +16 areas    : MemorySet<axmm::backend::Backend>   size 24
+#          +40 pt       : PageTable64<Sv39MetaData, Rv64PTE, PagingHandlerImpl>
+#       -> +0 areas : BTreeMap<VirtAddr, MemoryArea<Backend>> size 24
+#          -> memory_set::area::MemoryArea<axmm::backend::Backend>  size 40
+#               +0  backend  : Backend                        size 16
+#               +16 va_range : AddrRange<VirtAddr>            size 16（start +0 / end +8）
+#               +32 flags    : MappingFlags                   size 8（InternalBitFlags）
+
+
+
+
+
+[[entity]]
+name  = "kernel_aspace"
+
+
+type  = "memory_set::area::MemoryArea<axmm::backend::Backend>"
+label = "内核地址空间区间"
+
+[[entity.source]]
+kind         = "table"
+
+
+
+completeness = "partial"
+reason       = "只枚举 KERNEL_ASPACE 一张地址空间；用户地址空间挂在各自任务上，这条走不到"
+steps = [
+  { static = "axmm::KERNEL_ASPACE" },
+
+
+
+  { unwrap = ["LazyInit", "BaseSpinLock"] },
+  # AddrSpace.areas +16 -> MemorySet；MemorySet.areas +0 -> BTreeMap。
+
+  { field = "areas" },
+  { field = "areas" },
+  { iter  = "btreemap", key = "usize" },
+]
+
+[entity.fields]
+
+start = { path = "va_range.start", reader = "newtype<u64>", role = "id" }
+end   = { path = "va_range.end",   reader = "newtype<u64>" }
+
+
+
+flags = { path = "flags", reader = "newtype<u64>" }
+
+# ---------------------------------------------------------------- watches
+
+# NOT a symbol list. a policy: what to instrument, and how hard to throttle.
+# cost is driven by hit count (runtime), not function count (static).
+# module names corrected against the build; the counts are how many functions
+# each prefix actually matches, which is also a sanity check that the name is
+# real at all — the old `ax_task` matched zero.
+
+# KNOWN BLIND SPOT, measured on a real boot (67.5M instructions, see FINDINGS):
+# these rules see 17% of the boot. 83% of it is the axmm page-table build, and
+# every function that build spends its time in lives in a *dependency* crate --
+# page_table_multiarch, page_table_entry, axplat_riscv64_qemu_virt,
+# bitmap_allocator. `axmm::backend::{impl#0}::map` is watched and does fire, but
+# it delegates immediately and nothing it delegates to is named here.
+# This is not left open by oversight. Two reasons it is not simply fixed by
+# adding those crate names:
+#   * the two hottest functions there are generic monomorphisations, whose v0
+#     symbols the demangler declines on purpose, so no `module` rule can match
+#     them however it is written. Naming the crates would catch `new_page` and
+#     `is_huge` -- per-PTE leaf helpers -- and miss `map` and `map_region`,
+#     which are 51% of the window.
+#   * the second-hottest entry overall is `phys_to_virt` at a quarter of the
+#     boot, which is an accessor of exactly the shape that got `skip` on xv6
+#     (`mycpu`) and rCore (`current_trap_cx`). Watching it would be expensive
+#     and would tell you nothing.
+# The right fix is a way to watch the page-table walk at the granularity of a
+# region rather than a PTE. That needs measuring before it needs writing.
+
+# order matters: selection is first-rule-wins, so the two rules that exist to
+# *exclude* have to come before the broad `module = ...` ones below.
+
+# Debug/Display impls. `module` rules match on where code lives, and every
+# crate keeps its `impl Debug` next to the type it prints -- so `module =
+# "axmm"` swept in `axmm::aspace::{impl#1}::fmt` and spent a watchpoint on
+# formatting. There are four more `fmt` in axcpu, axalloc and axtask waiting to
+# do the same. A location rule cannot say "not this one"; that is what `skip`
+# is for. Same shape as the accessors skipped in rcore.toml.
+[[watch]]
+subsystem = "fmt"
+match     = { fn = ["fmt"] }
+skip      = true
+
+# panic landing points. These names are set by the *compiler*, not by ArceOS:
+# `#[panic_handler]` is exported as `rust_begin_unwind`, and the allocator
+# error hook as `__rust_alloc_error_handler`. So this rule survives ArceOS
+# renaming its own functions, and is the same rule rcore.toml uses.
+# Reaching them needed v0 demangling. ArceOS is built with v0, where these live
+# under the synthetic crate `__rustc`; the source name is `axruntime::
+# lang_items::panic` and the ABI name is an alias on the same address. Before
+# v0 support neither name was matchable and this kernel had **no** panic
+# watchpoint at all -- crash forensics with nothing marking the crash.
+[[watch]]
+subsystem = "panic"
+match     = { fn = ["rust_begin_unwind", "__rust_alloc_error_handler",
+                    "handle_alloc_error"] }
+snapshot  = "always"
+args      = 2
+throttle  = 0
+
+[[watch]]
+subsystem = "ax-task"
+match     = { module = "axtask", fn = ["spawn*", "exit*", "yield*", "switch*"] }
+args      = 2          # do not read or store a[2..8]  -> 62% of record dropped
+throttle  = 0
+# Take a memory frame when a task is created or destroyed, because on ArceOS
+# that is the only moment the task structures exist. Its whole multitask phase
+# is ~14k instructions wide and sits 2.5M instructions past where a
+# 5M-instruction periodic sampler last looked, so periodic sampling misses it
+# outright -- measured: proc.create at insn 67,497,711, last frame at
+# 65,000,052. `event` rather than `always` because spawn/exit/yield fire
+# hundreds of times in a longer run and the plugin throttles this class.
+snapshot  = "event"
+
+# The context switch itself is not in axtask -- it is hand-written assembly in
+# axcpu, and it has no DWARF entry at all, so the symbol table is its only
+# name. Claimed here, before the broad axcpu rule below, so it lands in `sched`
+# rather than `trap`.
+[[watch]]
+subsystem = "sched"
+match     = { module = "axcpu", fn = ["context_switch"] }
+args      = 2
+throttle  = 0
+# Snapshot here too, even though this rule exists for *naming* rather than for
+# tasks. A context switch is the one moment the incoming task is both queued and
+# still named, and without a frame here the spawned child was only ever observed
+# after it had exited -- by which point ArceOS has cleared its name field.
+# Measured on app-childtask, three recordings that differ only in these two keys:
+#   sched snapshot   evsnapmin   frames in phase   child (pid 4) seen alive
+#   --------------   ---------   ---------------   ------------------------
+#   none                  2000                 3   no
+#   event                 2000                 3   no
+#   event                  500                 6   yes, at insn 67,498,926
+# Note the middle row: this key ALONE buys nothing. The six task events are as
+# little as 688 instructions apart, so at evsnapmin = 2000 every extra frame it
+# asks for is throttled away again -- it only moved one frame from 67,511,354 to
+# 67,510,025. The two keys have to change together, which is why the measured
+# gap is written into `event_snapshot_min_insns` below rather than left at a
+# round number.
+snapshot  = "event"
+
+# Traps, page faults and trap-vector setup. `axcpu::riscv::*` here; the crate
+# is per-arch internally, so `module = "axcpu"` holds for all four arches
+# without naming any of them.
+[[watch]]
+subsystem = "trap"
+match     = { module = "axcpu" }
+args      = 2
+throttle  = 0
+
+[[watch]]
+subsystem = "ax-mm"
+match     = { module = "axmm" }
+args      = 2
+throttle  = 64         # hot; sample 1 in 64
+
+[[watch]]
+subsystem = "ax-alloc"
+match     = { module = "axalloc" }
+args      = 1
+throttle  = 256
+
+
+
+
+
+
+
+
+
+[event]
+"axcpu::riscv::init::init_trap"          = "trap.init"
+"axcpu::riscv::trap::riscv_trap_handler" = "trap.enter"
+"axcpu::riscv::trap::handle_page_fault"  = "trap.page_fault_handler"
+
+
+
+
+
+
+
+
+"axcpu::riscv::context::context_switch"  = { kind = "sched.switch", args = ["old_ctx", "new_ctx"] }
+"axtask::api::yield_now"                 = "sched.yield"
+
+"axtask::api::spawn_task"                = "proc.create"
+"axtask::api::exit"                      = "proc.exit"
+
+"axmm::init_memory_management"           = "vm.init"
+"axmm::new_kernel_aspace"                = "vm.aspace_create"
+
+"axmm::backend::{impl#0}::map"           = "vm.map"
+"axmm::backend::{impl#0}::unmap"         = "vm.unmap"
+
+"axalloc::default_impl::global_init"       = "heap.init"
+"axalloc::default_impl::global_add_memory" = "heap.add_memory"
+"axalloc::default_impl::_::__rust_alloc"        = "heap.alloc"
+"axalloc::default_impl::_::__rust_alloc_zeroed" = "heap.alloc_zeroed"
+"axalloc::default_impl::_::__rust_dealloc"      = "heap.free"
+"axalloc::default_impl::_::__rust_realloc"      = "heap.realloc"
+
+
+
+
+
+
+
+"axruntime::lang_items::panic"           = "kernel.panic"
+"alloc::alloc::handle_alloc_error"       = "panic.alloc"
+"__rustc::__rust_alloc_error_handler"    = "panic.alloc_handler"
+
+
+
+
+
+
+
+[profile]
+
+
+
+
+kernel_elf   = "target/riscv64gc-unknown-none-elf/release/{crate}"
+
+
+kernel_image = "target/riscv64gc-unknown-none-elf/release/{crate}.bin"
+
+
+
+
+
+
+
+
+
+build = """
+CARGO_PROFILE_RELEASE_DEBUG=2 cargo xtask build --arch riscv64 2>&1 | tail -20 \
+&& rust-objcopy --binary-architecture=riscv64 \
+     target/riscv64gc-unknown-none-elf/release/{crate} \
+     --strip-all -O binary target/riscv64gc-unknown-none-elf/release/{crate}.bin\
+"""
+
+# Two event snapshots must be at least this many instructions apart. The plugin
+# default is 2,000,000, which is wider than this kernel's entire multitask phase
+# -- measured on app-childtask: proc.create at 67,497,711 and the last proc.exit
+# at 67,511,354, so 13,643 instructions end to end. At the default only one frame
+# can land inside that window, and it lands on the spawn entry, before the child
+# is queued -- which decodes to `idle` alone and reads exactly like a kernel with
+# no tasks.
+# This number is NOT chosen for roundness. It is below the measured minimum gap
+# between two task events. The six events and their spacing:
+#   67,497,711  proc.create
+#   67,498,926  sched.switch    gap 1,215
+#   67,499,614  sched.switch    gap   688   <- the binding one
+#   67,505,429  proc.exit       gap 5,815
+#   67,510,025  sched.switch    gap 4,596
+#   67,511,354  proc.exit       gap 1,329
+# An earlier version of this line said 2,000 and claimed it "gives room for a
+# frame at each of the six task events". That was wrong, and only looked right
+# because at the time just three of the six asked for a frame -- those three are
+# 5,925 and 7,718 apart, comfortably over 2,000. As soon as the `sched` rule
+# above started asking too, 2,000 became the binding constraint and threw away
+# every frame it added. 500 clears the real minimum of 688 with room to spare.
+# Measured cost of going 2,000 -> 500 on this run: 70 -> 73 state frames, +4%.
+# Total stays bounded by evsnapmax (120 frames) regardless, so a kernel that
+# switches far more often gets throttled rather than unbounded -- it just gets
+# throttled by the cap instead of by this gap.
+event_snapshot_min_insns = 500
+
+
+
+detect_files = [".axconfig.toml", "xtask/src/main.rs", "configs/riscv64.toml"]
+
+required_tools = ["qemu-system-riscv64", "cargo", "rust-objcopy"]
+
+
+machine_opts = [
+    "-machine virt",
+    "-bios default",
+    "-kernel target/riscv64gc-unknown-none-elf/release/{crate}.bin",
+    "-m 128M",
+]
+
+
+interactive = false
+
+
+ready_markers = ["Primary CPU 0 init OK."]
+
+
+done_markers  = ["Shutting down..."]
+
+
+build_deviation = """
+用 CARGO_PROFILE_RELEASE_DEBUG=2 编，教程默认的 --release 不带调试信息。\
+只加调试段，不改优化等级、不改 feature、不动仓库里任何文件；\
+跑的代码和学生编出来的是同一份。\
+"""
+
+
+
+
+[[profile.device]]
+file = "pflash.img"
+opts = ["-drive if=pflash,format=raw,unit=1,file=pflash.img,readonly=on"]
+
+
+
+#     panicked at .../axfs-0.3.0-preview.1/src/lib.rs:80:37: No block device found!
+
+
+
+
+
+
+#     handle page fault OK! addr=VA:0x3ffffffffc
+#     handle_syscall ...
+#     [SYS_EXIT]: system is exiting ..
+
+
+
+
+
+
+[[profile.device]]
+file = "target/disk-riscv64.img"
+opts = [
+    "-drive file=target/disk-riscv64.img,format=raw,if=none,id=disk0",
+    "-device virtio-blk-pci,drive=disk0",
+]
+
+
+
+
+
+
+
+
+
+[[profile.device]]
+file = "target/disk.img"
+opts = [
+    "-drive file=target/disk.img,format=raw,if=none,id=disk0",
+    "-device virtio-blk-pci,drive=disk0",
+]

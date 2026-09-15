@@ -1,0 +1,326 @@
+# AxVisor — hypervisor, two-stage memory
+
+
+#     CARGO_PROFILE_RELEASE_DEBUG=2 cargo xtask axvisor build --arch riscv64
+
+
+
+
+#   1. `[entity.relations].vcpus = { path = "vcpu_list" }`
+#   2. `[entity.address_space].translation = { path = "memory_regions" }`
+#   3. `[entity.address_space].root = { call = "page_table_root" }`
+
+
+
+
+
+
+
+[kernel]
+name   = "axvisor"
+family = "arceos"
+arches = ["riscv64", "x86_64", "aarch64"]
+
+
+
+
+
+
+
+
+
+
+builds_on = "arceos"
+detect = { any_type = ["axvm::vm::AxVM"] }
+
+# ---------------------------------------------------------------- vm
+
+
+
+
+
+[[entity]]
+name  = "vm"
+type  = "axvm::vm::AxVM"        # virtualization/axvm/src/vm/mod.rs:1261
+label = "虚拟机"
+
+[[entity.source]]
+kind         = "registry"
+completeness = "total"
+steps = [
+  { static = "axvm::manager::VM_REGISTRY" },
+  { unwrap = ["Mutex"] },
+
+
+  { iter   = "btreemap", key = "usize" },
+  { unwrap = ["Arc"] },
+]
+
+[entity.fields]
+
+
+vm_id = { path = "id",   reader = "u32", role = "id" }
+name  = { path = "name", reader = "string", role = "name" }
+
+# ---------------------------------------------------------------------------
+
+
+
+
+
+#     address_space   +0      AddrSpace<ArchNestedPageTable>
+#     memory_regions  +64     Vec<VMMemoryRegion>
+#     vcpu_list       +400    Option<Box<[AxVCpuRef]>>
+
+#     machine: IrqSafeMutex<Machine<AxVMResources, Arc<VmRuntimeHandle>>>   (+896)
+
+
+
+
+
+
+
+
+
+
+
+
+# ---------------------------------------------------------------- vcpu
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# [[entity]]
+# name  = "vcpu"
+
+
+# [[entity.source]]
+# kind         = "via_parent"
+# completeness = "total"
+# steps = [
+#   { from   = "vm.vcpus" },
+# ]
+# [entity.fields]
+# vcpu_id  = { path = "inner_const.vcpu_id",      reader = "u32", role = "id" }
+# vm_id    = { path = "inner_const.vm_id",        reader = "u32" }
+# phys_cpu = { path = "inner_const.phys_cpu_set", reader = "u64" }
+
+# ---------------------------------------------------------------- watches
+
+
+
+
+
+
+
+
+
+
+
+
+[[watch]]
+subsystem = "panic"
+match     = { fn = ["rust_begin_unwind", "__rust_alloc_error_handler",
+                    "handle_alloc_error"] }
+snapshot  = "always"
+args      = 2
+throttle  = 0
+
+
+
+
+
+# `map_host_backend_error` / `map_interrupt_backend_error` /
+
+
+
+
+
+
+
+
+[[watch]]
+subsystem = "vmexit"
+match     = { module = "axvm::architecture::exit" }
+args      = 3
+throttle  = 0
+
+[[watch]]
+subsystem = "axvm"
+match     = { module = "axvm" }
+args      = 2
+throttle  = 0
+
+
+
+
+
+# os/axvisor/Cargo.toml。
+
+#     axvm::        350      axvisor::     90
+#     ax_driver::    62      ax_hal::      28
+#     axvm::vcpu::   11
+
+
+
+[[watch]]
+subsystem = "hal"
+match     = { module = "ax_hal" }
+args      = 2
+throttle  = 64
+
+[[watch]]
+subsystem = "driver"
+match     = { module = "ax_driver" }
+args      = 2
+throttle  = 64
+
+
+
+
+
+[profile]
+
+
+
+kernel_elf   = "target/riscv64gc-unknown-linux-musl/release/axvisor"
+
+
+
+kernel_image = "target/riscv64gc-unknown-linux-musl/release/axvisor.bin"
+
+
+
+
+
+
+
+build = """
+CARGO_PROFILE_RELEASE_DEBUG=2 cargo xtask axvisor build --arch riscv64 2>&1 | tail -20 \
+&& rust-objcopy --binary-architecture=riscv64 \
+     target/riscv64gc-unknown-linux-musl/release/axvisor \
+     --strip-all -O binary target/riscv64gc-unknown-linux-musl/release/axvisor.bin\
+"""
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+required_tools = ["qemu-system-riscv64", "cargo", "rust-objcopy"]
+
+
+
+
+
+
+
+
+
+
+
+# `panicked at fs/ax-fs-ng/src/root.rs:197: failed to determine root device
+
+
+
+
+machine_opts = [
+    "-machine virt",
+    "-bios default",
+    "-cpu rv64",
+    "-kernel target/riscv64gc-unknown-linux-musl/release/axvisor.bin",
+    "-m 4g",
+    "-device nvme,drive=disk0,serial=tgoskits,max_ioqpairs=64,msix_qsize=65",
+    "-drive id=disk0,if=none,format=raw,snapshot=on,file=tmp/axbuild/rootfs/rootfs-riscv64-alpine.img",
+]
+
+protect = ["tmp/axbuild/rootfs/rootfs-riscv64-alpine.img"]
+
+
+
+
+interactive = true
+prompt      = "axvisor:/$"
+
+
+
+
+
+
+ready_markers = [
+  "Hardware virtualization support enabled on core 0",
+  "All cores have enabled hardware virtualization support.",
+  "VMM starting, booting VMs...",
+]
+
+
+
+
+
+done_markers = []
+
+build_deviation = "本次观测的内核用 CARGO_PROFILE_RELEASE_DEBUG=2 编，仓库默认的 release（根 Cargo.toml 的 [profile.release] 只设了 lto = false）不带任何调试信息，没有 DWARF 就解不出结构、也挂不上观察点。只加调试段，不改优化等级、不改 feature、不动仓库里任何文件。"
+
+
+
+
+#     axvisor::manager:164]  NOT find dir: /guest/vm_default in filesystem
+#     axvisor::config:87]    Static VM configs are empty.
+#     axvisor::config:88]    Now axvisor will entry the shell...
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#     arceos    __rustc::__rust_alloc_error_handler
+#     starry    __rustc::__rust_alloc_error_handler
+#     axvisor   std::alloc::_::__rust_alloc_error_handler
+
+
+
+
+
+[event]
+"std::panicking::panic_handler"             = "kernel.panic"
+"alloc::alloc::handle_alloc_error"          = "panic.alloc"
+"std::alloc::_::__rust_alloc_error_handler" = "panic.alloc_handler"

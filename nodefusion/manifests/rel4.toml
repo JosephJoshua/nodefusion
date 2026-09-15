@@ -1,0 +1,169 @@
+# reL4 — seL4 in Rust. the case that breaks the rules.
+# evidence: rel4_kernel/src/task_manager/scheduler.rs, cspace/cap/mod.rs.
+# source-read only. reL4's real code lives in git dependencies that are not
+# fetched in this checkout, so tcb_t's field list is NOT yet confirmed.
+# TWO RULE VIOLATIONS, both declared loudly rather than quietly excepted.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[kernel]
+name   = "rel4"
+family = "sel4"
+arches = ["riscv64"]
+detect = { any_symbol = ["ksReadyQueues"] }
+
+[[entity]]
+name  = "task"
+role  = "process"
+type  = "tcb_t"
+label = "TCB"
+
+# ---- VIOLATION 1: enumeration is structurally incomplete.
+# seL4 has no global TCB registry by design. TCBs live in untyped memory that
+# the kernel does not track. The ready queues are the only enumerable set,
+# and they contain Ready threads only — not Running, not Blocked, not
+# Inactive. This is not a NodeFusion limitation and must not be presented as
+# one; the UI has to say so.
+[[entity.source]]
+kind         = "queues"
+completeness = "ready_only"
+reason       = "seL4 无全局 TCB 表；TCB 位于 untyped 内存中，内核不追踪。就绪队列是唯一可枚举集合"
+steps = [
+  { static = "ksReadyQueues" },
+  { iter   = "array" },                       # [tcb_queue_t; NUM_READY_QUEUES]
+  # head/tail are raw usize addresses, not pointers with DWARF types.
+  { walk   = { list = "intrusive", head = "head", next = "tcbSchedNext", terminator = 0 } },
+]
+
+# a second, also-partial source: the currently running thread.
+[[entity.source]]
+kind         = "current"
+completeness = "partial"
+steps = [
+  { static = "ksCurThread" },
+  { deref  = "tcb_t" },
+]
+
+[entity.fields]
+# NOT YET VERIFIED — tcb_t comes from the sel4_task git dependency, which is
+# not present in this checkout. Every path below is a source-read guess and
+# must fail loudly at probe time if wrong.
+state    = { path = "tcbState",    reader = "bitfield", verified = false, role = "state" }
+priority = { path = "tcbPriority", reader = "u64",      verified = false, role = "priority" }
+domain   = { path = "tcbDomain",   reader = "u64",      verified = false }
+
+# ---- VIOLATION 2: bitfields are not in DWARF.
+# `plus_define_bitfield!` generates accessor methods that are inlined away in
+# release builds. cap_t is literally `{ words: [usize; 2] }` — DWARF sees two
+# integers and nothing else. Bit positions CANNOT be checked against the
+# binary, which breaks the falsifiability rule this design otherwise enforces.
+# So they are declared un-checkable, explicitly. The probe must refuse to
+# silently accept them.
+[[bitfield]]
+name     = "cap_t"
+backing  = { path = "words", reader = "array<usize>" }
+checkable = false
+reason   = "plus_define_bitfield! 生成的访问器在 release 下被内联，位偏移不在 DWARF 中"
+
+  [[bitfield.field]]
+  name = "cap_type"
+  word = 0
+  bits = [59, 63]
+  # weakest available validation: decoded tags must land in the known set.
+  # this is not falsification, only a smoke test. say so.
+  validate = { in_set = [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20], strength = "smoke_test_only" }
+
+# ---------------------------------------------------------------- watches
+
+
+
+
+
+
+
+
+
+
+
+
+
+[[watch]]
+subsystem = "panic"
+match     = { fn = ["rust_begin_unwind", "handle_alloc_error"] }
+snapshot  = "always"
+args      = 2
+throttle  = 0
+
+[[watch]]
+subsystem = "task_manager"
+match     = { module = "rel4_kernel::task_manager" }
+args      = 2
+throttle  = 0
+
+[[watch]]
+subsystem = "cspace"
+match     = { module = "rel4_kernel::cspace" }
+args      = 2
+throttle  = 32
+
+[[watch]]
+subsystem = "syscall"
+match     = { module = "rel4_kernel::syscall" }
+args      = 3
+throttle  = 0
+
+[[watch]]
+subsystem = "trap"
+match     = { module = ["rel4_kernel::exception", "rel4_kernel::interrupt"] }
+args      = 2
+throttle  = 0
+
+[[watch]]
+subsystem = "mm"
+match     = { module = "rel4_kernel::vspace" }
+args      = 2
+throttle  = 64
+
+[[watch]]
+subsystem = "object"
+match     = { module = "rel4_kernel::object" }
+args      = 2
+throttle  = 64
+
+
+
+
+
+
+
+
+
+
+
+#         [lib]
+#         name = "rustlib"
+#         crate-type = ["staticlib"]
+
+
+
+
+
+
+
+
+
+
+
+
+#     2024-02-25 / 2024-05-02 / 2025-05-20 / 2025-12-12 / 2026-04-01 /

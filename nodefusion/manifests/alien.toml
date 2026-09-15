@@ -1,0 +1,394 @@
+# Alien — Rust, tree walk from init, riscv64 only
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[kernel]
+name   = "alien"
+family = "alien"
+arches = ["riscv64"]
+detect = { any_type = ["kernel::task::task::Task"] }
+
+[[entity]]
+name  = "task"
+role  = "process"
+type  = "kernel::task::task::Task"   # outer Task holds tid/pid; inner holds the rest
+label = "任务"
+
+# no global registry. the only enumeration is a walk from INIT_PROCESS
+# down `children`. that makes it structurally incomplete: a task that has
+# been reparented or detached is not reachable. declared, not hidden.
+[[entity.source]]
+kind         = "tree"
+completeness = "reachable_only"
+reason       = "Alien 没有全局任务表；只能从 INIT_PROCESS 沿 children 遍历"
+steps = [
+  { static = "kernel::task::INIT_PROCESS" },
+  { unwrap = ["Lazy", "Arc"] },
+  { walk   = { children = "inner.children", via = ["Mutex", "Vec", "Arc"] } },
+]
+
+[entity.fields]
+
+
+tid   = { path = "tid",              reader = "newtype<usize>", role = "id" }
+pid   = { path = "pid",              reader = "usize" }
+
+
+
+
+
+name  = { path = "inner.name",       reader = "string", role = "name" }
+state = { path = "inner.state",      reader = "enum", enum = "TaskState", role = "state" }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+pgtbl = { path = "inner.address_space", reader = "arc<mutex<field<root_paddr, usize>>>", role = "address_space_root" }
+
+[entity.relations]
+# reverse edge. Weak, so it may read as a cycle mid-fork — the walker needs
+# the same cycle guard the current rCore tree decoder already has.
+parent   = { path = "inner.parent", reader = "option<weak>", links_to = "task" }
+children = { path = "inner.children", reader = "vec<arc>",   links_to = "task" }
+
+[[watch]]
+subsystem = "task"
+match     = { module = "kernel::task" }
+args      = 2
+throttle  = 0
+
+# `kernel` has 13 top-level modules (lib.rs) and only `task` was watched. These
+# three are the ones every other manifest in this directory also watches, and
+# they are read from the source tree, not guessed.
+
+
+
+
+# ksync 336、task 198、mem 119、trap 97、fs 61、drivers 51、vfs 45、
+
+
+
+[[watch]]
+subsystem = "trap"
+match     = { module = "kernel::trap" }
+args      = 2
+throttle  = 0
+
+[[watch]]
+subsystem = "mm"
+match     = { module = "kernel::mm" }
+args      = 2
+throttle  = 64
+
+[[watch]]
+subsystem = "fs"
+match     = { module = "kernel::fs" }
+args      = 2
+throttle  = 64
+
+# Alien's 16 subsystems/ directories are workspace members, so each one is its
+# own crate -- and a crate's name is the ROOT of its symbol paths. `mem::alloc`,
+# never `subsystems::mem::alloc`; the directory name appears nowhere in a
+# symbol. The previous rule here matched on `module_prefix = "subsystems::"`,
+# which cannot match anything Alien emits. Its comment stated the correct
+# premise ("map 1:1 to crate names") and drew the opposite conclusion from it.
+# Listing the crates gets the same result the prefix was reaching for: `module`
+# takes a list, and `subsystem = "*"` names each point after whichever entry it
+# matched. Names read from Alien/Cargo.toml's `subsystems/*` glob.
+# `ksync` is the one to watch here: it is the lock crate, so it is called from
+# everywhere, which is the same shape as the accessor functions that made
+# ArceOS's numbers hard to read. If it drowns the trace, it wants `skip`, not a
+# bigger throttle.
+
+
+
+
+
+
+
+# vfs 140、drivers 69、devices 40、knet 39、mem 28、platform 15、shim 12、
+# gmanager 10、interrupt 5、unwinder 4、ksync 3、arch 3、device_interface 2。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[[watch]]
+subsystem = "ksync"
+match     = { module = "ksync" }
+args      = 0
+throttle  = 64
+
+[[watch]]
+subsystem = "*"
+match     = { module = ["arch", "config", "constants", "device_interface",
+                        "devices", "drivers", "gmanager", "interrupt",
+                        "knet", "ksync", "mem", "platform",
+                        "shim", "timer", "unwinder", "vfs"] }
+args      = 1
+throttle  = 64
+
+# ---------------------------------------------------------------- profile
+
+
+
+
+
+[profile]
+kernel_elf   = "target/riscv64gc-unknown-none-elf/release/kernel"
+kernel_image = "target/riscv64gc-unknown-none-elf/release/kernel"
+
+
+
+
+
+build = """
+CARGO_PROFILE_RELEASE_DEBUG=2 {mv} \
+RUSTFLAGS=" -Cforce-unwind-tables -Cpanic=unwind " \
+cargo build --release -p kernel --target riscv64gc-unknown-none-elf \
+--features ,qemu,talloc,fat 2>&1 | tail -5 \
+&& riscv64-unknown-elf-ld -T tools/linker-qemu.ld \
+-o target/riscv64gc-unknown-none-elf/release/kernel \
+target/riscv64gc-unknown-none-elf/release/libkernel.a\
+"""
+
+
+# （rCore-Tutorial-Code-2025S / tg-arceos-tutorial / tg-rcore-tutorial /
+
+detect_files = [
+    "kernel/src/ksym.rs",
+    "subsystems/unwinder/src/panic.rs",
+    "tools/linker-qemu.ld",
+    "user/apps/linker.ld",
+]
+
+
+
+required_tools = [
+    "qemu-system-riscv64", "cargo",
+    "riscv64-unknown-elf-ld", "rust-nm",
+]
+
+
+machine_opts = [
+    "-M virt",
+    "-bios default",
+    "-kernel target/riscv64gc-unknown-none-elf/release/kernel",
+    "-m 1024M",
+]
+
+
+
+
+
+
+
+
+protect = ["tools/sdcard.img"]
+
+
+
+
+
+
+
+
+
+
+interactive = false
+prompt      = ""
+
+
+ready_markers = [
+    "Init filesystem success",
+    "Init task success",
+    "Begin run task...",
+]
+
+
+
+
+done_markers = ["Init process exit with code"]
+
+
+
+
+
+
+
+panic_markers = ["panic", "!TEST FINISH!", "Rust Panic Backtrace"]
+
+build_deviation = """
+跑的不是 `make build` 编出来的那个二进制，有三处不同：
+
+1. 链接器换了。Makefile 写死 `riscv64-linux-gnu-ld`，这台机器上没有，
+   改用 `riscv64-unknown-elf-ld`（同为 GNU ld，链接脚本原样用）。
+2. 加了 `CARGO_PROFILE_RELEASE_DEBUG=2`。官方 release 不带调试信息，
+   没有 DWARF 就没有实体和形参名。
+3. 跳过了 `copy_kallsyms`。那一步要 `sudo mount` 才能把 kallsyms 写进盘里，
+   录制不该要 root。
+
+第 3 条有个坑，必须说清楚：kallsyms **不是**只给回溯用的装饰。
+`kernel/src/ksym.rs:25` 读 `/tests/kallsyms`（即这块盘的根目录），读不到就
+`expect("Failed to map kallsyms")` 直接 panic —— 也就是说盘里没有 kallsyms
+的话，这个内核**根本起不来**。而且 kallsyms 是从 ELF 的符号表生成的，
+重编内核之后必须重做，否则地址对不上。
+
+还有一个上游的坑：Makefile 装的 `gen_ksym` 来自 Starry-OS/ksym，
+内核链接的 `ksym` crate 却来自 Godones/ext_ebpf 0.3.0 —— **写 blob 的和读
+blob 的是两个项目**，版本对不上时报的是 "The addresses array is missing"，
+看着像文件损坏。要用 ext_ebpf 那份重新装：
+    cargo install --git https://github.com/Godones/ext_ebpf \\
+        --rev a5eb5a3ad94ba8fda60c038e5c9308d7fd138f8e ksym --features demangle
+
+盘（tools/sdcard.img）的做法，全程不需要 root：
+    dd if=/dev/zero of=tools/sdcard.img bs=1m count=64
+    DEV=$(hdiutil attach -nomount -imagekey diskimage-class=CRawDiskImage \\
+          tools/sdcard.img | head -1 | awk '{print $1}')
+    newfs_msdos -F 32 -S 512 "$DEV"; hdiutil detach "$DEV"
+
+    #   kallsyms  <- rust-nm -n <kernel> | grep ' [Tt] ' | gen_ksym
+
+
+注意内核把这块盘挂在 `/tests`，所以内核眼里的 `/tests/kallsyms` 就是盘的
+**根目录**下的 kallsyms，不要再套一层 tests/。
+
+没做的：`user/c_apps`、`user/musl`、tools/initrd 里的 busybox initramfs ——
+那三样要 riscv64-linux-musl 交叉工具链、`sudo apt` 和交互式 menuconfig，
+这台机器上做不了。少了它们的后果是 init 那句 `exec("/tests/bash")` 失败，
+用户态只剩 init 自己，不是内核少了功能。
+"""
+
+
+
+
+
+
+[[profile.device]]
+file = "tools/sdcard.img"
+opts = [
+    "-drive file=tools/sdcard.img,if=none,format=raw,id=x0",
+    "-device virtio-blk-device,drive=x0",
+]
+
+
+
+
+
+
+
+
+
+
+[syscalls]
+files   = ["kernel/src/**/*.rs"]
+pattern = '#\[syscall_func\((?P<num>\d+)\)\]\s*(?://[^\n]*\n\s*)*(?:pub\s+)?fn\s+(?P<name>\w+)'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[event]
+
+
+
+
+
+
+"kernel::trap::user_trap_vector"   = "trap.usertrap"
+"kernel::trap::kernel_trap_vector" = "trap.kerneltrap"
+"kernel::trap::trap_return"        = "trap.userret"
+
+
+
+
+
+
+
+
+# `syscall_entry(syscall_id: usize, parameters: [usize; 6]) -> usize`
+
+
+
+"kernel::trap::exception::syscall_entry" = "syscall.dispatch"
+
+
+
+"mem::frame::alloc_frames"                  = "phys.alloc"
+"mem::talc_wrapper::TalcAllocator::alloc"   = "heap.alloc"
+"mem::talc_wrapper::TalcAllocator::dealloc" = "heap.free"
+"mem::_::__rust_alloc_zeroed"               = "heap.alloc_zeroed"
+"mem::init_memory_system"                   = "vm.init"
+
+
+
+
+"drivers::block_device::VirtIOBlkWrapper::read_block" = { kind = "disk.io", operation = "read" }
+
+
+
+
+
+
+
+
+
+
+#     `before_lock() { push_off() }`、`after_lock() { pop_off() }` ——

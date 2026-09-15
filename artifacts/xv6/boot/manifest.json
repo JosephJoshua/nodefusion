@@ -1,0 +1,34 @@
+{
+  "nodefusion_version": "1.0.0",
+  "run_name": "boot-trace",
+  "program": "echo boot",
+  "outcome": "completed",
+  "started_utc": "2026-08-13T08:59:57.351473+00:00",
+  "wall_seconds": 24.47,
+  "kernel_dir": "E:\\操作系统比赛\\xv6-riscv_teacher",
+  "kernel_elf": "E:\\操作系统比赛\\xv6-riscv_teacher\\kernel\\kernel",
+  "lab_stage": 5,
+  "lab_stage_source": "Makefile 默认值",
+  "make_vars": {
+    "NF_TRACE": "1"
+  },
+  "cpus": 1,
+  "icount_shift": 3,
+  "sample_insns": 20000,
+  "snap_insns": 5000000,
+  "boot_snap_insns": 0,
+  "snap_start_insn": 0,
+  "program_start_insn": 0,
+  "calibrated_total_insns": null,
+  "max_ram_bytes": 1073741824,
+  "wsl_env": {
+    "QEMU": "/opt/qemu-nf/bin/qemu-system-riscv64",
+    "QEMUVER": "QEMU emulator version 11.0.3",
+    "GCC": "/usr/bin/riscv64-unknown-elf-gcc",
+    "PLUGINHDR": "/opt/qemu-nf/include/qemu-plugin.h"
+  },
+  "watchlist_missing": [],
+  "kernel_layout_missing": [],
+  "build_log_tail": "cc -march=rv64gc -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -fno-builtin-strncpy -fno-builtin-strncmp -fno-builtin-strlen -fno-builtin-memset -fno-builtin-memmove -fno-builtin-memcmp -fno-builtin-log -fno-builtin-bzero -fno-builtin-strchr -fno-builtin-exit -fno-builtin-malloc -fno-builtin-putc -fno-builtin-free -fno-builtin-memcpy -Wno-main -fno-builtin-printf -fno-builtin-fprintf -fno-builtin-vprintf -I. -fno-stack-protector -DLAB_STAGE=5 -DNF_TRACE=1 -DNF_FORK_COPY_MODE=0 -DNF_TIMESLICE_TICKS=1 -DNF_SCHED_WORK_ITERATIONS=1048576 -fno-pie -no-pie   -c -o user/nflazydemo.o user/nflazydemo.c\nriscv64-unknown-elf-gcc -march=rv64gc -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -fno-builtin-strncpy -fno-builtin-strncmp -fno-builtin-strlen -fno-builtin-memset -fno-builtin-memmove -fno-builtin-memcmp -fno-builtin-log -fno-builtin-bzero -fno-builtin-strchr -fno-builtin-exit -fno-builtin-malloc -fno-builtin-putc -fno-builtin-free -fno-builtin-memcpy -Wno-main -fno-builtin-printf -fno-builtin-fprintf -fno-builtin-vprintf -I. -fno-stack-protector -DLAB_STAGE=5 -DNF_TRACE=1 -DNF_FORK_COPY_MODE=0 -DNF_TIMESLICE_TICKS=1 -DNF_SCHED_WORK_ITERATIONS=1048576 -fno-pie -no-pie   -c -o user/nfschedbench.o user/nfschedbench.c\nriscv64-unknown-elf-ld: warning: user/_forktest has a LOAD segment with RWX permissions\nriscv64-unknown-elf-ld: warning: kernel/kernel has a LOAD segment with RWX permissions\nrm user/cat.o user/logstress.o user/encrypttest.o user/usertests.o user/wc.o user/bigfile.o user/spawntest.o user/lab4test.o user/dorphan.o user/alltests.o user/init.o user/kill.o user/sh.o user/ln.o user/ls.o user/forphan.o user/cowtest.o user/rm.o user/dftest.o user/echo.o user/nfcowdemo.o user/nfcowcompare.o user/stattest.o user/lazytest.o user/grind.o user/stressfs.o user/nflazydemo.o user/lab3test.o user/mkdir.o user/mailtest.o user/sysinfotest.o user/hello.o user/grep.o user/nfschedbench.o user/pstest.o user/sleep.o user/stridetest.o user/pingpong.o user/zombie.o\n",
+  "qemu_stderr_tail": "[nodefusion-plugin] 已挂载：out=/mnt/e/操作系统比赛/nodefusion/runs/boot-trace/trace.nfb sample=20000 snap=5000000 watches=73\n[nodefusion-plugin] 结束：指令 1845001161，快照 374 次，异常/中断 154 次，采样 92226 次，watch 命中 37426 次，内存快照 3.0 MiB，guest 语义 226 条（读失败 0）\n"
+}

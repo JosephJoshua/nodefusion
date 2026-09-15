@@ -1,0 +1,587 @@
+# xv6-riscv — C, fixed array, riscv64 only
+# evidence: xv6-riscv_teacher/kernel/proc.{h,c}. NOTE this is the *course's*
+# xv6, not upstream: it carries priority/stride/pass (stride-scheduler lab)
+# and a mailbox (buf/length/has_mail). Labs add fields. That is precisely why
+# the field list is declared by name and resolved by DWARF, never by offset.
+
+[kernel]
+name   = "xv6"
+family = "xv6"
+arches = ["riscv64"]
+detect = { any_type = ["proc"], any_symbol = ["initproc"] }
+
+[[entity]]
+name  = "task"
+role  = "process"
+type  = "proc"
+label = "进程"
+
+# a plain C array. length comes from DWARF's array bound (NPROC = 64),
+# not from the manifest — students change NPROC in param.h.
+[[entity.source]]
+kind         = "table"
+completeness = "total"
+steps = [
+  { static = "proc" },
+  { iter   = "array" },
+]
+
+# xv6 marks free slots with state == UNUSED rather than removing them.
+# without this the UI shows 64 processes forever.
+[entity.liveness]
+skip_when = { field = "state", equals = "UNUSED" }
+
+[entity.fields]
+pid    = { path = "pid",    reader = "i32",  role = "id" }
+state  = { path = "state",  reader = "enum", enum = "procstate", role = "state" }
+name   = { path = "name",   reader = "cstr", role = "name" }
+sz     = { path = "sz",     reader = "u64" }
+parent = { path = "parent", reader = "ptr", links_to = "task" }
+pgtbl  = { path = "pagetable", reader = "ptr", role = "address_space_root" }
+
+# no role on these two: sleeping-on-a-channel and the killed flag are xv6
+# concepts with no counterpart in the other six kernels, so there is nothing
+# to unify them *with*. a role only earns its keep when the same idea has
+# different names across kernels. on rCore these come back absent, which is
+# the general way of saying what guest.py said by hardcoding `chan=None`.
+chan   = { path = "chan",   reader = "ptr" }
+killed = { path = "killed", reader = "i32" }
+
+# xstate IS the exit code -- "exit status to be returned to parent's wait".
+# ArceOS calls the same thing `exit`, Starry `exit_code`, and both already
+# declare role = "exit_code". Same concept, three names: exactly the case
+# roles exist for.
+xstate = { path = "xstate", reader = "i32", role = "exit_code" }
+
+# where the user's registers live while the kernel runs. rCore calls the same
+# thing `trap_cx_ppn` and stores a page *number*, not an address -- different
+# name and different unit for one idea, which is what a role is for.
+trapframe = { path = "trapframe", reader = "ptr", role = "trap_context" }
+
+# where the *kernel's* registers live across a switch -- the counterpart of
+# trapframe above, one level down. this is what `swtch(&old, &new)` is handed:
+# `&p->context` for a process, `&c->context` for the scheduler. that identity
+# is the whole basis of switch attribution -- the incoming pointer is looked
+# up in a table of every task's context address, and whichever task it belongs
+# to is the one being switched to.
+# reader = "struct" because the *value* here is a pile of saved callee-saved
+# registers that nobody wants to see; the address is the answer. that reader
+# returns the field's own address without touching memory.
+# ArceOS calls it `ctx` and rCore `task_cx`. three names, one idea, so: a role.
+context = { path = "context", reader = "struct", role = "sched_context" }
+
+# no role on these two. rCore's kernel stack is not in the TCB (it hangs off
+# the pid allocator), and rCore has no per-task working directory at all --
+# so there is nothing on the other side to unify them with.
+kstack = { path = "kstack", reader = "u64" }
+cwd    = { path = "cwd",    reader = "ptr" }
+
+# the open-file table. count/elem_size are NOT written here on purpose --
+# plan.py fills them from DW_AT_count, so NOFILE comes from the binary being
+# analysed. writing `count = 16` would hardcode one kernel's build config into
+# a file whose whole job is to avoid that.
+ofile  = { path = "ofile",  reader = "array<ptr>" }
+
+# lab-added fields. absent on an unmodified xv6 — absent by construction,
+# not a probe failure.
+[entity.optional_fields]
+priority = { path = "priority", reader = "i32", role = "priority" }
+stride   = { path = "stride",   reader = "i32" }
+pass     = { path = "pass",     reader = "i32" }
+has_mail = { path = "has_mail", reader = "i32" }
+
+
+
+
+
+
+#     struct { struct spinlock lock; struct buf buf[NBUF]; struct buf head; } bcache;
+
+
+
+
+
+[[entity]]
+name  = "bcache"
+type  = "buf"
+label = "缓冲区缓存 (bcache)"
+
+[[entity.source]]
+kind         = "table"
+completeness = "total"
+steps = [
+  { static = "bcache" },
+  { field  = "buf" },
+  { iter   = "array" },
+]
+
+[entity.fields]
+dev     = { path = "dev",     reader = "u32" }
+blockno = { path = "blockno", reader = "u32" }
+valid   = { path = "valid",   reader = "i32" }
+disk    = { path = "disk",    reader = "i32" }
+refcnt  = { path = "refcnt",  reader = "u32" }
+
+
+
+[entity.table]
+show_when_any = ["refcnt", "valid"]
+empty = "当前没有被占用或有效的缓冲块。"
+
+  [[entity.table.column]]
+  key = "slot"
+  label = "槽位"
+  synthetic = true
+  [[entity.table.column]]
+  key = "dev"
+  label = "设备"
+  [[entity.table.column]]
+  key = "blockno"
+  label = "块号"
+  [[entity.table.column]]
+  key = "valid"
+  label = "有效"
+  format = "bool"
+  [[entity.table.column]]
+  key = "disk"
+  label = "正在读写磁盘"
+  format = "bool"
+  [[entity.table.column]]
+  key = "refcnt"
+  label = "引用数"
+
+[[entity]]
+name  = "ftable"
+type  = "file"
+label = "系统打开文件表 (ftable)"
+
+[[entity.source]]
+kind         = "table"
+completeness = "total"
+steps = [
+  { static = "ftable" },
+  { field  = "file" },
+  { iter   = "array" },
+]
+
+[entity.fields]
+type     = { path = "type",     reader = "i32" }
+ref      = { path = "ref",      reader = "i32" }
+readable = { path = "readable", reader = "u8"  }
+writable = { path = "writable", reader = "u8"  }
+inode    = { path = "ip",       reader = "u64" }
+off      = { path = "off",      reader = "u32" }
+
+
+
+[entity.liveness]
+skip_when = { field = "ref", equals = 0 }
+
+[entity.table]
+empty = "当前没有打开的文件。"
+
+  [[entity.table.column]]
+  key = "slot"
+  label = "槽位"
+  synthetic = true
+  [[entity.table.column]]
+  key = "type"
+  label = "类型"
+  format = "enum"
+  values = ["NONE", "PIPE", "INODE", "DEVICE"]
+  [[entity.table.column]]
+  key = "ref"
+  label = "引用数"
+  [[entity.table.column]]
+  key = "readable"
+  label = "可读"
+  format = "bool"
+  [[entity.table.column]]
+  key = "writable"
+  label = "可写"
+  format = "bool"
+  [[entity.table.column]]
+  key = "inode"
+  label = "inode 指针"
+  format = "hex"
+  [[entity.table.column]]
+  key = "off"
+  label = "偏移"
+
+[[entity]]
+name  = "itable"
+type  = "inode"
+label = "inode 缓存 (itable)"
+
+[[entity.source]]
+kind         = "table"
+completeness = "total"
+steps = [
+  { static = "itable" },
+  { field  = "inode" },
+  { iter   = "array" },
+]
+
+[entity.fields]
+dev   = { path = "dev",   reader = "u32" }
+inum  = { path = "inum",  reader = "u32" }
+ref   = { path = "ref",   reader = "i32" }
+valid = { path = "valid", reader = "i32" }
+type  = { path = "type",  reader = "u16" }
+size  = { path = "size",  reader = "u32" }
+nlink = { path = "nlink", reader = "u16" }
+
+[entity.liveness]
+skip_when = { field = "ref", equals = 0 }
+
+[entity.table]
+empty = "当前没有活跃的 inode。"
+
+  [[entity.table.column]]
+  key = "slot"
+  label = "槽位"
+  synthetic = true
+  [[entity.table.column]]
+  key = "dev"
+  label = "设备"
+  [[entity.table.column]]
+  key = "inum"
+  label = "inum"
+  [[entity.table.column]]
+  key = "ref"
+  label = "引用数"
+  [[entity.table.column]]
+  key = "valid"
+  label = "已加载"
+  format = "bool"
+  [[entity.table.column]]
+  key = "type"
+  label = "类型"
+  [[entity.table.column]]
+  key = "size"
+  label = "大小"
+  format = "num"
+  [[entity.table.column]]
+  key = "nlink"
+  label = "链接数"
+
+
+# ---------------------------------------------------------------- watches
+
+# subsystem for C comes from DW_AT_decl_file, not from a module path.
+# Snapshot triggers come first: selection is first-match-wins, and the broad
+# per-file rules below would otherwise claim these functions with snapshot=none.
+# panic is the crash scene — snapshot unthrottled.
+[[watch]]
+subsystem = "panic"
+match     = { file = "kernel/printf.c", fn = ["panic"] }
+snapshot  = "always"
+args      = 2
+throttle  = 0
+
+# Process and address-space lifecycle. Snapshots are sampled on a fixed
+# instruction interval, but the states worth seeing here last far less than one
+# interval: in cowtest the two forked children lived 17.05M and 22.16M
+# instructions against a 53.89M sampling interval, so whether the moment was
+# captured came down to luck. Raising global density instead would take the
+# snapshot count from 139 to ~1500 and the trace from 60 MB to 600 MB.
+# These are generic lifecycle points, not picks for one lab: fork/exec/exit
+# matter whichever assignment the student is doing.
+# Both spellings are listed because xv6 forks disagree: the MIT tree calls them
+# fork/exit/exec, and the course tree wraps them as kfork/kexit/kexec so the
+# syscall stubs can keep the plain names. A name that this kernel does not have
+# simply matches nothing, which costs nothing — whereas listing only one
+# spelling costs every snapshot at every fork, silently.
+[[watch]]
+subsystem = "proc"
+match     = { fn = ["fork", "kfork", "forkret", "exit", "kexit",
+                    "exec", "kexec", "uvmcopy"] }
+snapshot  = "event"
+args      = 2
+throttle  = 0
+
+# swtch is written in assembly (swtch.S), so it has no DW_AT_decl_file to be
+# attributed by. Assembly entry points are also STT_NOTYPE, not STT_FUNC — the
+# only handle left is the symbol name itself. Named rules come first because
+# selection is first-match-wins.
+[[watch]]
+subsystem = "sched"
+match     = { fn = ["swtch"] }
+args      = 2
+throttle  = 0
+
+# mycpu and cpuid are not watched at all, and this one is measured rather than
+# reasoned. They live behind push_off/pop_off, so every acquire() and release()
+# in the kernel calls both. Booting this xv6 to an idle shell — 10.16 billion
+# instructions, no workload — hits them 179,801,344 times, 99.9% of every
+# watchpoint hit in the run. The next busiest watchpoint is kfree at 32,184.
+# Throttling does not rescue them: at 1-in-256 they still contribute 702k events,
+# against 37k for the entire hand-written table. And what they return is a hart
+# number and a pointer into a fixed array, so not one of those events carries a
+# byte the trap or syscall entry did not already carry.
+# skip, not throttle. Those solve different problems: throttle says "useful but
+# too dense", skip says "not useful". Thinning noise still leaves noise.
+[[watch]]
+subsystem = "proc"
+match     = { fn = ["mycpu", "cpuid"] }
+skip      = true
+
+# The remaining accessors sit in proc.c and syscall.c, so the per-file rules
+# below would take them at throttle 0. These are per-syscall rather than
+# per-lock — in the same idle run none of them reached the top 14 — so they are
+# thinned rather than dropped: each unpacks one argument register and adds
+# nothing to what the syscall entry already recorded, but an absent subsystem
+# and a subsystem that never ran look identical in a report.
+[[watch]]
+subsystem = "proc"
+match     = { fn = ["myproc", "killed", "setkilled"] }
+args      = 2
+throttle  = 256
+
+[[watch]]
+subsystem = "syscall"
+match     = { fn = ["argraw", "argint", "argaddr", "argstr",
+                    "fetchaddr", "fetchstr"] }
+args      = 2
+throttle  = 256
+
+[[watch]]
+subsystem = "proc"
+match     = { file = "kernel/proc.c" }
+args      = 2
+throttle  = 0
+
+[[watch]]
+subsystem = "trap"
+match     = { file = "kernel/trap.c" }
+args      = 2
+throttle  = 0
+
+[[watch]]
+subsystem = "phys_page"
+match     = { file = "kernel/kalloc.c" }
+args      = 2
+throttle  = 0
+
+[[watch]]
+subsystem = "syscall"
+match     = { file = ["kernel/syscall.c", "kernel/exec.c"] }
+args      = 2
+throttle  = 0
+
+[[watch]]
+subsystem = "file"
+match     = { file = ["kernel/file.c", "kernel/pipe.c"] }
+args      = 2
+throttle  = 0
+
+[[watch]]
+subsystem = "disk"
+match     = { file = "kernel/virtio_disk.c" }
+args      = 2
+throttle  = 0
+
+# walk/walkaddr are mappages/copyout internals: ~50k hits per boot, over half
+# the trace volume, almost no information. Throttled by name, not by file.
+# An earlier draft put throttle = 128 on all of vm.c and 16 on fs.c/bio.c/log.c.
+# That reads as prudent and is wrong: it also thinned copyout, copyin, mappages,
+# uvmalloc, uvmunmap, bread, namei — 34 functions the hand-written table watched
+# unthrottled, and the ones the COW and filesystem labs are *about*. The
+# selection stayed a superset by address while quietly stopping being one by
+# event, which is invisible in a diff of watchpoint lists and shows up in a
+# report as "the lab's own operation happened 8 times".
+# Rule: throttle names, not files. A file is a unit of source layout; call
+# frequency is a property of individual functions.
+[[watch]]
+subsystem = "vm"
+match     = { fn = ["walk", "walkaddr"] }
+args      = 2
+throttle  = 128
+
+[[watch]]
+subsystem = "vm"
+match     = { file = "kernel/vm.c" }
+args      = 2
+throttle  = 0
+
+[[watch]]
+subsystem = "fs"
+match     = { file = ["kernel/fs.c", "kernel/bio.c", "kernel/log.c"] }
+args      = 2
+throttle  = 0
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[event]
+kalloc = "phys.alloc"
+kfree = "phys.free"
+uvmalloc = "vm.grow"
+uvmdealloc = "vm.shrink"
+uvmcopy = { kind = "vm.copy", resource = "vm" }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+uvmunmap = { kind = "vm.unmap", resource = "pagetable" }
+uvmfree = "vm.free"
+mappages = { kind = "vm.map", resource = "pagetable" }
+freewalk = { kind = "pagetable.freewalk", resource = "pagetable" }
+copyout = "vm.copyout"
+copyin = "vm.copyin"
+usertrap = "trap.usertrap"
+kerneltrap = "trap.kerneltrap"
+devintr = { kind = "interrupt.dispatch", resource = "interrupt" }
+clockintr = { kind = "interrupt.clock", resource = "interrupt" }
+allocproc = "proc.alloc"
+
+
+
+
+
+
+
+
+
+
+
+
+userinit = "proc.initproc"
+freeproc = { kind = "proc.free", args = ["proc"] }
+growproc = { kind = "vm.growproc", resource = "vm" }
+scheduler = { kind = "sched.enter", resource = "sched" }
+sched = { kind = "sched.yield_to_scheduler", resource = "sched" }
+yield = { kind = "sched.yield", resource = "sched" }
+swtch = { kind = "sched.switch", args = ["old_ctx", "new_ctx"] }
+sleep = { kind = "sync.sleep", resource = "sync", args = ["chan", "lock"] }
+wakeup = { kind = "sync.wakeup", resource = "sync" }
+syscall = "syscall.dispatch"
+binit = { kind = "bcache.init", resource = "bcache" }
+bget = { kind = "bcache.get", resource = "bcache" }
+bread = { kind = "bcache.read", resource = "bcache" }
+bwrite = { kind = "bcache.write", resource = "bcache", args = ["buf"] }
+brelse = { kind = "bcache.release", resource = "bcache", args = ["buf"] }
+begin_op = { kind = "log.begin", resource = "log" }
+end_op = { kind = "log.end", resource = "log" }
+log_write = { kind = "log.write", resource = "log", args = ["buf"] }
+commit = { kind = "log.commit", resource = "log" }
+write_log = { kind = "log.write_blocks", resource = "log" }
+install_trans = { kind = "log.install", resource = "log" }
+recover_from_log = { kind = "log.recover", resource = "log" }
+virtio_disk_rw = { kind = "disk.io", args = ["buf", "write"] }
+virtio_disk_intr = "disk.interrupt"
+ialloc = { kind = "inode.alloc", resource = "inode" }
+iget = { kind = "inode.get", resource = "inode" }
+iput = { kind = "inode.put", resource = "inode" }
+ilock = { kind = "inode.lock", resource = "inode" }
+iunlock = { kind = "inode.unlock", resource = "inode" }
+iupdate = { kind = "inode.update", resource = "inode" }
+bmap = { kind = "inode.bmap", resource = "inode" }
+readi = { kind = "inode.read", resource = "inode" }
+writei = { kind = "inode.write", resource = "inode" }
+balloc = { kind = "disk.balloc", resource = "disk" }
+bfree = { kind = "disk.bfree", resource = "disk" }
+namei = { kind = "inode.namei", resource = "inode" }
+dirlookup = { kind = "inode.dirlookup", resource = "inode" }
+filealloc = "file.alloc"
+fileclose = "file.close"
+fileread = "file.read"
+filewrite = "file.write"
+filedup = "file.dup"
+pipealloc = { kind = "pipe.alloc", resource = "pipe" }
+piperead = { kind = "pipe.read", resource = "pipe" }
+pipewrite = { kind = "pipe.write", resource = "pipe" }
+pipeclose = { kind = "pipe.close", resource = "pipe" }
+panic = { kind = "kernel.panic", args = ["msg"] }
+
+
+
+
+
+
+
+
+
+#   name=fork         symbol=kfork          addr=0x80002ee6
+#   name=usertrapret  symbol=prepare_return addr=0x80004082
+
+kfork = "proc.fork"
+kexit = "proc.exit"
+kwait = "proc.wait"
+kkill = "proc.kill"
+kspawn = "proc.spawn"
+kexec = "proc.exec"
+prepare_return = "trap.userret"
+
+
+
+
+
+
+[profile]
+kernel_elf   = "kernel/kernel"
+kernel_image = "kernel/kernel"
+
+
+
+build = "make clean >/dev/null 2>&1; make {mv} -j8 kernel/kernel fs.img 2>&1 | tail -20"
+
+detect_files   = ["kernel/proc.h", "kernel/param.h"]
+required_tools = ["qemu-system-riscv64", "riscv64-unknown-elf-gcc"]
+machine_opts = [
+    "-machine virt",
+    "-bios none",
+    "-kernel kernel/kernel",
+    "-m 128M",
+    "-global virtio-mmio.force-legacy=false",
+    "-drive file=fs.img,if=none,format=raw,id=x0",
+    "-device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0",
+]
+interactive   = true
+prompt        = "$ "
+ready_markers = ["$ "]
+
+
+
+
+
+
+
+
+
+protect = ["fs.img"]
+
+
+
+
+
+[syscalls]
+files   = ["kernel/syscall.h"]
+pattern = '#define\s+SYS_(?P<name>\w+)\s+(?P<num>\d+)'
