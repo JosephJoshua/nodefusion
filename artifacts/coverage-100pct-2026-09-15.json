@@ -1,0 +1,102 @@
+{
+  "schema": "nodefusion.coverage-evidence/1",
+  "generated_utc": "2026-09-15",
+  "runs": [
+    {
+      "run": "starry-100pct-final",
+      "coverage": {
+        "status": "complete",
+        "percent": 100.0,
+        "metrics_covered": 19,
+        "metrics_applicable": 19,
+        "semantic_events": 77277,
+        "semantic_unknown": 0,
+        "semantic_dropped_from_interactive": 0,
+        "snapshots_checked": 83,
+        "snapshot_failures": 0,
+        "manifest_cells": 1106,
+        "manifest_unresolved": 0,
+        "blockers": []
+      },
+      "artifacts": {
+        "trace.nfb": {
+          "bytes": 878077631,
+          "sha256": "0b68b3318b4cc670b1fecbeb3bc3a598f55194e6c91203f4c65919ce915cda12"
+        },
+        "starry-100pct-final.html": {
+          "bytes": 7111830,
+          "sha256": "5af842a8e8f8a94c52920312ef64c8e60217b5e175480eb9519ab3185a7d2837"
+        },
+        "kernel_elf": {
+          "bytes": 215240248,
+          "sha256": "7d540ba98b149fc2933870eddeecfdfcb70386b43a7b0369a32be2558b158e66"
+        }
+      }
+    },
+    {
+      "run": "rcore-ch7-100pct-final",
+      "coverage": {
+        "status": "complete",
+        "percent": 100.0,
+        "metrics_covered": 18,
+        "metrics_applicable": 18,
+        "metrics_not_applicable": ["log_commits"],
+        "semantic_events": 139641,
+        "semantic_unknown": 0,
+        "semantic_dropped_from_interactive": 0,
+        "snapshots_checked": 62,
+        "snapshot_failures": 0,
+        "manifest_cells": 15780,
+        "manifest_not_applicable": 1578,
+        "manifest_unresolved": 0,
+        "blockers": []
+      },
+      "artifacts": {
+        "trace.nfb": {
+          "bytes": 27691303,
+          "sha256": "6aebfecc31f63763089274a91edad9f173fa5c65a341504037f2238b55838b56"
+        },
+        "rcore-ch7-100pct-final.html": {
+          "bytes": 1493012,
+          "sha256": "c09bab65fdc37f9add160e998570690cc045f3d04811dd69b744155e48e4d21a"
+        },
+        "kernel_elf": {
+          "bytes": 6497160,
+          "sha256": "77f5f8b5ddb517c407c0e92ccbbb5571b3c62edcba43c103d7546cd4758e7a9f"
+        }
+      }
+    },
+    {
+      "run": "ucore-ch8-100pct-final",
+      "coverage": {
+        "status": "complete",
+        "percent": 100.0,
+        "metrics_covered": 18,
+        "metrics_applicable": 18,
+        "metrics_not_applicable": ["log_commits"],
+        "semantic_events": 5349758,
+        "semantic_unknown": 0,
+        "semantic_dropped_from_interactive": 0,
+        "snapshots_checked": 84,
+        "snapshot_failures": 0,
+        "manifest_cells": 1968,
+        "manifest_unresolved": 0,
+        "blockers": []
+      },
+      "artifacts": {
+        "trace.nfb": {
+          "bytes": 1255451171,
+          "sha256": "86f808cd4c1de6893d3cebd1cb16dcc5a32a4ee5156b1099292ba1d92ed3eb5b"
+        },
+        "ucore-ch8-100pct-final.html": {
+          "bytes": 27642376,
+          "sha256": "2f2604c955d1290a802766d20669db457fa49123ef2a9a4f2387eef40d09ce0c"
+        },
+        "kernel_elf": {
+          "bytes": 211296,
+          "sha256": "db234bf6be8278a091f6b2f88859de17e9e4622242d981665d09b969011e03bd"
+        }
+      }
+    }
+  ]
+}
