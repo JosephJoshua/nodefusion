@@ -1,0 +1,8 @@
+# Canonical evidence must retain byte-identical hashes on every platform.
+/visualization/data/canonical/** -text whitespace=-blank-at-eof
+/visualization/experiments/runs/timeslice-sweep-20260812-b61-final/** -text whitespace=-blank-at-eof
+/visualization/experiments/runs/lab-stage-evolution-20260812-final/** -text whitespace=-blank-at-eof
+/visualization/artifacts/cow-compare-final-20260810-224335/** -text whitespace=-blank-at-eof
+/visualization/artifacts/lab-stage-evolution-20260812-final/** -text whitespace=-blank-at-eof
+/visualization/artifacts/timeslice-sweep-20260812-b61-final/** -text whitespace=-blank-at-eof
+/nodefusion/integrations/*.patch -text whitespace=-blank-at-eol,-space-before-tab

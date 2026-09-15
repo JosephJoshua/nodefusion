@@ -1,0 +1,18 @@
+
+
+
+image: python:3.11-slim
+
+stages:
+  - test
+
+pytest:
+  stage: test
+  script:
+    - python -V
+    - python -m pytest nodefusion/tests -q --junitxml=report.xml
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
+    expire_in: 1 week

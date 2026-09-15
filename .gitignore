@@ -1,0 +1,50 @@
+*.o
+*.d
+*.asm
+*.sym
+fs.img
+kernel/kernel
+mkfs/mkfs
+user/_*
+.gdbinit
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.coverage
+.venv/
+venv/
+Thumbs.db
+.DS_Store
+# NodeFusion TCG plugin 构建产物
+/nodefusion/plugin/libnf.so
+/nodefusion/plugin/libnf.dylib
+/nodefusion/plugin/*.dSYM/
+# 录制产物与 Shell 生成的临时脚本（保留下来是为了出问题时能照着重跑一遍）
+/nodefusion/runs/
+# 归档的内核 ELF。跟 runs/ 是同一份本地测量数据的两半：一趟录制只有配上录它
+# 时那份二进制才解得开，所以两者一起留、一起丢，也一起不进 git（十几 MB 的
+# 构建产物，而且换台机器要重录）。
+/nodefusion/kernels/
+# 重指归档之前的 manifest 备份
+/nodefusion/runs/**/manifest.json.pre-archive
+*.swp
+*.tmp
+# 工具的落盘目录（浏览器快照 / 会话产物），不是源码
+/.playwright-mcp/
+/.omc/
+/output/
+/tmp/
+/visualization/tests/tmp*/
+/visualization/tests/.timeline-test-tmp/
+/visualization/artifacts/tmp*/
+/visualization/artifacts/cow-compare-final-*/
+!/visualization/artifacts/cow-compare-final-20260810-224335/
+!/visualization/artifacts/cow-compare-final-20260810-224335/**
+
+# 阶段性设计稿与实施计划（工作草稿，不入库）
+.dev/
+docs/plans/
+
+# 测试用的形状缓存（本机生成，见 nodefusion/tests/conftest.py）
+nodefusion/tests/.shape-cache/
