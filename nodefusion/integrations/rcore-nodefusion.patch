@@ -1,0 +1,167 @@
+diff --git a/os/src/mm/frame_allocator.rs b/os/src/mm/frame_allocator.rs
+index 01079d7..06d63af 100644
+--- a/os/src/mm/frame_allocator.rs
++++ b/os/src/mm/frame_allocator.rs
+@@ -7,0 +8,54 @@ use lazy_static::*;
++const NFT_KALLOC: u64 = 1;
++const NFT_SCHED_SWITCH: u64 = 4;
++const NFT_KFREE: u64 = 5;
++const NFT_NO_TASK: u64 = u64::MAX;
++
++#[repr(C)]
++#[derive(Clone, Copy)]
++struct NfTraceRecord {
++    type_: u64,
++    a: [u64; 4],
++}
++
++/// Stable observation point for NodeFusion's optional semantic channel.
++///
++/// The QEMU plugin reads the five-u64 record through the pointer in `a0` at
++/// function entry. The volatile read keeps both the record and call present.
++#[no_mangle]
++#[inline(never)]
++pub extern "C" fn nftrace_commit_point(record: *const u64) {
++    if !record.is_null() {
++        // SAFETY: the sole caller passes a live stack record for this call.
++        core::hint::black_box(unsafe { core::ptr::read_volatile(record) });
++    }
++}
++
++#[inline(always)]
++fn nodefusion_trace_page_alloc(paddr: usize, free_pages: usize, used_pages: usize) {
++    let record = NfTraceRecord {
++        type_: NFT_KALLOC,
++        a: [paddr as u64, 1, free_pages as u64, used_pages as u64],
++    };
++    nftrace_commit_point(&record as *const NfTraceRecord as *const u64);
++}
++
++#[inline(always)]
++fn nodefusion_trace_page_free(paddr: usize, free_pages: usize, used_pages: usize) {
++    let record = NfTraceRecord {
++        type_: NFT_KFREE,
++        a: [paddr as u64, 1, free_pages as u64, used_pages as u64],
++    };
++    nftrace_commit_point(&record as *const NfTraceRecord as *const u64);
++}
++
++pub(crate) fn nodefusion_trace_sched_switch(from_pid: Option<usize>, to_pid: Option<usize>) {
++    let from = from_pid.map_or(NFT_NO_TASK, |pid| pid as u64);
++    let to = to_pid.map_or(NFT_NO_TASK, |pid| pid as u64);
++    let record = NfTraceRecord {
++        type_: NFT_SCHED_SWITCH,
++        // rCore's scheduling identity is its PID in this chapter.
++        a: [from, to, from, to],
++    };
++    nftrace_commit_point(&record as *const NfTraceRecord as *const u64);
++}
++
+@@ -47,0 +102 @@ pub struct StackFrameAllocator {
++    allocated: usize,
+@@ -62,0 +118 @@ impl FrameAllocator for StackFrameAllocator {
++            allocated: 0,
+@@ -66 +122 @@ impl FrameAllocator for StackFrameAllocator {
+-        if let Some(ppn) = self.recycled.pop() {
++        let result = if let Some(ppn) = self.recycled.pop() {
+@@ -72,0 +129,3 @@ impl FrameAllocator for StackFrameAllocator {
++        };
++        if result.is_some() {
++            self.allocated += 1;
+@@ -73,0 +133 @@ impl FrameAllocator for StackFrameAllocator {
++        result
+@@ -82,0 +143,10 @@ impl FrameAllocator for StackFrameAllocator {
++        self.allocated -= 1;
++    }
++}
++
++impl StackFrameAllocator {
++    fn page_counts(&self) -> (usize, usize) {
++        (
++            self.end - self.current + self.recycled.len(),
++            self.allocated,
++        )
+@@ -106,4 +176,10 @@ pub fn frame_alloc() -> Option<FrameTracker> {
+-    FRAME_ALLOCATOR
+-        .exclusive_access()
+-        .alloc()
+-        .map(FrameTracker::new)
++    let (ppn, free_pages, used_pages) = {
++        let mut allocator = FRAME_ALLOCATOR.exclusive_access();
++        let ppn = allocator.alloc();
++        let (free_pages, used_pages) = allocator.page_counts();
++        (ppn, free_pages, used_pages)
++    };
++    let frame = ppn.map(FrameTracker::new);
++    let paddr = frame.as_ref().map_or(0, |f| PhysAddr::from(f.ppn).0);
++    nodefusion_trace_page_alloc(paddr, free_pages, used_pages);
++    frame
+@@ -114 +190,6 @@ pub fn frame_dealloc(ppn: PhysPageNum) {
+-    FRAME_ALLOCATOR.exclusive_access().dealloc(ppn);
++    let (free_pages, used_pages) = {
++        let mut allocator = FRAME_ALLOCATOR.exclusive_access();
++        allocator.dealloc(ppn);
++        allocator.page_counts()
++    };
++    nodefusion_trace_page_free(PhysAddr::from(ppn).0, free_pages, used_pages);
+diff --git a/os/src/mm/memory_set.rs b/os/src/mm/memory_set.rs
+index 8f88afa..77fcf45 100644
+--- a/os/src/mm/memory_set.rs
++++ b/os/src/mm/memory_set.rs
+@@ -43,0 +44,11 @@ pub struct MemorySet {
++/// Stable, per-region observation point for NodeFusion.
++///
++/// rCore normally destroys process regions with `areas.clear()`, so neither
++/// `MapArea::unmap` nor a per-region function appears on that path.  This hook
++/// deliberately changes no VM state; it only materializes one function entry
++/// for each logical region immediately before the region is removed.
++#[inline(never)]
++pub fn nodefusion_vm_unmap_region(start_vpn: usize, end_vpn: usize) {
++    core::hint::black_box((start_vpn, end_vpn));
++}
++
+@@ -75,0 +87,4 @@ impl MemorySet {
++            nodefusion_vm_unmap_region(
++                area.vpn_range.get_start().0,
++                area.vpn_range.get_end().0,
++            );
+@@ -287,0 +303,6 @@ impl MemorySet {
++        for area in self.areas.iter() {
++            nodefusion_vm_unmap_region(
++                area.vpn_range.get_start().0,
++                area.vpn_range.get_end().0,
++            );
++        }
+diff --git a/os/src/mm/mod.rs b/os/src/mm/mod.rs
+index d75c373..3cb6d46 100644
+--- a/os/src/mm/mod.rs
++++ b/os/src/mm/mod.rs
+@@ -17,0 +18 @@ pub use frame_allocator::{frame_alloc, frame_dealloc, FrameTracker};
++pub(crate) use frame_allocator::nodefusion_trace_sched_switch;
+diff --git a/os/src/task/mod.rs b/os/src/task/mod.rs
+index f82e5e3..a249a64 100644
+--- a/os/src/task/mod.rs
++++ b/os/src/task/mod.rs
+@@ -44,0 +45 @@ pub fn suspend_current_and_run_next() {
++    let pid = task.getpid();
+@@ -55 +56 @@ pub fn suspend_current_and_run_next() {
+-    schedule(task_cx_ptr);
++    schedule(task_cx_ptr, pid);
+@@ -106 +107 @@ pub fn exit_current_and_run_next(exit_code: i32) {
+-    schedule(&mut _unused as *mut _);
++    schedule(&mut _unused as *mut _, pid);
+diff --git a/os/src/task/processor.rs b/os/src/task/processor.rs
+index 83a6250..31d4349 100644
+--- a/os/src/task/processor.rs
++++ b/os/src/task/processor.rs
+@@ -10,0 +11 @@ use crate::sync::UPSafeCell;
++use crate::mm::nodefusion_trace_sched_switch;
+@@ -58,0 +60 @@ pub fn run_tasks() {
++            let next_pid = task.getpid();
+@@ -69,0 +72 @@ pub fn run_tasks() {
++            nodefusion_trace_sched_switch(None, Some(next_pid));
+@@ -104 +107 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
+-pub fn schedule(switched_task_cx_ptr: *mut TaskContext) {
++pub fn schedule(switched_task_cx_ptr: *mut TaskContext, switched_pid: usize) {
+@@ -107,0 +111 @@ pub fn schedule(switched_task_cx_ptr: *mut TaskContext) {
++    nodefusion_trace_sched_switch(Some(switched_pid), None);

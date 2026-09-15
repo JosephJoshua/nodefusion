@@ -1,0 +1,100 @@
+{
+  "nodefusion_version": "1.0.0",
+  "run_name": "rcore-fs-alloc",
+  "program": "ch6b_filetest_simple",
+  "outcome": "completed",
+  "trace_complete": true,
+  "trace_incomplete_reason": null,
+  "started_utc": "2026-09-03T18:11:29.391180+00:00",
+  "wall_seconds": 1.02,
+  "kernel_dir": "$HOME/Desktop/Code/tsinghua/rCore-Tutorial-Code-2025S",
+  "kernel_kind": "rcore",
+  "kernel_elf": "$HOME/Desktop/Code/tsinghua/nodefusion/nodefusion/kernels/rcore-57942a68.elf",
+  "kernel_elf_identity": {
+    "sha256": "57942a68b4cae1b7fe7641b23f8c52037cbf1d41221fe2c8c1570dba0013d9f2",
+    "size_bytes": 5470416,
+    "root_symbols": {
+      "TASK_MANAGER": {
+        "symbol": "_ZN75_$LT$os..task..manager..TASK_MANAGER$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17hc511a090a49c5f90E.llvm.8785172213176996822",
+        "addr": "0x8222d220"
+      },
+      "PROCESSOR": {
+        "symbol": "_ZN74_$LT$os..task..processor..PROCESSOR$u20$as$u20$core..ops..deref..Deref$GT$5deref11__stability4LAZY17h562a51b0f14b5c69E.llvm.8785172213176996822",
+        "addr": "0x8222d250"
+      }
+    }
+  },
+  "lab_stage": null,
+  "lab_stage_source": "Makefile 默认值",
+  "make_vars": {},
+  "cpus": 1,
+  "icount_shift": 3,
+  "sample_insns": 200000,
+  "snap_insns": 200000,
+  "boot_snap_insns": 1509979,
+  "snap_start_insn": 30199584,
+  "program_start_insn": 30199584,
+  "calibrated_total_insns": 41072308,
+  "max_ram_bytes": 1073741824,
+  "wsl_env": {
+    "qemu-system-riscv64": "/opt/homebrew/bin/qemu-system-riscv64",
+    "cargo": "$HOME/.cargo/bin/cargo",
+    "QEMUVER": "QEMU emulator version 10.2.2",
+    "shell": {
+      "kind": "local",
+      "platform": "Darwin",
+      "machine": "arm64",
+      "qemu_prefix": "/opt/homebrew"
+    }
+  },
+  "record_warnings": [
+    "控制台末尾的 `Panicked at src/lib.rs, Heap allocation error` 是目标程序**正常退出之后**才发生的，跟它无关：shell 回到提示符继续读输入，而 os/src/fs/stdio.rs 判空写的是 `if c == 0`（RustSBI 约定），我们用的 QEMU 自带 OpenSBI 取不到字符时返回 -1，于是 0xFF 被当成真字符灌进行缓冲区，撑爆 8 KB 用户堆。结局判定看的是提示符是否重新出现，不受这次 panic 影响；目标程序的退出码见控制台里 shell 打的那一行。",
+    "--no-build：这次没有编译，直接用了现成的 $HOME/Desktop/Code/tsinghua/rCore-Tutorial-Code-2025S/os/target/riscv64gc-unknown-none-elf/release/os（修改时间 2026-08-29 14:55 UTC）。也就是说**没人验证过这份二进制是当前源码编出来的**；它可能是任何时候留下的。ELF 指纹见 kernel_elf_identity。"
+  ],
+  "watchlist_missing": [
+    "[mm] fn=['find_pte_create', 'find_pte', 'translate']",
+    "[nftrace] fn='nftrace_commit_point'"
+  ],
+  "watch_source": "manifest:rcore",
+  "watch_detect": [
+    "alien: 不匹配（any_type 命中 无）",
+    "arceos: 不匹配（any_type 命中 无）",
+    "axvisor: 不匹配（any_type 命中 无）",
+    "rcore: 匹配（any_type 命中 ['os::task::task::TaskControlBlock']）",
+    "rel4: 不匹配（any_symbol 命中 无）",
+    "starry: 不匹配（any_type 命中 无）",
+    "xv6: 不匹配（any_type 命中 无；any_symbol 命中 无）"
+  ],
+  "kernel_layout_kind": "rcore",
+  "kernel_layout_missing": [
+    "app_manager",
+    "task_manager_inner"
+  ],
+  "kernel_layout_notes": {
+    "consts": "常量取自 config.rs",
+    "KERNEL_BASE": "取自 linker.ld 的 BASE_ADDRESS",
+    "KERNBASE": "来自 QEMU -machine virt 的主内存基址，不是从 rCore 源码读的。换机器型号（或换成真机）必须一并改。",
+    "app_manager": "这个内核里没有 AppManager（各章内核结构不同，可能本章就没有这个东西）",
+    "frame_tracker._rust_path": "os::mm::frame_allocator::FrameTracker",
+    "map_area._rust_path": "os::mm::memory_set::MapArea",
+    "memory_set._rust_path": "os::mm::memory_set::MemorySet",
+    "page_table._rust_path": "os::mm::page_table::PageTable",
+    "phys_page_num._rust_path": "os::mm::address::PhysPageNum",
+    "task._rust_path": "os::task::task::TaskControlBlock",
+    "task_context._rust_path": "os::task::context::TaskContext",
+    "task_manager._rust_path": "os::task::manager::TaskManager",
+    "task_manager_inner": "这个内核里没有 TaskManagerInner（各章内核结构不同，可能本章就没有这个东西）",
+    "trap_context._rust_path": "os::trap::context::TrapContext",
+    "virt_page_num._rust_path": "os::mm::address::VirtPageNum",
+    "rcore.tcb_status.type": "TaskStatus",
+    "rcore.tcb_exit_code.type": "i32",
+    "task-chain": "这一章没有扁平的任务表：TaskManager 里只有就绪队列，当前任务在 PROCESSOR 里，已退出未回收的挂在父任务 children 上。完整枚举靠从 INITPROC 走进程树。",
+    "struct-layout": "结构体偏移读自内核 ELF 的 DWARF（.debug_info），也就是编译器实际选定的布局。#[repr(Rust)] 允许按大小重排字段，实测确有重排，因此不能照源码顺序推算。学生改了结构体，这里会自动跟着变。",
+    "struct-layout-conflicts": "以下类型在调试信息里有多套不同布局，已标为不可用而不是任选一套：alloc::collections::btree::node::Internal；alloc::collections::btree::node::Leaf；alloc::collections::btree::node::Left；alloc::collections::btree::node::Right；core::fmt::rt::Placeholder；core::ops::control_flow::Break；core::ops::control_flow::Continue；core::option::None；core::option::Some；core::result::Err；core::result::Ok；xmas_elf::dynamic::BindNow；xmas_elf::dynamic::Debug；xmas_elf::dynamic::Fini；xmas_elf::dynamic::FiniArray；xmas_elf::dynamic::FiniArraySize；xmas_elf::dynamic::Flags；xmas_elf::dynamic::Flags1；xmas_elf::dynamic::Hash；xmas_elf::dynamic::Init"
+  },
+  "build_log_tail": "(--no-build：跳过构建)",
+  "qemu_cmd": "cd \"$HOME/Desktop/Code/tsinghua/rCore-Tutorial-Code-2025S\" && exec qemu-system-riscv64 -machine virt -bios default -kernel os/target/riscv64gc-unknown-none-elf/release/os.bin -m 128M -drive file=user/target/riscv64gc-unknown-none-elf/release/fs.img,if=none,format=raw,id=x0 -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0 -smp 1 -nographic -icount shift=3 -qmp tcp:127.0.0.1:63906,server=on,wait=off -plugin $HOME/Desktop/Code/tsinghua/nodefusion/nodefusion/plugin/libnf.dylib,out=$HOME/Desktop/Code/tsinghua/nodefusion/nodefusion/runs/rcore-fs-alloc/trace.nfb,sample=200000,snap=200000,maxram=1073741824,snapstart=30199584,bootsnap=1509979,watch=$HOME/Desktop/Code/tsinghua/nodefusion/nodefusion/runs/rcore-fs-alloc/watchlist.txt",
+  "qemu_stderr_tail": "[nodefusion-plugin] 已挂载：out=$HOME/Desktop/Code/tsinghua/nodefusion/nodefusion/runs/rcore-fs-alloc/trace.nfb sample=200000 snap=200000 watches=108\n[nodefusion-plugin] 结束：指令 34799712，快照 45 次，异常/中断 6168 次，采样 173 次，watch 命中 63545 次，watch 限流丢弃 0 次，内存快照 1.9 MiB，guest 语义 0 条（读失败 0）\n",
+  "kernel_elf_archived_from": "$HOME/Desktop/Code/tsinghua/rCore-Tutorial-Code-2025S/os/target/riscv64gc-unknown-none-elf/release/os",
+  "path_redaction": "发布用副本：把录制机器的home路径（10 处）换成了 $HOME。其余字段与 runs/ 里的原始 manifest 逐字一致；原件不改。"
+}

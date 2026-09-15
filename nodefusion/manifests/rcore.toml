@@ -1,0 +1,1521 @@
+# rCore-Tutorial — ONE manifest for all chapters
+# This is the file the whole redesign exists for. Today NodeFusion carries
+# five hand-written resolvers dispatched on an integer RCORE_TASKS_KIND, and
+# guest.py branches on it in ~95 places.
+# The key realisation: layout.py ALREADY detects the shape by probing DWARF
+# (layout.py:734/813/864/994/1000). Detection was never the hard part. The
+# branching downstream was. So the manifest declares all five shapes as
+# ORDERED ALTERNATIVES with `when` predicates, and the engine takes the first
+# that resolves. No chapter flag anywhere.
+# shapes, from NodeFusion's own verified knowledge:
+
+
+
+
+
+
+
+
+#   <os::task::INITPROC as core::ops::deref::Deref>::deref::__stability::LAZY
+
+
+
+[kernel]
+name   = "rcore"
+family = "rcore"
+arches = ["riscv64"]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+detect = { any_type = ["os::task::task::TaskControlBlock",
+                       "os::batch::AppManager",
+                       "os::console::Stdout"] }
+
+# ch8 is the first chapter where a process and a schedulable task are distinct
+# objects.  Keep the split in the manifest: the active entity is selected by
+# which source compiles for the current ELF, not by a chapter number.
+[[entity]]
+name  = "process"
+role  = "process"
+type  = "os::task::process::ProcessControlBlock"
+label = "进程"
+
+[[entity.source]]
+kind         = "tree"
+completeness = "reachable_only"
+when         = { type_exists = "os::task::process::ProcessControlBlock" }
+steps = [
+  { static = "os::task::INITPROC" },
+  { unwrap = ["Lazy", "Arc"] },
+  { walk   = { children = "inner.children", via = ["UPSafeCell", "Vec", "Arc"] } },
+]
+
+[entity.fields]
+pid     = { path = "pid",                                  reader = "newtype<usize>", role = "id" }
+pgtbl   = { path = "inner.memory_set.page_table.root_ppn.__0", reader = "ppn", role = "address_space_root" }
+exit    = { path = "inner.exit_code",                      reader = "i32", role = "exit_code" }
+zombie  = { path = "inner.is_zombie",                      reader = "bool" }
+signals = { path = "inner.signals",                        reader = "field<bits, u32>" }
+
+[entity.relations]
+parent   = { path = "inner.parent",   reader = "option<weak>",     links_to = "process" }
+children = { path = "inner.children", reader = "vec<arc>",         links_to = "process" }
+threads  = { path = "inner.tasks",    reader = "vec<option<arc>>", links_to = "thread" }
+
+[[entity]]
+name  = "thread"
+role  = "thread"
+type  = "os::task::task::TaskControlBlock"
+label = "线程"
+
+[[entity.source]]
+kind         = "tree"
+completeness = "reachable_only"
+when         = { type_exists = "os::task::process::ProcessControlBlock" }
+steps = [
+  { static = "os::task::INITPROC" },
+  { unwrap = ["Lazy", "Arc"] },
+  { walk   = { children = "inner.children", via = ["UPSafeCell", "Vec", "Arc"] } },
+  { field  = "inner.tasks" },
+  { iter   = "vec", via = ["UPSafeCell", "Vec", "Option", "Arc"] },
+]
+
+[entity.fields]
+status  = { path = "inner.task_status",      reader = "enum", enum = "TaskStatus", role = "state" }
+task_cx = { path = "inner.task_cx",          reader = "struct", role = "sched_context" }
+trapcx  = { path = "inner.trap_cx_ppn.__0",  reader = "ppn", role = "trap_context" }
+exit    = { path = "inner.exit_code",        reader = "variant<Some, field<__0, i32>>", role = "exit_code" }
+
+[entity.relations]
+process = { path = "process", reader = "weak", links_to = "process" }
+
+[entity.table]
+empty = "当前没有可枚举的线程。"
+
+  [[entity.table.column]]
+  key = "slot"
+  label = "槽位"
+  synthetic = true
+
+  [[entity.table.column]]
+  key = "status"
+  label = "状态"
+
+  [[entity.table.column]]
+  key = "exit"
+  label = "退出码"
+
+  [[entity.table.column]]
+  key = "trapcx"
+  label = "陷入上下文"
+  format = "hex"
+
+[[entity]]
+name  = "task"
+role  = "process"
+type  = "os::task::task::TaskControlBlock"
+label = "任务"
+
+# ---- shape 2: process tree (ch5-ch7)
+[[entity.source]]
+kind         = "tree"
+completeness = "reachable_only"
+when         = { field_exists = { type = "TaskControlBlockInner", field = "children" } }
+steps = [
+  { static = "os::task::INITPROC" },
+  { unwrap = ["Lazy", "Arc"] },
+  { walk   = { children = "inner.children", via = ["UPSafeCell", "Vec", "Arc"] } },
+]
+
+# ---- shape 1: heap Vec
+# discriminator is the DWARF type of `tasks`, exactly as layout.py:977 tests.
+# RawVec puts cap BEFORE ptr; that order is the compiler's, so the probe asks
+# DWARF field by field rather than assuming.
+[[entity.source]]
+kind         = "table"
+completeness = "total"
+when         = { field_type = { type = "TaskManagerInner", field = "tasks", starts_with = "Vec<" } }
+steps = [
+  { static = "os::task::TASK_MANAGER" },
+  { unwrap = ["Lazy"] },
+  { field  = "inner.tasks" },
+  { iter   = "vec" },
+]
+
+# ---- shape 0: inline fixed array (ch3-ch4)
+# element count comes from DWARF's DW_AT_count, never from
+# byte_size / elem_size -- trailing padding makes that division wrong.
+[[entity.source]]
+kind         = "table"
+completeness = "total"
+when         = { field_exists = { type = "TaskManagerInner", field = "tasks" } }
+steps = [
+  { static = "os::task::TASK_MANAGER" },
+  { unwrap = ["Lazy"] },
+  { field  = "inner.tasks" },
+  { iter   = "array" },
+]
+
+# ---- shape 3: batch (ch2). no tasks at all.
+[[entity.source]]
+kind         = "batch"
+completeness = "none"
+when         = { type_exists = "os::batch::AppManager" }
+reason       = "ch2 是批处理，没有任务表；只有当前应用序号"
+steps = [
+
+
+  { static = "os::batch::APP_MANAGER" },
+  { unwrap = ["Lazy", "UPSafeCell"] },
+]
+
+# ch1 has neither TaskControlBlock nor AppManager.  This source records that
+# structural absence explicitly; it intentionally enumerates no entities.
+[[entity.source]]
+kind         = "batch"
+completeness = "none"
+when         = { type_exists = "os::console::Stdout" }
+reason       = "ch1 没有任务或批处理管理器"
+steps = []
+
+[entity.fields]
+# every path below is optional across chapters: ch2 has no pid, ch3 has no
+# parent. absent here means absent-by-construction for that chapter, which
+# is exactly the tri-state the UI needs.
+status = { path = "task_status", reader = "enum", enum = "TaskStatus", role = "state" }
+
+
+
+
+
+
+
+
+task_cx = { path = "task_cx", reader = "struct", role = "sched_context" }
+
+[entity.optional_fields]
+pid   = { path = "pid",             reader = "newtype<usize>", role = "id" }
+base  = { path = "base_size",       reader = "usize" }
+# the root is a *page number*, not an address: PageTable.root_ppn is a
+# PhysPageNum(usize). pointing this at `memory_set` yielded that struct's own
+# address, which the page-table walk then reported as "not in observed
+# physical memory" -- a unit error that reads like missing memory.
+# `.__0` rather than the tuple struct itself so no field offset is assumed.
+pgtbl = { path = "inner.memory_set.page_table.root_ppn.__0", reader = "ppn", role = "address_space_root" }
+prio  = { path = "inner.priority",  reader = "usize", role = "priority" }
+
+
+
+
+exit  = { path = "inner.exit_code", reader = "i32", role = "exit_code" }
+
+
+
+trapcx = { path = "inner.trap_cx_ppn.__0", reader = "ppn", role = "trap_context" }
+# These relations appear only once rCore introduces a process tree (ch5).
+# They are optional fields with links, so ch3/ch4 report structural absence
+# rather than claiming that a required relation failed to decode.
+parent   = { path = "inner.parent",   reader = "option<weak>", links_to = "task" }
+children = { path = "inner.children", reader = "vec<arc>",     links_to = "task" }
+
+
+
+
+
+
+#   BLOCK_CACHE_MANAGER : Lazy<Mutex<BlockCacheManager>>
+
+
+#     BlockCacheManager.queue : VecDeque<(usize, Arc<Mutex<BlockCache>>)>
+
+#       Arc  -> ArcInner.data -> Mutex<BlockCache> -> TicketMutex.value
+
+
+
+[[entity]]
+name  = "blockcache"
+type  = "easy_fs::block_cache::BlockCache"
+label = "块缓存 (easy-fs)"
+
+[[entity.source]]
+kind         = "table"
+completeness = "total"
+when         = { type_exists = "easy_fs::block_cache::BlockCacheManager" }
+steps = [
+  { static  = "easy_fs::block_cache::BLOCK_CACHE_MANAGER" },
+  { unwrap  = ["Lazy", "Mutex"] },
+  { field   = "queue" },
+  { iter    = "vecdeque" },
+  { field   = "__1" },
+  { unwrap  = ["Arc", "Mutex"] },
+]
+
+[entity.fields]
+block_id = { path = "block_id", reader = "usize" }
+modified = { path = "modified", reader = "bool" }
+
+[entity.table]
+empty = "块缓存是空的 —— 还没有任何块被读进来。"
+
+  [[entity.table.column]]
+  key = "slot"
+  label = "槽位"
+  synthetic = true
+
+  [[entity.table.column]]
+  key = "block_id"
+  label = "块号"
+
+  [[entity.table.column]]
+  key = "modified"
+  label = "已修改"
+  format = "bool"
+
+# ---------------------------------------------------------------- watches
+
+
+
+
+
+
+
+
+
+
+[[watch]]
+subsystem = "task"
+match     = { fn = ["current_user_token", "current_trap_cx"] }
+skip      = true
+
+
+
+
+[[watch]]
+subsystem = "sched"
+match     = { fn = ["__switch"] }
+args      = 2
+throttle  = 0
+
+
+
+
+[[watch]]
+subsystem = "panic"
+match     = { fn = ["rust_begin_unwind", "__rust_alloc_error_handler"] }
+snapshot  = "always"
+args      = 2
+throttle  = 0
+
+
+
+#     0x80209d0a  size 36   __rust_alloc
+#     0x80209d2e  size 38   __rust_dealloc
+#     0x80209d54  size 106  __rust_realloc
+
+
+
+
+
+
+
+
+
+
+
+
+[[watch]]
+subsystem = "heap"
+match     = { fn = ["__rust_alloc", "__rust_dealloc", "__rust_realloc"] }
+snapshot  = "none"
+args      = 2
+throttle  = 0
+
+
+
+
+[[watch]]
+subsystem = "proc"
+match     = { fn = ["fork", "exec", "exit_current_and_run_next",
+                    "from_existed_user", "from_elf",
+                    "sys_fork", "sys_exec", "sys_exit"] }
+snapshot  = "event"
+args      = 2
+throttle  = 0
+
+[[watch]]
+subsystem = "trap"
+match     = { module = "os::trap" }
+args      = 2
+throttle  = 0
+
+[[watch]]
+subsystem = "disk"
+match     = { module = "os::drivers" }
+args      = 2
+throttle  = 0
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#     ch8 (022dd65e)  129 -> 130   +0x802161b6 thread.create
+#     ch7 (e989faf1)  128 -> 128
+#     ch6 (57942a68)  108 -> 108
+#     ch5 (ed5b4cab)   58 ->  58
+
+
+
+
+
+[[watch]]
+subsystem = "task"
+inlined   = true
+match     = { module = "os::task::task", fn = ["new"] }
+args      = 2
+throttle  = 0
+
+[[watch]]
+subsystem = "task"
+match     = { module = "os::task" }
+args      = 2
+throttle  = 0
+
+
+
+
+# `PageTable::map`、`MemorySet::push`、`Inode::read_at`、`VirtIOBlock::read_block`
+
+
+
+
+[[watch]]
+subsystem = "mm"
+
+
+
+
+
+
+# `translated_byte_buffer` / `translated_str` / `translated_refmut<T>`。
+
+
+
+
+
+match     = { fn = ["find_pte_create", "find_pte", "translate"] }
+args      = 2
+throttle  = 64
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[[watch]]
+subsystem = "mm"
+inlined   = true
+match     = { module = "os::mm", fn = ["frame_alloc", "frame_dealloc", "unmap", "init_heap"] }
+args      = 2
+throttle  = 0
+
+
+
+
+
+
+
+
+
+
+
+#     0x8020cd8a
+
+
+
+
+
+
+[[watch]]
+subsystem = "fs"
+inlined   = true
+match     = { fn = ["alloc_inode", "alloc_data", "dealloc_data"] }
+args      = 2
+throttle  = 0
+
+
+
+
+#     515  os::drivers::block::virtio_blk::VirtIOBlock::read_block   （rate 0）
+#      97  easy_fs::block_cache::get_block_cache                     （rate 16）
+#      33  virtio_drivers::blk::VirtIOBlk<H>::read_block             （rate 16）
+
+
+
+
+
+
+
+
+[[watch]]
+subsystem = "fs"
+match     = { fn = ["get_block_cache", "get_block_id", "find_inode_id",
+                    "read_block", "write_block"] }
+args      = 2
+throttle  = 0
+
+[[watch]]
+subsystem = "mm"
+match     = { module = "os::mm" }
+args      = 2
+throttle  = 0
+
+[[watch]]
+subsystem = "fs"
+match     = { module = ["os::fs", "easy_fs"] }
+args      = 2
+throttle  = 0
+
+
+
+
+
+#     ch5  sys_read sys_write
+#     ch6  sys_yield
+#     ch7  sys_yield
+#     ch8  sys_close sys_dup sys_enable_deadlock_detect sys_fstat sys_linkat
+#          sys_open sys_pipe sys_read sys_unlinkat sys_write sys_yield
+
+
+
+
+
+
+
+
+
+
+
+
+#     ch3   11 -> 14    ch4   42 -> 43    ch5   57 -> 59
+#     ch6  107 -> 108   ch7  127 -> 128   ch8  129 -> 140
+
+[[watch]]
+subsystem = "syscall"
+inlined   = true
+match     = { module = "os::syscall", fn = ["sys_*", "syscall"] }
+args      = 3
+throttle  = 0
+
+[[watch]]
+subsystem = "syscall"
+match     = { module = "os::syscall" }
+args      = 3
+throttle  = 0
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#     515  os::drivers::block::virtio_blk::VirtIOBlock::read_block
+#      97  easy_fs::block_cache::get_block_cache
+#      33  virtio_drivers::blk::VirtIOBlk<H>::read_block
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[absent]
+"log.commit" = { why = "feature", evidence = "easy-fs/src 整个 crate grep 不到 log / journal / transaction。最像的 block_cache_sync_all()（Inode::write_at 末尾调一次）只把缓存里的脏块逐个写回，没有日志块、没有原子性、没有崩溃恢复；xv6 的 commit 图的正是崩溃原子性。" }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[event]
+"os::trap::trap_handler" = "trap.enter"
+"os::trap::trap_return" = "trap.userret"
+
+
+
+
+
+
+
+
+
+"os::trap::trap_from_kernel" = "trap.kernel"
+
+
+
+
+"__switch" = { kind = "sched.switch", args = ["old_ctx", "new_ctx"] }
+"os::task::processor::run_tasks" = "sched.enter"
+"os::task::suspend_current_and_run_next" = "sched.yield"
+
+
+
+
+
+
+
+
+
+
+
+#     block_current_and_run_next  <- condvar.rs:45  semaphore.rs:52
+#                                    mutex.rs:88    syscall/sync.rs:21
+#     wakeup_task                 <- timer.rs:111   condvar.rs:34
+#                                    semaphore.rs:39 mutex.rs:100
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+"os::task::block_current_and_run_next" = "sync.sleep"
+"os::task::manager::wakeup_task" = "sync.wakeup"
+
+
+
+# proc.exit。
+
+
+"os::task::exit_current_and_run_next" = [
+  { kind = "thread.exit", when = { type_exists = "os::task::process::ProcessControlBlock" } },
+  { kind = "proc.exit" },
+]
+"os::task::add_initproc" = "proc.initproc"
+
+
+
+
+
+
+
+
+
+
+
+
+
+"os::task::task::TaskControlBlock::new" = [
+  { kind = "thread.create", when = { type_exists = "os::task::process::ProcessControlBlock" } },
+  { kind = "proc.create" },
+]
+"os::task::task::TaskControlBlock::exec" = "proc.exec"
+"os::task::task::TaskControlBlock::fork" = "proc.fork"
+
+
+
+
+
+"os::task::process::ProcessControlBlock::new" = "proc.create"
+"os::task::process::ProcessControlBlock::exec" = "proc.exec"
+"os::task::process::ProcessControlBlock::fork" = "proc.fork"
+
+
+
+
+
+
+
+
+
+
+
+"os::task::manager::remove_from_pid2process" = "proc.exit"
+
+
+
+
+"os::task::id::TaskUserRes::alloc_user_res" = "thread.alloc_res"
+"os::task::id::TaskUserRes::drop" = "thread.free_res"
+"os::task::id::kstack_alloc" = "task.kstack_alloc"
+"os::task::id::KernelStack::drop" = "task.kstack_free"
+"os::task::id::PidHandle::drop" = "task.pid_free"
+
+
+
+
+
+
+
+
+
+
+
+
+
+#                                           PageTable::new / PageTable::map ×3 /
+#                                           VirtioHal（DMA）
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+"os::mm::frame_allocator::frame_dealloc" = "phys.free"
+"os::mm::frame_allocator::frame_alloc" = "phys.alloc"
+"os::mm::page_table::PageTable::map" = "pagetable.map"
+"os::mm::page_table::PageTable::unmap" = "pagetable.unmap"
+"os::mm::page_table::PageTable::new" = "pagetable.new"
+
+
+
+
+
+
+
+
+#     `push` → `MapArea::map` → `for vpn in vpn_range { map_one }` →
+
+
+
+
+
+
+
+
+
+"os::mm::memory_set::MemorySet::push" = "vm.map"
+"os::mm::memory_set::MemorySet::new_kernel" = "vm.kernel_init"
+"os::mm::memory_set::MemorySet::from_elf" = "vm.from_elf"
+"os::mm::memory_set::MemorySet::from_existed_user" = "vm.copy"
+
+
+
+
+# `MemorySet::recycle_data_pages`（task/mod.rs:95）。
+
+
+
+
+
+
+#     pub fn recycle_data_pages(&mut self) { self.areas.clear(); }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#            <- KernelStack::drop
+
+
+#     func.unmap@0        1
+#     vm.remove_area      1
+#     task.kstack_free    1
+
+
+
+
+
+
+"os::mm::memory_set::nodefusion_vm_unmap_region" = { kind = "vm.unmap", resource = "vm", args = ["start_vpn", "end_vpn"] }
+"os::mm::memory_set::MemorySet::remove_area_with_start_vpn" = "vm.remove_area"
+"os::mm::memory_set::MemorySet::shrink_to" = "vm.shrink"
+"os::mm::memory_set::MemorySet::append_to" = "vm.grow"
+"os::mm::init" = "vm.init"
+"os::mm::page_table::translated_byte_buffer" = "vm.translate_buffer"
+"os::mm::page_table::translated_str" = "vm.translate_str"
+
+
+
+
+#     515  os::drivers::block::virtio_blk::VirtIOBlock::read_block
+#      97  easy_fs::block_cache::get_block_cache
+#      33  virtio_drivers::blk::VirtIOBlk<H>::read_block
+
+
+
+
+
+
+
+#     get_block_cache                   161    2572
+
+
+
+
+
+
+
+
+
+
+
+"easy_fs::block_cache::get_block_cache" = "bcache.read"
+# ch6/ch7 retain the free wrapper above; in ch8 rustc inlines that wrapper and
+# the only instrumentable lookup is the method it forwards to.  The selected
+# watchlist contains exactly one of these two layers in each measured ELF, so
+# mapping both names preserves one event per cache lookup without double-counting.
+"easy_fs::block_cache::BlockCacheManager::get_block_cache" = "bcache.read"
+"os::drivers::block::virtio_blk::VirtIOBlock::read_block" = { kind = "disk.io", operation = "read" }
+"os::drivers::block::virtio_blk::VirtIOBlock::write_block" = { kind = "disk.io", operation = "write" }
+
+
+
+
+
+
+
+#     853  easy_fs::layout::DiskInode::read_at
+#     851  easy_fs::layout::DiskInode::get_block_id
+#     756  easy_fs::vfs::Inode::read_at
+#      97  easy_fs::layout::DirEntry::name
+#       5  easy_fs::vfs::Inode::find
+#       5  easy_fs::vfs::Inode::find_inode_id
+#       1  easy_fs::vfs::Inode::write_at
+#       1  easy_fs::bitmap::Bitmap::alloc
+#       1  easy_fs::bitmap::Bitmap::dealloc
+
+
+#                                       DiskInode::read_at  ==  xv6 readi
+
+
+#                                       direct / indirect1 / indirect2
+
+
+#                                       ==  xv6 dirlookup(dp, name, poff)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+"easy_fs::vfs::Inode::read_at" = "inode.read"
+"easy_fs::vfs::Inode::write_at" = "inode.write"
+"easy_fs::layout::DiskInode::get_block_id" = "inode.bmap"
+"easy_fs::vfs::Inode::find_inode_id" = "inode.dirlookup"
+
+
+
+#                          ==  xv6 namei(path)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+"easy_fs::vfs::Inode::find" = "inode.namei"
+
+
+
+
+
+
+
+
+
+
+
+
+
+#     alloc_inode    ==  xv6 ialloc(dev, type)     -> inode.alloc
+#     alloc_data     ==  xv6 balloc(dev)           -> disk.balloc
+#     dealloc_data   ==  xv6 bfree(dev, b)         -> disk.bfree
+
+#     alloc_inode    <- Inode::create        vfs.rs:107
+#     alloc_data     <- Inode::increase_size vfs.rs:89
+#     dealloc_data   <- Inode::clear         vfs.rs:181
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Filesystem mappings are checked against the selected watchlist. The inode/data
+# allocators map to ialloc/balloc/dealloc_inode equivalents; bitmap helpers and
+# lower-level DiskInode::read_at remain intentionally unmapped so the same operation
+# is not counted twice. Evidence terms: start_block_id, balloc, ialloc,
+# log / journal, dealloc_inode, select_watchlist, and DW_TAG_inlined_subroutine.
+"easy_fs::efs::EasyFileSystem::alloc_inode" = "inode.alloc"
+"easy_fs::efs::EasyFileSystem::alloc_data" = "disk.balloc"
+"easy_fs::efs::EasyFileSystem::dealloc_data" = "disk.bfree"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#     1183  Stdin::read          1188  Stdout::write
+#        1  OSInode::read           1  OSInode::write
+#     ----                       ----
+#     1184  = syscall.read       1189  = syscall.write
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#     `DirEntry::name` / `Inode::clear` / `DiskInode::increase_size` /
+
+
+
+"os::fs::inode::open_file" = "file.alloc"
+"os::fs::inode::OSInode::read" = "file.read"
+"os::fs::inode::OSInode::write" = "file.write"
+"os::fs::stdio::Stdin::read" = "file.read"
+"os::fs::stdio::Stdout::write" = "file.write"
+"os::lang_items::panic" = "kernel.panic"
+
+
+
+
+
+
+
+
+
+#                                               `panic.alloc_handler`。
+
+#                                               `#[alloc_error_handler]`。
+
+
+
+
+
+
+
+
+
+
+
+"__rust_alloc_error_handler" = "panic.alloc_handler"
+"os::mm::heap_allocator::handle_alloc_error" = "kernel.alloc_error"
+
+
+
+#     0x80209dbe  size 90   os::mm::heap_allocator::handle_alloc_error
+
+#     0x8020e1f0  size  8   __rust_alloc_error_handler
+#     0x80212728  size 22   alloc::alloc::handle_alloc_error
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+"__rust_alloc" = "heap.alloc"
+"__rust_dealloc" = "heap.free"
+"__rust_realloc" = "heap.realloc"
+"os::syscall::syscall" = "syscall.dispatch"
+"os::syscall::fs::sys_close" = "syscall.close"
+"os::syscall::fs::sys_fstat" = "syscall.fstat"
+"os::syscall::fs::sys_linkat" = "syscall.linkat"
+"os::syscall::fs::sys_open" = "syscall.open"
+"os::syscall::fs::sys_read" = "syscall.read"
+"os::syscall::fs::sys_unlinkat" = "syscall.unlinkat"
+"os::syscall::fs::sys_write" = "syscall.write"
+"os::syscall::process::sys_get_time" = "syscall.get_time"
+"os::syscall::process::sys_getpid" = "syscall.getpid"
+"os::syscall::process::sys_mmap" = "syscall.mmap"
+"os::syscall::process::sys_munmap" = "syscall.munmap"
+"os::syscall::process::sys_sbrk" = "syscall.sbrk"
+"os::syscall::process::sys_set_priority" = "syscall.set_priority"
+"os::syscall::process::sys_spawn" = "syscall.spawn"
+"os::syscall::process::sys_waitpid" = "syscall.waitpid"
+"os::syscall::process::sys_exec" = "syscall.exec"
+"os::syscall::process::sys_exit" = "syscall.exit"
+"os::syscall::process::sys_fork" = "syscall.fork"
+
+
+
+"os::syscall::fs::sys_dup" = "syscall.dup"
+"os::syscall::fs::sys_pipe" = "syscall.pipe"
+"os::syscall::process::sys_kill" = "syscall.kill"
+"os::syscall::process::sys_sigaction" = "syscall.sigaction"
+"os::syscall::process::sys_sigprocmask" = "syscall.sigprocmask"
+"os::syscall::process::sys_sigreturn" = "syscall.sigreturn"
+
+
+
+
+
+
+
+
+
+
+"os::fs::pipe::make_pipe" = "pipe.alloc"
+"os::fs::pipe::Pipe::read" = "pipe.read"
+"os::fs::pipe::Pipe::write" = "pipe.write"
+
+
+
+
+
+"os::syscall::process::sys_trace" = "syscall.trace"
+"os::syscall::process::sys_yield" = "syscall.yield"
+
+
+
+
+
+
+
+
+
+
+"os::syscall::sync::sys_sleep" = "syscall.sleep"
+"os::syscall::sync::sys_mutex_create" = "syscall.mutex_create"
+"os::syscall::sync::sys_mutex_lock" = "syscall.mutex_lock"
+"os::syscall::sync::sys_mutex_unlock" = "syscall.mutex_unlock"
+"os::syscall::sync::sys_semaphore_create" = "syscall.semaphore_create"
+"os::syscall::sync::sys_semaphore_down" = "syscall.semaphore_down"
+"os::syscall::sync::sys_semaphore_up" = "syscall.semaphore_up"
+"os::syscall::sync::sys_condvar_create" = "syscall.condvar_create"
+"os::syscall::sync::sys_condvar_signal" = "syscall.condvar_signal"
+"os::syscall::sync::sys_condvar_wait" = "syscall.condvar_wait"
+"os::syscall::sync::sys_enable_deadlock_detect" = "syscall.enable_deadlock_detect"
+"os::syscall::thread::sys_gettid" = "syscall.gettid"
+"os::syscall::thread::sys_thread_create" = "syscall.thread_create"
+"os::syscall::thread::sys_waittid" = "syscall.waittid"
+
+
+
+
+
+
+
+
+
+
+
+
+
+"os::task::current_add_signal" = "signal.raise"
+
+
+
+
+
+
+
+
+
+
+
+
+
+"os::mm::heap_allocator::init_heap" = "heap.init"
+"os::mm::heap_allocator::_::__rust_alloc_zeroed" = "heap.alloc_zeroed"
+"os::task::run_first_task" = "sched.enter"
+
+
+
+
+
+
+
+#     VirtIOBlk<H>::read_block/write_block<- VirtIOBlock::read_block（disk.io，
+
+#     FrameTracker::drop                  <- frame_dealloc（phys.free）
+#     _::__rg_oom                         <- handle_alloc_error（kernel.alloc_error）
+#     run_next_task                       <- suspend_current_and_run_next（sched.yield）
+
+#     change_program_brk                  <- MemorySet::append_to/shrink_to
+#                                            （vm.grow / vm.shrink）
+#     DiskInode::clear_size/increase_size <- Inode::clear / Inode::write_at
+#     VirtioHal::dma_alloc                <- frame_alloc（phys.alloc）
+
+
+#     DirEntry::name          OSInode::readable/writable   OpenFlags::fmt
+
+
+#     VirtioHal::virt_to_phys EasyFileSystem::root_inode    kernel_token
+#     TaskUserRes::trap_cx_ppn
+#     processor::current_task / current_process / current_trap_cx_user_va
+
+
+
+
+
+
+
+
+
+
+
+
+
+#     ProcessControlBlockInner::alloc_fd
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#             func.add_task   7436
+#             sched.yield     7373   (suspend_current_and_run_next)
+#             proc.fork         62
+#             proc.initproc      1
+
+
+
+
+
+
+
+
+#             ch8-sync      1 / 1        ch8-mpsc-sem  1 / 1
+#             ch8-usertest 65 / 65
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[profile]
+
+kernel_elf   = "os/target/riscv64gc-unknown-none-elf/release/os"
+kernel_image = "os/target/riscv64gc-unknown-none-elf/release/os.bin"
+
+
+
+
+
+
+
+
+
+
+# application/x-git-upload-pack-result but found application/octet-stream"），
+
+
+
+
+
+
+
+
+
+
+
+build = "cd os && CARGO_NET_GIT_FETCH_WITH_CLI=true CARGO_PROFILE_RELEASE_DEBUG=2 CARGO_PROFILE_RELEASE_STRIP=none make {mv} build 2>&1 | tail -20"
+
+
+detect_files   = ["os/src/main.rs", "os/src/sbi.rs", "os/src/linker.ld"]
+required_tools = ["qemu-system-riscv64", "cargo"]
+
+
+
+
+
+
+
+
+machine_opts = [
+    "-machine virt",
+    "-bios default",
+    "-kernel os/target/riscv64gc-unknown-none-elf/release/os.bin",
+    "-m 128M",
+]
+
+interactive   = false
+ready_markers = ["[kernel]"]
+
+done_markers  = ["All applications completed!"]
+
+
+
+
+
+
+
+
+
+
+
+
+panic_markers = ["[kernel] Panicked at"]
+
+
+
+halt_markers  = ["Panicked at"]
+unsupported   = ["program", "stdin_after"]
+
+
+
+
+
+
+
+
+
+
+
+stdin_preload = true
+
+
+stdin_pad = "\n"
+
+build_deviation = "本次观测的内核是带调试信息编的（CARGO_PROFILE_RELEASE_DEBUG=2、CARGO_PROFILE_RELEASE_STRIP=none），不是 `make run` 默认产出的那个二进制。实测差异：.text 从 0xbf58 涨到 0xc11e（+454 字节 / +0.93%），因为调试信息会抑制内联 —— sys_mmap、sys_munmap、sys_get_time、sys_sbrk、run_next_task、UPSafeCell::exclusive_access 在默认构建里被内联掉、连符号都没有，加了调试信息才独立存在（观测点也正是靠这个才挂得上）。因此本次的指令计数与默认构建会有细微出入；程序语义不变（同一份源码、同一优化级别），数据结构布局也不变（实测两种构建下同名数据符号大小逐一相同）。"
+
+
+# `const LINE_START: &str = ">> "`。
+shell_prompt       = ">> "
+shell_ready_marker = ">> "
+
+
+# `println!("Shell: Process {} exited with code {}", pid, exit_code)`。
+
+
+
+
+
+
+
+
+
+
+exit_marker = 'Shell: Process \d+ exited with code (-?\d+)'
+
+
+
+
+
+[profile.shell_probe]
+dir   = "os/src"
+ident = "INITPROC"
+
+
+
+
+
+
+[[profile.device]]
+file = "user/target/riscv64gc-unknown-none-elf/release/fs.img"
+
+
+
+
+
+
+built_when = { file = "os/Makefile", contains = "fs-img" }
+opts = [
+    "-drive file=user/target/riscv64gc-unknown-none-elf/release/fs.img,if=none,format=raw,id=x0",
+    "-device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0",
+]
+
+
+
+
+
+[syscalls]
+files   = ["os/src/syscall/mod.rs"]
+pattern = 'const\s+SYSCALL_(?P<name>\w+)\s*:\s*usize\s*=\s*(?P<num>\d+)'

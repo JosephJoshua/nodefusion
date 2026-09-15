@@ -1,0 +1,135 @@
+{
+  "format": "nodefusion.video-evidence/1",
+  "html": "rcore-ch3-sched.html",
+  "mp4": "rcore-ch3-sched.mp4",
+  "frames": 464,
+  "fps": 12,
+  "seconds": 38.666666666666664,
+  "bytes": 1103246,
+  "width": 1280,
+  "height": 720,
+  "evidence_scope": "all",
+  "evidence_fields": [
+    "status",
+    "task_cx"
+  ],
+  "info": {
+    "runs": [
+      "rcore-ch3-sched"
+    ],
+    "program": "(boot-to-exit)",
+    "kernel_kind": "rcore",
+    "kernel_elf": "rcore-ee39fba1.elf",
+    "kernel_elf_sha256": "ee39fba12a6d548a4ba0a94a9b48a425832958d431515b72d5658c439e2255e3",
+    "observed_fields": {
+      "process": [
+        "status",
+        "task_cx"
+      ],
+      "resources": [],
+      "events": {
+        "firmware": [
+          "cause_code",
+          "cause_name",
+          "from_pc",
+          "mcause",
+          "mepc",
+          "mtval",
+          "priv",
+          "scause",
+          "sepc",
+          "stval",
+          "to_pc"
+        ],
+        "func": [],
+        "interrupt": [
+          "cause_code",
+          "cause_name",
+          "from_pc",
+          "mcause",
+          "mepc",
+          "mtval",
+          "priv",
+          "scause",
+          "sepc",
+          "stval",
+          "to_pc"
+        ],
+        "kernel": [
+          "info"
+        ],
+        "proc": [],
+        "sbi": [
+          "args",
+          "cause_code",
+          "cause_name",
+          "from_pc",
+          "mcause",
+          "mepc",
+          "mtval",
+          "priv",
+          "sbi_eid",
+          "sbi_ext",
+          "sbi_fid",
+          "scause",
+          "sepc",
+          "stval",
+          "to_pc"
+        ],
+        "sched": [
+          "from_pid",
+          "from_proc",
+          "from_slot",
+          "new_ctx",
+          "old_ctx",
+          "to_pid",
+          "to_proc",
+          "to_slot"
+        ],
+        "syscall": [
+          "args",
+          "cause_code",
+          "cause_name",
+          "exit_code",
+          "from_pc",
+          "mcause",
+          "mepc",
+          "mtval",
+          "priv",
+          "scause",
+          "sepc",
+          "stval",
+          "syscall",
+          "syscall_num",
+          "to_pc"
+        ],
+        "trap": [
+          "cx"
+        ]
+      }
+    },
+    "total_insns": 29757921,
+    "program_start_insn": 0,
+    "states": 33,
+    "events": 2348,
+    "kinds": [
+      "firmware.trap",
+      "sbi.call",
+      "func.task::run_first_task",
+      "func.deref",
+      "func.run_first_task",
+      "sched.switch",
+      "trap.enter",
+      "func.run_next_task",
+      "syscall.enter",
+      "syscall.exit",
+      "proc.exit",
+      "interrupt.timer",
+      "func.sys_yield",
+      "kernel.panic"
+    ],
+    "outcome": "completed",
+    "compare": false
+  },
+  "mp4_sha256": "73eac4931d32513e23caf09cfdfcb2555b4d06b05120407d8059203be6e6bbcf"
+}

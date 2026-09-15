@@ -1,0 +1,98 @@
+{
+  "format": "nodefusion.video-evidence/1",
+  "html": "rcore-ch2-batch.html",
+  "mp4": "rcore-ch2-batch.mp4",
+  "frames": 344,
+  "fps": 12,
+  "seconds": 28.666666666666668,
+  "bytes": 1038717,
+  "width": 1280,
+  "height": 720,
+  "evidence_scope": "all",
+  "evidence_fields": [
+    "event.kind",
+    "event.count",
+    "event.timestamp"
+  ],
+  "info": {
+    "runs": [
+      "rcore-ch2-batch"
+    ],
+    "program": "(boot-to-exit)",
+    "kernel_kind": "rcore",
+    "kernel_elf": "rcore-a2d992fd.elf",
+    "kernel_elf_sha256": "a2d992fdcad9390155a11fd19efe6fc6f73e241a8517b769ec83f9f5757f348a",
+    "observed_fields": {
+      "process": [],
+      "resources": [],
+      "events": {
+        "firmware": [
+          "cause_code",
+          "cause_name",
+          "from_pc",
+          "mcause",
+          "mepc",
+          "mtval",
+          "priv",
+          "scause",
+          "sepc",
+          "stval",
+          "to_pc"
+        ],
+        "sbi": [
+          "args",
+          "cause_code",
+          "cause_name",
+          "from_pc",
+          "mcause",
+          "mepc",
+          "mtval",
+          "priv",
+          "sbi_eid",
+          "sbi_ext",
+          "sbi_fid",
+          "scause",
+          "sepc",
+          "stval",
+          "to_pc"
+        ],
+        "syscall": [
+          "args",
+          "cause_code",
+          "cause_name",
+          "exit_code",
+          "from_pc",
+          "mcause",
+          "mepc",
+          "mtval",
+          "priv",
+          "scause",
+          "sepc",
+          "stval",
+          "syscall",
+          "syscall_id",
+          "syscall_num",
+          "to_pc"
+        ],
+        "trap": [
+          "cx"
+        ]
+      }
+    },
+    "total_insns": 24569389,
+    "program_start_insn": 0,
+    "states": 28,
+    "events": 2283,
+    "kinds": [
+      "firmware.trap",
+      "sbi.call",
+      "trap.enter",
+      "syscall.enter",
+      "syscall.dispatch",
+      "syscall.exit"
+    ],
+    "outcome": "completed",
+    "compare": false
+  },
+  "mp4_sha256": "a1703f05c74835c732db5dc4702fb7551ee32c2e1ce5ceefe029e411f7cecd47"
+}

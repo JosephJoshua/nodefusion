@@ -1,0 +1,73 @@
+{
+  "format": "nodefusion.video-evidence/1",
+  "html": "rcore-ch1-bare.html",
+  "mp4": "rcore-ch1-bare.mp4",
+  "frames": 360,
+  "fps": 12,
+  "seconds": 30.0,
+  "bytes": 1071763,
+  "width": 1280,
+  "height": 720,
+  "evidence_scope": "all",
+  "evidence_fields": [
+    "event.kind",
+    "event.count",
+    "event.timestamp"
+  ],
+  "info": {
+    "runs": [
+      "rcore-ch1-bare"
+    ],
+    "program": "(boot-to-exit)",
+    "kernel_kind": "rcore",
+    "kernel_elf": "rcore-ee56f4f0.elf",
+    "kernel_elf_sha256": "ee56f4f01fa51272e3d2976970fb9e82ba4e1f185209f9a119b81927d35cc104",
+    "observed_fields": {
+      "process": [],
+      "resources": [],
+      "events": {
+        "firmware": [
+          "cause_code",
+          "cause_name",
+          "from_pc",
+          "mcause",
+          "mepc",
+          "mtval",
+          "priv",
+          "scause",
+          "sepc",
+          "stval",
+          "to_pc"
+        ],
+        "sbi": [
+          "args",
+          "cause_code",
+          "cause_name",
+          "from_pc",
+          "mcause",
+          "mepc",
+          "mtval",
+          "priv",
+          "sbi_eid",
+          "sbi_ext",
+          "sbi_fid",
+          "scause",
+          "sepc",
+          "stval",
+          "to_pc"
+        ]
+      }
+    },
+    "total_insns": 10788322,
+    "program_start_insn": 0,
+    "states": 10,
+    "events": 42,
+    "kinds": [
+      "firmware.trap",
+      "sbi.call"
+    ],
+    "outcome": "qemu_exited",
+    "compare": false
+  },
+  "mp4_sha256": "8ae2889504707cca7f1a126fdfc3c4b44b69f5d2ad56c220710ac4e9ac26299b"
+}

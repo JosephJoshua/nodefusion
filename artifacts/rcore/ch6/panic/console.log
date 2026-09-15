@@ -1,0 +1,126 @@
+
+OpenSBI v1.7
+   ____                    _____ ____ _____
+  / __ \                  / ____|  _ \_   _|
+ | |  | |_ __   ___ _ __ | (___ | |_) || |
+ | |  | | '_ \ / _ \ '_ \ \___ \|  _ < | |
+ | |__| | |_) |  __/ | | |____) | |_) || |_
+  \____/| .__/ \___|_| |_|_____/|____/_____|
+        | |
+        |_|
+
+Platform Name               : riscv-virtio,qemu
+Platform Features           : medeleg
+Platform HART Count         : 1
+Platform IPI Device         : aclint-mswi
+Platform Timer Device       : aclint-mtimer @ 10000000Hz
+Platform Console Device     : uart8250
+Platform HSM Device         : ---
+Platform PMU Device         : ---
+Platform Reboot Device      : syscon-reboot
+Platform Shutdown Device    : syscon-poweroff
+Platform Suspend Device     : ---
+Platform CPPC Device        : ---
+Firmware Base               : 0x80000000
+Firmware Size               : 317 KB
+Firmware RW Offset          : 0x40000
+Firmware RW Size            : 61 KB
+Firmware Heap Offset        : 0x46000
+Firmware Heap Size          : 37 KB (total), 2 KB (reserved), 11 KB (used), 23 KB (free)
+Firmware Scratch Size       : 4096 B (total), 1400 B (used), 2696 B (free)
+Runtime SBI Version         : 3.0
+Standard SBI Extensions     : time,rfnc,ipi,base,hsm,srst,pmu,dbcn,fwft,legacy,dbtr,sse
+Experimental SBI Extensions : none
+
+Domain0 Name                : root
+Domain0 Boot HART           : 0
+Domain0 HARTs               : 0*
+Domain0 Region00            : 0x0000000000100000-0x0000000000100fff M: (I,R,W) S/U: (R,W)
+Domain0 Region01            : 0x0000000010000000-0x0000000010000fff M: (I,R,W) S/U: (R,W)
+Domain0 Region02            : 0x0000000002000000-0x000000000200ffff M: (I,R,W) S/U: ()
+Domain0 Region03            : 0x0000000080040000-0x000000008004ffff M: (R,W) S/U: ()
+Domain0 Region04            : 0x0000000080000000-0x000000008003ffff M: (R,X) S/U: ()
+Domain0 Region05            : 0x000000000c400000-0x000000000c5fffff M: (I,R,W) S/U: (R,W)
+Domain0 Region06            : 0x000000000c000000-0x000000000c3fffff M: (I,R,W) S/U: (R,W)
+Domain0 Region07            : 0x0000000000000000-0xffffffffffffffff M: () S/U: (R,W,X)
+Domain0 Next Address        : 0x0000000080200000
+Domain0 Next Arg1           : 0x0000000087e00000
+Domain0 Next Mode           : S-mode
+Domain0 SysReset            : yes
+Domain0 SysSuspend          : yes
+
+Boot HART ID                : 0
+Boot HART Domain            : root
+Boot HART Priv Version      : v1.12
+Boot HART Base ISA          : rv64imafdch
+Boot HART ISA Extensions    : sstc,zicntr,zihpm,zicboz,zicbom,sdtrig,svadu
+Boot HART PMP Count         : 16
+Boot HART PMP Granularity   : 2 bits
+Boot HART PMP Address Bits  : 54
+Boot HART MHPM Info         : 16 (0x0007fff8)
+Boot HART Debug Triggers    : 2 triggers
+Boot HART MIDELEG           : 0x0000000000001666
+Boot HART MEDELEG           : 0x0000000000f4b509
+[kernel] Hello, world!
+remap_test passed!
+/**** APPS ****
+ch3_sleep1
+ch5_stride0
+ch5b_exit
+ch5b_forktree
+ch5_getpid
+ch5_stride4
+ch3b_yield2
+ch6b_user_shell
+ch6_file2
+ch5_setprio
+ch5_stride5
+ch2b_power_3
+ch6_file3
+ch5_stride
+ch5b_usertest
+ch6b_initproc
+ch3_sleep
+ch5_stride1
+ch2b_power_7
+ch4b_sbrk
+ch4_unmap2
+ch4_mmap3
+ch5b_user_shell
+ch6b_filetest_simple
+ch4_mmap2
+ch6b_nfpanic
+ch5b_forktest
+ch6b_nfprobe
+ch2b_bad_address
+ch4_mmap1
+ch5_exit0
+ch2b_hello_world
+ch5b_forktest2
+ch6_usertest
+ch3_trace
+ch4_unmap
+ch6b_cat
+ch4_mmap0
+ch5_exit1
+ch3b_yield0
+ch6_file0
+ch2b_bad_instructions
+ch2b_bad_register
+ch4_trace1
+ch5_spawn1
+ch5_stride2
+ch5_usertest
+ch5b_forktest_simple
+ch5_spawn0
+ch5_stride3
+ch2b_power_5
+ch3b_yield1
+ch6_file1
+ch5b_initproc
+ch6b_usertest
+**************/
+Rust user shell
+>> ch6b_nfpanic
+nfpanic: issuing ecall with unsupported syscall id 9999
+[kernel] Panicked at src/syscall/mod.rs:82 Unsupported syscall_id: 9999
