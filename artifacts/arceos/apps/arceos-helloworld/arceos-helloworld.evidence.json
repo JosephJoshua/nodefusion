@@ -1,0 +1,118 @@
+{
+  "schema": "nodefusion.artifact-evidence/1",
+  "run": "arceos-helloworld",
+  "kernel_kind": "arceos",
+  "source_sha256": {
+    "trace.nfb": "b42c16b638925e4bad5cd8213eb5e4c4da559c329b6732813909804fa51c7bc5",
+    "manifest.json": "24dfd70ebadfb697c324bc30191321ab1ae4562d8daa65027a2a34e07850040e",
+    "watchlist.json": "9744b1f5f1e9b70b59826dfae8da31f5a483f24973b7066acc1401857f21713a",
+    "kernel_layout.json": "8b95a6e3b941c5b21f0cd23993e58a9f4ca50af715527320b50ac24220d41052"
+  },
+  "kernel_elf_sha256": "01703c4f29d7f572c11d33186306fbe42f4c97a1aa9410742678a348a5257e5b",
+  "html_sha256": "cbd6f60564da7f33ea0d2f431ce8c0a04335f3d43f9d89be273f1f535d15e880",
+  "html_bytes": 155034,
+  "function_trace": {
+    "kind": "function-entry sequence (no return events)",
+    "raw": 1,
+    "retained": 1
+  },
+  "coverage": {
+    "status": "incomplete",
+    "percent": 48.19,
+    "passed": 40,
+    "total": 83,
+    "metrics": {
+      "covered": 6,
+      "applicable": 19,
+      "not_applicable": [],
+      "missing": [
+        "bcache_reads",
+        "bcache_hits",
+        "bcache_hit_rate",
+        "context_switches",
+        "kalloc",
+        "kfree",
+        "disk_io",
+        "log_commits",
+        "forks",
+        "execs",
+        "vm_maps",
+        "vm_unmaps",
+        "page_table_maps"
+      ],
+      "sampled": []
+    },
+    "semantic_events": {
+      "raw": 21,
+      "unknown": 0,
+      "unknown_fields": {},
+      "dropped_from_interactive": 0
+    },
+    "snapshots": {
+      "checked": 10,
+      "incomplete": 0,
+      "physical_memory": 10,
+      "physical_counters": 10,
+      "processes": 10,
+      "resources": 0
+    },
+    "snapshot_not_applicable": [],
+    "manifest_fields": {
+      "cells": 0,
+      "states": {},
+      "not_applicable": 0,
+      "unresolved": 0
+    },
+    "full_watch_scope": true,
+    "blockers": [
+      {
+        "check": "metrics",
+        "items": [
+          "bcache_reads",
+          "bcache_hits",
+          "bcache_hit_rate",
+          "context_switches",
+          "kalloc",
+          "kfree",
+          "disk_io",
+          "log_commits",
+          "forks",
+          "execs",
+          "vm_maps",
+          "vm_unmaps",
+          "page_table_maps"
+        ]
+      },
+      {
+        "check": "snapshots",
+        "items": {
+          "incomplete": 0,
+          "physical_memory": 10,
+          "physical_counters": 10,
+          "processes": 10,
+          "resources": 0
+        }
+      }
+    ]
+  },
+  "event_selection": {
+    "applied": false,
+    "policy": "kind-preserving/systematic-v3",
+    "raw": 21,
+    "retained": 21,
+    "dropped": 0,
+    "target_limit": 150000,
+    "minimum_spare": 25000,
+    "always_keep": "all events when the raw stream fits",
+    "priority_raw": 21,
+    "spare_raw": 0,
+    "spare_budget": 0,
+    "stride": 1,
+    "retained_kinds": {
+      "firmware.trap": 19,
+      "sbi.call": 1,
+      "trap.init": 1
+    },
+    "dropped_kinds": {}
+  }
+}

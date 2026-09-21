@@ -1,0 +1,107 @@
+{
+  "schema": "nodefusion.artifact-evidence/1",
+  "run": "ucore-ch2-probe",
+  "kernel_kind": "ucore",
+  "source_sha256": {
+    "trace.nfb": "c230d97c2e87c4472b6453ac5e3368c7f6efee8cebe74687ddeaa0fb5c955b93",
+    "manifest.json": "de27c1024fadbf55adbc2330c4865d73a2434cb01f2ed12b79dc51581699ab60",
+    "watchlist.json": "5861d743d8601226a1937beb80f5665f7bab86661360a3ae384b042769db3777",
+    "kernel_layout.json": "d578bde9537a56e7ea9f7a42f313dd58163dfc0f0690ef4e8005ed12f3963ce6"
+  },
+  "kernel_elf_sha256": "ca7f9eafe7f8c32a042e9a270333b76473ae15b2df6989958d43ac707081bbe4",
+  "html_sha256": "8ff05b0ec55b705548fbd3f801c8fc32891841a61f68ece666981bc2512b1423",
+  "html_bytes": 1019730,
+  "function_trace": {
+    "kind": "function-entry sequence (no return events)",
+    "raw": 23,
+    "retained": 23
+  },
+  "coverage": {
+    "status": "complete",
+    "percent": 100.0,
+    "passed": 213829,
+    "total": 213829,
+    "metrics": {
+      "covered": 6,
+      "applicable": 6,
+      "not_applicable": [
+        "bcache_hit_rate",
+        "bcache_hits",
+        "bcache_reads",
+        "context_switches",
+        "disk_io",
+        "execs",
+        "forks",
+        "kalloc",
+        "kfree",
+        "log_commits",
+        "page_table_maps",
+        "vm_maps",
+        "vm_unmaps"
+      ],
+      "missing": [],
+      "sampled": []
+    },
+    "semantic_events": {
+      "raw": 213802,
+      "unknown": 0,
+      "unknown_fields": {},
+      "dropped_from_interactive": 63820
+    },
+    "snapshots": {
+      "checked": 18,
+      "incomplete": 0,
+      "physical_memory": 0,
+      "physical_counters": 0,
+      "processes": 0,
+      "resources": 0
+    },
+    "snapshot_not_applicable": [
+      "physical_counters",
+      "processes",
+      "resources"
+    ],
+    "manifest_fields": {
+      "cells": 0,
+      "states": {},
+      "not_applicable": 0,
+      "unresolved": 0
+    },
+    "full_watch_scope": true,
+    "blockers": []
+  },
+  "event_selection": {
+    "applied": true,
+    "policy": "kind-preserving/systematic-v3",
+    "raw": 213820,
+    "retained": 150000,
+    "dropped": 63820,
+    "target_limit": 150000,
+    "minimum_spare": 25000,
+    "always_keep": "first event of each normalized kind within budget",
+    "priority_raw": 213802,
+    "spare_raw": 18,
+    "semantic_budget": 149982,
+    "semantic_retained": 149982,
+    "spare_budget": 18,
+    "stride": 1,
+    "retained_kinds": {
+      "firmware.trap": 149966,
+      "func.console_putchar": 13,
+      "func.load_app": 2,
+      "func.loader_init": 1,
+      "func.run_next_app": 2,
+      "sbi.call": 10,
+      "syscall.dispatch": 1,
+      "syscall.enter": 1,
+      "syscall.exit": 1,
+      "trap.init": 1,
+      "trap.userret": 1,
+      "trap.usertrap": 1
+    },
+    "dropped_kinds": {
+      "firmware.trap": 63817,
+      "sbi.call": 3
+    }
+  }
+}

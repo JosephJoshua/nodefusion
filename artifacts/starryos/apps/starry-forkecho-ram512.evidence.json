@@ -1,0 +1,160 @@
+{
+  "schema": "nodefusion.artifact-evidence/1",
+  "run": "starry-forkecho-ram512",
+  "kernel_kind": "starry",
+  "source_sha256": {
+    "trace.nfb": "aaf01349023f1d2a4954345772b07e0255289c470f917866bacc9ed15756eff3",
+    "manifest.json": "6ea4fa6a00908f29c0e7b06bd10524e9de62da430af2301200c18a6fe95a20b4",
+    "watchlist.json": "e1c331a37e9e6836881e002624646f68050f2cda8c206c07058c4e44f4a43a1c",
+    "kernel_layout.json": "ddecca44bdc49240ff4459b0ddea7a3e3ef704b9a00ce9a70bc05134110422ee"
+  },
+  "kernel_elf_sha256": "1f85a27932eeac90efdcefda9a3831b1b01ec311bde6bfc4be5a8e65b0eb9b03",
+  "html_sha256": "886ce2a0163035cf48737bb61f1acf9df8787315e24b9fe5585e4ba9f84fc161",
+  "html_bytes": 4526604,
+  "function_trace": {
+    "kind": "function-entry sequence (no return events)",
+    "raw": 3590,
+    "retained": 3590
+  },
+  "coverage": {
+    "status": "incomplete",
+    "percent": 96.52,
+    "passed": 8519,
+    "total": 8826,
+    "metrics": {
+      "covered": 7,
+      "applicable": 19,
+      "not_applicable": [],
+      "missing": [
+        "bcache_reads",
+        "bcache_hits",
+        "bcache_hit_rate",
+        "kalloc",
+        "kfree",
+        "disk_io",
+        "log_commits",
+        "forks",
+        "execs",
+        "vm_maps",
+        "vm_unmaps",
+        "page_table_maps"
+      ],
+      "sampled": []
+    },
+    "semantic_events": {
+      "raw": 7000,
+      "unknown": 113,
+      "unknown_fields": {
+        "from_pid": 57,
+        "to_pid": 56
+      },
+      "dropped_from_interactive": 0
+    },
+    "snapshots": {
+      "checked": 120,
+      "incomplete": 0,
+      "physical_memory": 28,
+      "physical_counters": 120,
+      "processes": 28,
+      "resources": 5
+    },
+    "snapshot_not_applicable": [],
+    "manifest_fields": {
+      "cells": 1204,
+      "states": {
+        "empty": 99,
+        "present": 1105
+      },
+      "not_applicable": 0,
+      "unresolved": 0
+    },
+    "full_watch_scope": false,
+    "blockers": [
+      {
+        "check": "metrics",
+        "items": [
+          "bcache_reads",
+          "bcache_hits",
+          "bcache_hit_rate",
+          "kalloc",
+          "kfree",
+          "disk_io",
+          "log_commits",
+          "forks",
+          "execs",
+          "vm_maps",
+          "vm_unmaps",
+          "page_table_maps"
+        ]
+      },
+      {
+        "check": "semantic_event_fields",
+        "count": 113,
+        "fields": {
+          "from_pid": 57,
+          "to_pid": 56
+        }
+      },
+      {
+        "check": "snapshots",
+        "items": {
+          "incomplete": 0,
+          "physical_memory": 28,
+          "physical_counters": 120,
+          "processes": 28,
+          "resources": 5
+        }
+      },
+      {
+        "check": "watch_scope",
+        "value": "manifest:starry[panic+task+sched]"
+      }
+    ]
+  },
+  "event_selection": {
+    "applied": false,
+    "policy": "kind-preserving/systematic-v3",
+    "raw": 9115,
+    "retained": 9115,
+    "dropped": 0,
+    "target_limit": 150000,
+    "minimum_spare": 25000,
+    "always_keep": "all events when the raw stream fits",
+    "priority_raw": 7000,
+    "spare_raw": 2115,
+    "spare_budget": 0,
+    "stride": 1,
+    "retained_kinds": {
+      "firmware.trap": 19,
+      "func.add_task_to_table": 21,
+      "func.check_signals": 1315,
+      "func.drop": 21,
+      "func.drop<starry_kernel::task::pid::Pgid>": 5,
+      "func.drop<starry_kernel::task::pid::Tid>": 20,
+      "func.futex_table_for_process": 20,
+      "func.get_process_data_by_number": 236,
+      "func.get_process_group_by_number": 11,
+      "func.get_task_by_number": 60,
+      "func.is_reaped_process": 42,
+      "func.is_zombie_clone_child": 40,
+      "func.is_zombie_process": 62,
+      "func.process_identity": 124,
+      "func.ptrace_stop_current_impl": 20,
+      "func.publish_process_signal": 20,
+      "func.reap_process": 20,
+      "func.send_signal_to_process_data": 20,
+      "func.spawn_alarm_task": 1,
+      "func.with_blocked_signals<isize, starry_kernel::syscall::io_mpx::poll::do_poll::{closure_env#0}>": 57,
+      "interrupt.external": 267,
+      "interrupt.timer": 665,
+      "proc.exit": 20,
+      "sbi.call": 3268,
+      "sched.switch": 1084,
+      "signal.raise": 20,
+      "syscall.enter": 955,
+      "trap.page_fault": 351,
+      "trap.page_fault_handler": 351
+    },
+    "dropped_kinds": {}
+  }
+}

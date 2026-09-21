@@ -1,0 +1,208 @@
+{
+  "schema": "nodefusion.artifact-evidence/1",
+  "run": "lab3-cowtest-mac",
+  "kernel_kind": "xv6",
+  "source_sha256": {
+    "trace.nfb": "ac5ac3be2413c139afad484b5f77e1cb1cb2379148a9599ef2df5818e48d296e",
+    "manifest.json": "ee2df66f16b03d550a15ee39c9b2b6f809e3ceebc14d3854c7a589deaa7056e1",
+    "watchlist.json": "d92374e1048cf945eb12d10c892f1a043e2454b49b96b6bcdd69a696587957fa",
+    "kernel_layout.json": "17208b17acf170c274c72069283d9e5379d139fddbe0d9b38dccfd2e5f849c3b"
+  },
+  "kernel_elf_sha256": "c6b612c651f536b6acf21d87442b3cb4010cdbc3b45977b6bc91188b1833b66b",
+  "html_sha256": "08c654fe74a09afab8e11e31e65537f1611c594ab1f236da177e750982073ff8",
+  "html_bytes": 16324568,
+  "function_trace": {
+    "kind": "function-entry sequence (no return events)",
+    "raw": 346345,
+    "retained": 134844
+  },
+  "coverage": {
+    "status": "incomplete",
+    "percent": 90.18,
+    "passed": 354474,
+    "total": 393064,
+    "metrics": {
+      "covered": 18,
+      "applicable": 19,
+      "not_applicable": [],
+      "missing": [
+        "page_table_maps"
+      ],
+      "sampled": []
+    },
+    "semantic_events": {
+      "raw": 385363,
+      "unknown": 38588,
+      "unknown_fields": {
+        "allocated_pa": 38588
+      },
+      "dropped_from_interactive": 235372
+    },
+    "snapshots": {
+      "checked": 125,
+      "incomplete": 0,
+      "physical_memory": 0,
+      "physical_counters": 0,
+      "processes": 0,
+      "resources": 0
+    },
+    "snapshot_not_applicable": [],
+    "manifest_fields": {
+      "cells": 6804,
+      "states": {
+        "empty": 321,
+        "present": 6483
+      },
+      "not_applicable": 0,
+      "unresolved": 0
+    },
+    "full_watch_scope": false,
+    "blockers": [
+      {
+        "check": "metrics",
+        "items": [
+          "page_table_maps"
+        ]
+      },
+      {
+        "check": "semantic_event_fields",
+        "count": 38588,
+        "fields": {
+          "allocated_pa": 38588
+        }
+      },
+      {
+        "check": "watch_scope",
+        "value": null
+      }
+    ]
+  },
+  "event_selection": {
+    "applied": true,
+    "policy": "kind-preserving/systematic-v3",
+    "raw": 385372,
+    "retained": 150000,
+    "dropped": 235372,
+    "target_limit": 150000,
+    "minimum_spare": 25000,
+    "always_keep": "first event of each normalized kind within budget",
+    "priority_raw": 385363,
+    "spare_raw": 9,
+    "semantic_budget": 149991,
+    "semantic_retained": 149991,
+    "spare_budget": 9,
+    "stride": 1,
+    "retained_kinds": {
+      "bcache.get": 168,
+      "bcache.init": 1,
+      "bcache.read": 160,
+      "bcache.release": 152,
+      "disk.interrupt": 14,
+      "disk.io": 26,
+      "file.alloc": 2,
+      "file.close": 4,
+      "file.dup": 7,
+      "file.read": 5,
+      "file.write": 56,
+      "func.forkret": 5,
+      "func.procinit": 1,
+      "func.reparent": 3,
+      "inode.bmap": 66,
+      "inode.dirlookup": 2,
+      "inode.get": 5,
+      "inode.lock": 4,
+      "inode.namei": 3,
+      "inode.put": 6,
+      "inode.read": 64,
+      "inode.unlock": 3,
+      "interrupt.clock": 152,
+      "interrupt.dispatch": 15162,
+      "interrupt.external": 67,
+      "interrupt.timer": 156,
+      "log.begin": 4,
+      "log.commit": 5,
+      "log.end": 3,
+      "phys.alloc": 15034,
+      "phys.free": 42348,
+      "proc.alloc": 4,
+      "proc.exec": 3,
+      "proc.exit": 2,
+      "proc.fork": 1,
+      "proc.free": 2,
+      "proc.initproc": 1,
+      "proc.wait": 1,
+      "sched.enter": 1,
+      "sched.switch": 365,
+      "sched.yield": 158,
+      "sched.yield_to_scheduler": 174,
+      "sync.sleep": 19,
+      "sync.wakeup": 457,
+      "syscall.dispatch": 72,
+      "syscall.enter": 64,
+      "trap.kerneltrap": 112,
+      "trap.page_fault": 14869,
+      "trap.userret": 15034,
+      "trap.usertrap": 15112,
+      "vm.copy": 1,
+      "vm.copyin": 58,
+      "vm.copyout": 6,
+      "vm.free": 3,
+      "vm.grow": 4,
+      "vm.growproc": 1,
+      "vm.map": 29781,
+      "vm.shrink": 1,
+      "vm.unmap": 6
+    },
+    "dropped_kinds": {
+      "bcache.get": 227,
+      "bcache.read": 235,
+      "bcache.release": 243,
+      "disk.interrupt": 28,
+      "disk.io": 16,
+      "file.close": 6,
+      "file.dup": 7,
+      "file.read": 4,
+      "file.write": 87,
+      "inode.bmap": 120,
+      "inode.dirlookup": 3,
+      "inode.get": 2,
+      "inode.lock": 6,
+      "inode.namei": 3,
+      "inode.put": 6,
+      "inode.read": 110,
+      "inode.unlock": 7,
+      "interrupt.clock": 267,
+      "interrupt.dispatch": 23691,
+      "interrupt.external": 124,
+      "interrupt.timer": 263,
+      "log.begin": 5,
+      "log.commit": 4,
+      "log.end": 6,
+      "phys.alloc": 23554,
+      "phys.free": 66467,
+      "proc.alloc": 1,
+      "proc.exit": 1,
+      "proc.fork": 3,
+      "proc.free": 1,
+      "proc.wait": 3,
+      "sched.switch": 567,
+      "sched.yield": 255,
+      "sched.yield_to_scheduler": 292,
+      "sync.sleep": 31,
+      "sync.wakeup": 697,
+      "syscall.dispatch": 102,
+      "syscall.enter": 110,
+      "trap.kerneltrap": 162,
+      "trap.page_fault": 23374,
+      "trap.userret": 23719,
+      "trap.usertrap": 23641,
+      "vm.copy": 3,
+      "vm.copyin": 89,
+      "vm.copyout": 8,
+      "vm.free": 3,
+      "vm.grow": 5,
+      "vm.map": 46802,
+      "vm.unmap": 12
+    }
+  }
+}

@@ -1,5 +1,13 @@
 # ArceOS 样例
 
+新生成的报告：[tracecomplete](apps/arceos-tracecomplete/arceos-tracecomplete.html)、
+[helloworld](apps/arceos-helloworld/arceos-helloworld.html)、
+[lazymapping](apps/arceos-lazymapping/arceos-lazymapping.html)、
+[userprivilege](apps/arceos-userprivilege/arceos-userprivilege.html)。同名
+`.evidence.json` 记录各次的严格覆盖与来源哈希。这些录制仍有缺项。
+
+以下是更早的 `apps/tracecomplete/` 样例：
+
 [`apps/tracecomplete/tracecomplete.html`](apps/tracecomplete/tracecomplete.html) ——
 ArceOS 的 `app-childtask`（创建子任务、等它结束）。
 

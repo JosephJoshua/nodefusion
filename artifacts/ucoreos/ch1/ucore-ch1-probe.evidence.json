@@ -1,0 +1,94 @@
+{
+  "schema": "nodefusion.artifact-evidence/1",
+  "run": "ucore-ch1-probe",
+  "kernel_kind": "ucore",
+  "source_sha256": {
+    "trace.nfb": "da10b0a0e85888a4cc2cb6011681c1069d3516101d1568a1651acca44cfb20fc",
+    "manifest.json": "bd7c8472aafe88b16739b40ea2f35368f94e372e0f10440bb346258d115c15d3",
+    "watchlist.json": "b7d5019922ed768ca61cb3c31c3fbcf75a84783c2cc1ffd2b3fd1603788770ee",
+    "kernel_layout.json": "71582cb130a95ed5377a8e789f1c842c04a0b37d34b8a8dcd78a609043368251"
+  },
+  "kernel_elf_sha256": "6d9f1bfed86d6a24cf8909debbd78e949a858c22135c3e950bd942b9f7895771",
+  "html_sha256": "90889118867a5e21cefd4af62e57cf48a566dd7c4f49fc69e3aac1eaba33dc3d",
+  "html_bytes": 158994,
+  "function_trace": {
+    "kind": "function-entry sequence (no return events)",
+    "raw": 145,
+    "retained": 145
+  },
+  "coverage": {
+    "status": "complete",
+    "percent": 100.0,
+    "passed": 177,
+    "total": 177,
+    "metrics": {
+      "covered": 6,
+      "applicable": 6,
+      "not_applicable": [
+        "bcache_hit_rate",
+        "bcache_hits",
+        "bcache_reads",
+        "context_switches",
+        "disk_io",
+        "execs",
+        "forks",
+        "kalloc",
+        "kfree",
+        "log_commits",
+        "page_table_maps",
+        "vm_maps",
+        "vm_unmaps"
+      ],
+      "missing": [],
+      "sampled": []
+    },
+    "semantic_events": {
+      "raw": 165,
+      "unknown": 0,
+      "unknown_fields": {},
+      "dropped_from_interactive": 0
+    },
+    "snapshots": {
+      "checked": 3,
+      "incomplete": 0,
+      "physical_memory": 0,
+      "physical_counters": 0,
+      "processes": 0,
+      "resources": 0
+    },
+    "snapshot_not_applicable": [
+      "physical_counters",
+      "processes",
+      "resources"
+    ],
+    "manifest_fields": {
+      "cells": 0,
+      "states": {},
+      "not_applicable": 0,
+      "unresolved": 0
+    },
+    "full_watch_scope": true,
+    "blockers": []
+  },
+  "event_selection": {
+    "applied": false,
+    "policy": "kind-preserving/systematic-v3",
+    "raw": 309,
+    "retained": 309,
+    "dropped": 0,
+    "target_limit": 150000,
+    "minimum_spare": 25000,
+    "always_keep": "all events when the raw stream fits",
+    "priority_raw": 165,
+    "spare_raw": 144,
+    "spare_budget": 0,
+    "stride": 1,
+    "retained_kinds": {
+      "firmware.trap": 19,
+      "func.console_putchar": 144,
+      "kernel.panic": 1,
+      "sbi.call": 145
+    },
+    "dropped_kinds": {}
+  }
+}

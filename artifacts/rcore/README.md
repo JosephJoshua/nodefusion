@@ -1,5 +1,15 @@
 # rCore 样例
 
+各章新报告及同名 `.evidence.json`：
+[ch1](ch1/rcore-ch1-bare.html)、[ch2](ch2/rcore-ch2-batch.html)、
+[ch3](ch3/rcore-ch3-sched.html)、[ch4](ch4/rcore-ch4-exact.html)、
+[ch5](ch5/rcore-ch5-exact.html)、[ch6](ch6/rcore-ch6-usertest.html)、
+[ch7](ch7/rcore-ch7-100pct-final.html)、
+[ch8](ch8/rcore-ch8-exact-filetest.html)。ch7 的严格覆盖检查通过；
+其他章的旧录制存在缺项，见相应证据中的 `coverage.blockers`。
+
+以下是更早的 ch6 文件系统与 panic 样例：
+
 两趟：一趟正常跑完，一趟内核崩了。
 
 | 样例 | 跑的什么 | 结局 |

@@ -1,5 +1,8 @@
 # xv6-riscv 样例
 
+新生成的 [lab3-cow 单次报告](lab3-cow/lab3-cowtest-mac.html)及同名
+`.evidence.json` 记录来源哈希和严格覆盖缺项。以下三份是更早的独立样例：
+
 | 文件 | 是什么 |
 |------|--------|
 | [`boot/boot-trace.html`](boot/boot-trace.html) | 从上电到 shell 的启动过程 |
