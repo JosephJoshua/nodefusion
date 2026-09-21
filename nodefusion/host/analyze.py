@@ -366,7 +366,8 @@ class Analysis:
                 self.notes.append(f"读不到 {self.kernel_kind} 的系统调用号表"
                                   f"（{e}），系统调用只显示号码。")
 
-        self.trace = trace_mod.load(self.run_dir / "trace.nfb")
+        self.trace = trace_mod.load(self.run_dir / "trace.nfb",
+                                    indexed_pages=True, compact_watch_hits=True)
         self.console = (self.run_dir / "console.log").read_text(
             encoding="utf-8", errors="replace") if (self.run_dir / "console.log").exists() else ""
 

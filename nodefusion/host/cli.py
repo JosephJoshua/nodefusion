@@ -382,7 +382,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="额外的 make 变量，形如 NF_FORK_COPY_MODE=COW，可重复")
     r.add_argument("--timeout", type=float, default=300.0)
     r.add_argument("--boot-timeout", type=float, default=90.0)
-    r.add_argument("--sample-insns", type=int, default=200_000)
+    r.add_argument("--sample-insns", type=int, default=200_000,
+                   help="周期采样间隔；设为 0 可关闭周期采样")
     r.add_argument("--snap-insns", type=int, default=None,
                    help="内存快照间隔（指令数）。不给就先跑一次校准，自动选")
     r.add_argument("--snapshots", type=int, default=120, help="程序段目标快照帧数")

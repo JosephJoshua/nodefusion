@@ -275,15 +275,20 @@ static struct {
     uint64_t  ram_size;
     uint32_t  page_size;
     uint32_t  page_count;
-    uint8_t  *shadow;
+    uint8_t **shadow_pages;
     bool     *shadow_valid;
     uint8_t  *zbuf;
     uLongf    zbuf_cap;
+    GByteArray *writebuf;
 
 
     uint64_t  max_ram_bytes;
     uint64_t  ram_bytes;
     bool      truncated;
+    uint64_t  snapshot_reads;
+    uint64_t  snapshot_fallbacks;
+    uint64_t  snapshot_us;
+    unsigned  ncpus;
 
 
 
@@ -355,15 +360,12 @@ static void nf_write_rec(uint8_t type, uint8_t cpu, uint32_t flags,
         .type = type, .cpu = cpu, .len = (uint16_t)(len + extra_len),
         .flags = flags, .insn = insn,
     };
-    if (fwrite(&h, sizeof(h), 1, nf.out) != 1) {
+    g_byte_array_set_size(nf.writebuf, 0);
+    g_byte_array_append(nf.writebuf, (const uint8_t *)&h, sizeof(h));
+    if (len) g_byte_array_append(nf.writebuf, payload, len);
+    if (extra_len) g_byte_array_append(nf.writebuf, extra, extra_len);
+    if (fwrite(nf.writebuf->data, nf.writebuf->len, 1, nf.out) != 1)
         nf_die("写轨迹失败：%s", strerror(errno));
-    }
-    if (len && fwrite(payload, len, 1, nf.out) != 1) {
-        nf_die("写轨迹负载失败：%s", strerror(errno));
-    }
-    if (extra_len && fwrite(extra, extra_len, 1, nf.out) != 1) {
-        nf_die("写轨迹附加数据失败：%s", strerror(errno));
-    }
 }
 
 static void nf_meta(const char *fmt, ...)
@@ -395,16 +397,24 @@ static void nf_warn(uint64_t insn, const char *fmt, ...)
 
 
 
-static GByteArray *nf_regbuf;
+static GByteArray *nf_regbuf[NF_MAX_VCPUS];
 
-static bool nf_read_reg(struct qemu_plugin_register *h, uint64_t *out)
+static GByteArray *nf_vcpu_buf(unsigned int vcpu)
+{
+    unsigned int slot = vcpu < NF_MAX_VCPUS ? vcpu : 0;
+    return nf_regbuf[slot];
+}
+
+static bool nf_read_reg(unsigned int vcpu, struct qemu_plugin_register *h,
+                        uint64_t *out)
 {
     if (!h) return false;
-    g_byte_array_set_size(nf_regbuf, 0);
-    if (!qemu_plugin_read_register(h, nf_regbuf)) return false;
+    GByteArray *buf = nf_vcpu_buf(vcpu);
+    g_byte_array_set_size(buf, 0);
+    if (!qemu_plugin_read_register(h, buf)) return false;
     uint64_t v = 0;
-    size_t n = MIN(nf_regbuf->len, sizeof(v));
-    memcpy(&v, nf_regbuf->data, n);
+    size_t n = MIN(buf->len, sizeof(v));
+    memcpy(&v, buf->data, n);
     *out = v;
     return true;
 }
@@ -467,10 +477,76 @@ static void nf_vcpu_init(qemu_plugin_id_t id, unsigned int vcpu)
 
 
 static GByteArray *nf_pagebuf;
+static const uint8_t nf_zero_page[4096];
+
+static void nf_release_snapshot_buffers(void)
+{
+    if (nf.shadow_pages) {
+        for (uint32_t i = 0; i < nf.page_count; i++)
+            g_free(nf.shadow_pages[i]);
+        g_clear_pointer(&nf.shadow_pages, g_free);
+    }
+    g_clear_pointer(&nf.shadow_valid, g_free);
+    g_clear_pointer(&nf.zbuf, g_free);
+    nf.zbuf_cap = 0;
+}
+
+static bool nf_snapshot_page(unsigned int vcpu, uint64_t insn,
+                             uint32_t page_index, const uint8_t *page,
+                             uint32_t *changed)
+{
+    uint32_t ps = nf.page_size;
+    bool zero = memcmp(page, nf_zero_page, ps) == 0;
+    uint8_t *shadow_page = nf.shadow_pages[page_index];
+    if (nf.shadow_valid[page_index] &&
+        ((zero && !shadow_page) ||
+         (!zero && shadow_page && memcmp(shadow_page, page, ps) == 0)))
+        return true;
+
+    uLongf clen = nf.zbuf_cap;
+    int zrc = compress2(nf.zbuf, &clen, page, ps, 1);
+    const void *body;
+    size_t body_len;
+    uint32_t rflags;
+    if (zrc == Z_OK && clen < ps) {
+        body = nf.zbuf;
+        body_len = clen;
+        rflags = NF_F_ZLIB;
+    } else {
+        body = page;
+        body_len = ps;
+        rflags = 0;
+    }
+
+    if (nf.ram_bytes + body_len > nf.max_ram_bytes) {
+        nf.truncated = true;
+        nf_warn(insn, "物理内存快照达到 %"PRIu64" 字节上限，后续快照被截断；"
+                      "请调大 maxram= 或调稀 snap=", nf.max_ram_bytes);
+        return false;
+    }
+
+    struct nf_pl_rampage pg = { .page_index = page_index, .raw_len = ps };
+    nf_write_rec(NF_REC_RAMPAGE, (uint8_t)vcpu, rflags, insn,
+                 &pg, sizeof(pg), body, body_len);
+    if (zero) {
+        g_clear_pointer(&nf.shadow_pages[page_index], g_free);
+    } else {
+        if (!shadow_page) {
+            shadow_page = g_try_malloc(ps);
+            if (!shadow_page) nf_die("分配物理页影子副本失败");
+            nf.shadow_pages[page_index] = shadow_page;
+        }
+        memcpy(shadow_page, page, ps);
+    }
+    nf.shadow_valid[page_index] = true;
+    nf.ram_bytes += body_len;
+    (*changed)++;
+    return true;
+}
 
 static void nf_snapshot(unsigned int vcpu, uint64_t insn)
 {
-    if (!nf.shadow) return;
+    if (!nf.shadow_pages) return;
 
     uint64_t snap_seq = nf.n_snapshots++;
     uint32_t changed = 0;
@@ -485,53 +561,46 @@ static void nf_snapshot(unsigned int vcpu, uint64_t insn)
     nf_write_rec(NF_REC_SNAPMARK, (uint8_t)vcpu, 0, insn, &mark, sizeof(mark), NULL, 0);
 
     uint32_t read_fail = 0;
-    for (uint32_t i = 0; i < nf.page_count; i++) {
-        if (nf.truncated) break;
+    const uint32_t chunk_pages = 64;
+    gint64 started_us = g_get_monotonic_time();
+    for (uint32_t base = 0; base < nf.page_count && !nf.truncated;
+         base += chunk_pages) {
+        uint32_t pages = MIN(chunk_pages, nf.page_count - base);
+        size_t chunk_len = (size_t)pages * ps;
+        uint64_t pa = nf.ram_base + (uint64_t)base * ps;
 
         g_byte_array_set_size(nf_pagebuf, 0);
-        uint64_t pa = nf.ram_base + (uint64_t)i * ps;
-
-
-
-
-        if (qemu_plugin_read_memory_hwaddr(pa, nf_pagebuf, ps)
-                != QEMU_PLUGIN_HWADDR_OPERATION_OK) {
-            read_fail++;
-            continue;
-        }
-        if (nf_pagebuf->len < ps) { read_fail++; continue; }
-
-        uint8_t *shadow_page = nf.shadow + (size_t)i * ps;
-        if (nf.shadow_valid[i] && memcmp(shadow_page, nf_pagebuf->data, ps) == 0) {
+        nf.snapshot_reads++;
+        bool chunk_ok = qemu_plugin_read_memory_hwaddr(pa, nf_pagebuf, chunk_len)
+                        == QEMU_PLUGIN_HWADDR_OPERATION_OK
+                     && nf_pagebuf->len >= chunk_len;
+        if (chunk_ok) {
+            for (uint32_t j = 0; j < pages && !nf.truncated; j++) {
+                if (!nf_snapshot_page(vcpu, insn, base + j,
+                                      nf_pagebuf->data + (size_t)j * ps,
+                                      &changed))
+                    break;
+            }
             continue;
         }
 
-
-        uLongf clen = nf.zbuf_cap;
-        int zrc = compress2(nf.zbuf, &clen, nf_pagebuf->data, ps, 1);
-        const void *body; size_t body_len; uint32_t rflags;
-        if (zrc == Z_OK && clen < ps) {
-            body = nf.zbuf; body_len = clen; rflags = NF_F_ZLIB;
-        } else {
-
-            body = nf_pagebuf->data; body_len = ps; rflags = 0;
+        /* Preserve per-page failure reporting when a larger read is rejected. */
+        nf.snapshot_fallbacks++;
+        for (uint32_t j = 0; j < pages && !nf.truncated; j++) {
+            uint32_t i = base + j;
+            g_byte_array_set_size(nf_pagebuf, 0);
+            pa = nf.ram_base + (uint64_t)i * ps;
+            nf.snapshot_reads++;
+            if (qemu_plugin_read_memory_hwaddr(pa, nf_pagebuf, ps)
+                    != QEMU_PLUGIN_HWADDR_OPERATION_OK
+                    || nf_pagebuf->len < ps) {
+                read_fail++;
+                continue;
+            }
+            nf_snapshot_page(vcpu, insn, i, nf_pagebuf->data, &changed);
         }
-
-        if (nf.ram_bytes + body_len > nf.max_ram_bytes) {
-            nf.truncated = true;
-            nf_warn(insn, "物理内存快照达到 %"PRIu64" 字节上限，后续快照被截断；"
-                          "请调大 maxram= 或调稀 snap=", nf.max_ram_bytes);
-            break;
-        }
-
-        struct nf_pl_rampage pg = { .page_index = i, .raw_len = ps };
-        nf_write_rec(NF_REC_RAMPAGE, (uint8_t)vcpu, rflags, insn,
-                     &pg, sizeof(pg), body, body_len);
-        memcpy(shadow_page, nf_pagebuf->data, ps);
-        nf.shadow_valid[i] = true;
-        nf.ram_bytes += body_len;
-        changed++;
     }
+    nf.snapshot_us += g_get_monotonic_time() - started_us;
 
 
     if (read_fail) {
@@ -553,6 +622,7 @@ static void nf_snapshot(unsigned int vcpu, uint64_t insn)
         fwrite(&mark, sizeof(mark), 1, nf.out);
         fseek(nf.out, end_pos, SEEK_SET);
     }
+    if (nf.truncated) nf_release_snapshot_buffers();
 }
 
 
@@ -569,10 +639,10 @@ static void nf_emit_sample(unsigned int vcpu, uint64_t insn)
     uint32_t flags = 0;
     uint64_t v;
 
-    if (nf_read_reg(r->pc, &v)) s.pc = v; else flags |= NF_F_NO_REGS;
-    if (nf_read_reg(r->priv, &v)) s.priv = (uint32_t)v; else flags |= NF_F_NO_REGS;
-    if (nf_read_reg(r->satp, &v)) s.satp = v; else flags |= NF_F_NO_CSR;
-    if (nf_read_reg(r->sstatus, &v)) s.sstatus = v; else flags |= NF_F_NO_CSR;
+    if (nf_read_reg(vcpu, r->pc, &v)) s.pc = v; else flags |= NF_F_NO_REGS;
+    if (nf_read_reg(vcpu, r->priv, &v)) s.priv = (uint32_t)v; else flags |= NF_F_NO_REGS;
+    if (nf_read_reg(vcpu, r->satp, &v)) s.satp = v; else flags |= NF_F_NO_CSR;
+    if (nf_read_reg(vcpu, r->sstatus, &v)) s.sstatus = v; else flags |= NF_F_NO_CSR;
 
     nf_write_rec(NF_REC_SAMPLE, (uint8_t)vcpu, flags, insn, &s, sizeof(s), NULL, 0);
     nf.n_samples++;
@@ -582,7 +652,9 @@ static void nf_finish(void);
 
 static void nf_tb_check(unsigned int vcpu, void *udata)
 {
-    uint64_t insn = qemu_plugin_u64_sum(nf.insn_count);
+    uint64_t insn = nf.ncpus == 1
+                    ? qemu_plugin_u64_get(nf.insn_count, vcpu)
+                    : qemu_plugin_u64_sum(nf.insn_count);
 
 
     if (nf.max_insn && insn >= nf.max_insn) {
@@ -593,7 +665,7 @@ static void nf_tb_check(unsigned int vcpu, void *udata)
     if (insn < nf.next_sample && insn < nf.next_snap) return;
 
     g_mutex_lock(&nf.lock);
-    if (insn >= nf.next_sample) {
+    if (nf.sample_every && insn >= nf.next_sample) {
         nf.next_sample = insn + nf.sample_every;
         nf_emit_sample(vcpu, insn);
     }
@@ -636,18 +708,18 @@ static void nf_discon(qemu_plugin_id_t id, unsigned int vcpu,
     uint32_t flags = 0;
     uint64_t v;
 
-    if (nf_read_reg(r->priv, &v)) d.priv = (uint32_t)v; else flags |= NF_F_NO_REGS;
-    if (nf_read_reg(r->scause, &v)) d.scause = v; else flags |= NF_F_NO_CSR;
-    if (nf_read_reg(r->sepc, &v)) d.sepc = v; else flags |= NF_F_NO_CSR;
-    if (nf_read_reg(r->stval, &v)) d.stval = v; else flags |= NF_F_NO_CSR;
-    if (nf_read_reg(r->satp, &v)) d.satp = v; else flags |= NF_F_NO_CSR;
-    if (nf_read_reg(r->sstatus, &v)) d.sstatus = v; else flags |= NF_F_NO_CSR;
-    if (nf_read_reg(r->mcause, &v)) d.mcause = v; else flags |= NF_F_NO_MCSR;
-    if (nf_read_reg(r->mepc, &v))   d.mepc   = v; else flags |= NF_F_NO_MCSR;
-    if (nf_read_reg(r->mtval, &v))  d.mtval  = v; else flags |= NF_F_NO_MCSR;
-    if (nf_read_reg(r->sp, &v)) d.sp = v;
+    if (nf_read_reg(vcpu, r->priv, &v)) d.priv = (uint32_t)v; else flags |= NF_F_NO_REGS;
+    if (nf_read_reg(vcpu, r->scause, &v)) d.scause = v; else flags |= NF_F_NO_CSR;
+    if (nf_read_reg(vcpu, r->sepc, &v)) d.sepc = v; else flags |= NF_F_NO_CSR;
+    if (nf_read_reg(vcpu, r->stval, &v)) d.stval = v; else flags |= NF_F_NO_CSR;
+    if (nf_read_reg(vcpu, r->satp, &v)) d.satp = v; else flags |= NF_F_NO_CSR;
+    if (nf_read_reg(vcpu, r->sstatus, &v)) d.sstatus = v; else flags |= NF_F_NO_CSR;
+    if (nf_read_reg(vcpu, r->mcause, &v)) d.mcause = v; else flags |= NF_F_NO_MCSR;
+    if (nf_read_reg(vcpu, r->mepc, &v))   d.mepc   = v; else flags |= NF_F_NO_MCSR;
+    if (nf_read_reg(vcpu, r->mtval, &v))  d.mtval  = v; else flags |= NF_F_NO_MCSR;
+    if (nf_read_reg(vcpu, r->sp, &v)) d.sp = v;
     for (int i = 0; i < 8; i++) {
-        if (nf_read_reg(r->a[i], &v)) d.a[i] = v; else flags |= NF_F_NO_REGS;
+        if (nf_read_reg(vcpu, r->a[i], &v)) d.a[i] = v; else flags |= NF_F_NO_REGS;
     }
 
     uint64_t insn = qemu_plugin_u64_sum(nf.insn_count);
@@ -698,12 +770,12 @@ static void nf_watch_hit(unsigned int vcpu, void *udata)
         }
         w.pc = cfg->addr;
     }
-    if (nf_read_reg(r->priv, &v)) w.priv = (uint32_t)v; else flags |= NF_F_NO_REGS;
-    if (nf_read_reg(r->satp, &v)) w.satp = v; else flags |= NF_F_NO_CSR;
-    if (nf_read_reg(r->sp, &v)) w.sp = v;
-    if (nf_read_reg(r->ra, &v)) w.ra = v;
+    if (nf_read_reg(vcpu, r->priv, &v)) w.priv = (uint32_t)v; else flags |= NF_F_NO_REGS;
+    if (nf_read_reg(vcpu, r->satp, &v)) w.satp = v; else flags |= NF_F_NO_CSR;
+    if (nf_read_reg(vcpu, r->sp, &v)) w.sp = v;
+    if (nf_read_reg(vcpu, r->ra, &v)) w.ra = v;
     for (int i = 0; i < 8; i++) {
-        if (nf_read_reg(r->a[i], &v)) w.a[i] = v; else flags |= NF_F_NO_REGS;
+        if (nf_read_reg(vcpu, r->a[i], &v)) w.a[i] = v; else flags |= NF_F_NO_REGS;
     }
 
     uint64_t insn = qemu_plugin_u64_sum(nf.insn_count);
@@ -723,7 +795,8 @@ static void nf_watch_hit(unsigned int vcpu, void *udata)
     if (wid < nf.n_watches && nf.watches[wid].nftrace) {
         uint64_t ptr = w.a[0];
         struct nf_nftrace_rec rec;
-        GByteArray *buf = g_byte_array_sized_new(sizeof(rec));
+        GByteArray *buf = nf_vcpu_buf(vcpu);
+        g_byte_array_set_size(buf, 0);
         if (ptr && qemu_plugin_read_memory_vaddr(ptr, buf, sizeof(rec))
                 && buf->len == sizeof(rec)) {
             memcpy(&rec, buf->data, sizeof(rec));
@@ -733,7 +806,6 @@ static void nf_watch_hit(unsigned int vcpu, void *udata)
         } else {
             nf.n_nftrace_fail++;
         }
-        g_byte_array_free(buf, TRUE);
     }
 
 
@@ -780,8 +852,10 @@ static void nf_tb_trans(qemu_plugin_id_t id, struct qemu_plugin_tb *tb)
     }
 
 
-    qemu_plugin_register_vcpu_tb_exec_cb(tb, nf_tb_check,
-                                         QEMU_PLUGIN_CB_R_REGS, NULL);
+    if (nf.sample_every || nf.snap_every || nf.max_insn) {
+        qemu_plugin_register_vcpu_tb_exec_cb(tb, nf_tb_check,
+                                             QEMU_PLUGIN_CB_NO_REGS, NULL);
+    }
 }
 
 
@@ -855,6 +929,9 @@ static void nf_finish(void)
         .truncated = nf.truncated ? 1u : 0u,
         .watch_drops = nf.n_watch_drops,
     };
+    nf_meta("nf.snapshot_reads=%"PRIu64, nf.snapshot_reads);
+    nf_meta("nf.snapshot_fallbacks=%"PRIu64, nf.snapshot_fallbacks);
+    nf_meta("nf.snapshot_us=%"PRIu64, nf.snapshot_us);
     nf_write_rec(NF_REC_END, 0, nf.truncated ? NF_F_TRUNCATED : 0, insn,
                  &e, sizeof(e), NULL, 0);
     fflush(nf.out);
@@ -1020,7 +1097,6 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
     }
 
     if (!out_path) nf_die("必须指定 out=<轨迹文件路径>");
-    if (nf.sample_every == 0) nf.sample_every = 1;
 
 
 
@@ -1041,19 +1117,21 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
     if (fwrite(&hdr_size, sizeof(hdr_size), 1, nf.out) != 1) nf_die("写头长度失败");
 
     g_mutex_init(&nf.lock);
-    nf_regbuf  = g_byte_array_new();
-    nf_pagebuf = g_byte_array_new();
+    for (unsigned int i = 0; i < NF_MAX_VCPUS; i++)
+        nf_regbuf[i] = g_byte_array_sized_new(64);
+    nf_pagebuf = g_byte_array_sized_new(nf.page_size);
+    nf.writebuf = g_byte_array_sized_new(sizeof(struct nf_rec_hdr) + nf.page_size);
 
     nf.sb = qemu_plugin_scoreboard_new(sizeof(uint64_t));
     nf.insn_count = qemu_plugin_scoreboard_u64(nf.sb);
+    nf.ncpus = info->system.max_vcpus;
 
     nf.page_count = (uint32_t)(nf.ram_size / nf.page_size);
     if (nf.snap_every) {
-        nf.shadow = g_try_malloc0((size_t)nf.page_count * nf.page_size);
+        nf.shadow_pages = g_try_malloc0((size_t)nf.page_count * sizeof(uint8_t *));
         nf.shadow_valid = g_try_malloc0((size_t)nf.page_count * sizeof(bool));
-        if (!nf.shadow || !nf.shadow_valid) {
-            nf_die("分配 %u 页影子内存失败（需要约 %.0f MiB）",
-                   nf.page_count, nf.ram_size / 1048576.0);
+        if (!nf.shadow_pages || !nf.shadow_valid) {
+            nf_die("分配 %u 页影子页索引失败", nf.page_count);
         }
         nf.zbuf_cap = compressBound(nf.page_size);
         nf.zbuf = g_try_malloc(nf.zbuf_cap);
@@ -1062,7 +1140,7 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 
     if (watch_path) nf_load_watches(watch_path);
 
-    nf.next_sample = nf.sample_every;
+    nf.next_sample = nf.sample_every ? nf.sample_every : UINT64_MAX;
     if (!nf.snap_every) {
         nf.next_snap = UINT64_MAX;
     } else {

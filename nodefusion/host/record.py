@@ -277,6 +277,10 @@ class Recorder:
         self.plugin_so = (self.repo_root / "nodefusion" / "plugin"
                           / plugin_filename())
         self.warnings: list[str] = []
+        if cfg.cpus > 1:
+            self.warnings.append(
+                "多核录制不启用 QEMU -icount；指令计数仍由插件记录，"
+                "虚拟时间不再按固定指令间隔推进。")
         self.program_exit_code: int | None = None
         self.outcome_ambiguous: dict | None = None
         for opt in self.profile.unsupported:
@@ -435,10 +439,11 @@ class Recorder:
 
         opts = list(self.profile.machine_args(c.kernel_dir)) + [
             f"-smp {c.cpus}", "-nographic",
-            f"-icount shift={c.icount_shift}",
             f"-qmp tcp:127.0.0.1:{qmp_port},server=on,wait=off",
             f"-plugin {plugin}",
         ]
+        if c.cpus == 1:
+            opts.append(f"-icount shift={c.icount_shift}")
         return (f'cd "{kd}" && exec qemu-system-riscv64 ' + " ".join(opts))
 
     def _drive(self, trace_path: Path, watch_path: Path | None,
@@ -782,7 +787,7 @@ class Recorder:
             "lab_stage_source": "命令行指定" if c.lab_stage is not None else "Makefile 默认值",
             "make_vars": c.make_vars,
             "cpus": c.cpus,
-            "icount_shift": c.icount_shift,
+            "icount_shift": c.icount_shift if c.cpus == 1 else None,
             "sample_insns": c.sample_insns,
             "snap_insns": snap_insns,
             "boot_snap_insns": boot_snap,

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import struct
-from collections.abc import Sequence
+from collections.abc import Mapping as PageMapping, Sequence
 from dataclasses import dataclass, field
 
 from .layout import KernelLayout
@@ -76,7 +76,7 @@ class RamImage:
         self.data = bytearray(size)
         self.seen = bytearray(size // PGSIZE)
 
-    def apply(self, pages: dict[int, bytes]) -> None:
+    def apply(self, pages: PageMapping[int, bytes]) -> None:
         for idx, blob in pages.items():
             off = idx * PGSIZE
             if off + len(blob) > self.size:
