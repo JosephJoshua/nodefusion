@@ -345,7 +345,7 @@ nftrace 的编号是跟仓库外的内核补丁共用的线协议，规范必须
 
 | 资源 | 来源 |
 | --- | --- |
-| 进程表 | 优先走 manifest（`docs/manifests/*.toml` 声明符号、路径、reader，偏移从 DWARF 解），manifest 用不上时退回 `proc[]` 符号地址 + 编译期 offsetof。退回时会在 `notes` 里写明为什么 —— 静默退回等于把"没按预期解"藏起来 |
+| 进程表 | 优先走 manifest（`nodefusion/manifests/*.toml` 声明符号、路径、reader，偏移从 DWARF 解），manifest 用不上时退回 `proc[]` 符号地址 + 编译期 offsetof。退回时会在 `notes` 里写明为什么 —— 静默退回等于把"没按预期解"藏起来 |
 | 每核当前进程 | `cpus[]` |
 | 虚拟内存与页表 | 从 `proc.pagetable` 走 Sv39 三级页表，取全部叶子映射与权限位（含 `PTE_COW`） |
 | 物理页归属 | 空闲链表 + 各进程页表 + 内核镜像区间，逐页标注类别与归属 pid |
@@ -403,7 +403,7 @@ nftrace 的编号是跟仓库外的内核补丁共用的线协议，规范必须
 上面那一节是给**同一个内核加一种资源**用的，改的是 host 里的代码。换一个内核不该
 这么来 —— 那等于把每个内核的细节写死在工具里，加一个内核就得动一次 host。
 
-内核相关的东西一律写在 `docs/manifests/<内核>.toml` 里，代码不认任何具体内核：
+内核相关的东西一律写在 `nodefusion/manifests/<内核>.toml` 里，代码不认任何具体内核：
 
 1. **认内核**：`[kernel]` 里的 `detect`，给出这个内核独有的类型或符号：
    `detect = { any_type = ["proc"], any_symbol = ["initproc"] }`。

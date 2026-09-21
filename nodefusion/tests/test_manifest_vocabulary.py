@@ -100,7 +100,7 @@ def test_reader_and_shell_names_match_the_known_todo_list(path):
     assert not surprises, (
         f"{path.name} 用了没记录过的名字 {sorted(surprises)}。多半是手误 —— "
         f"真要新加一个 reader，先实现它，或者把它写进 EXPECTED_MISSING 并"
-        f"在 FINDINGS.md 里说明为什么现在做不了")
+        f"在对应 manifest 注释中说明为什么现在做不了")
 
     done = expected - missing
     assert not done, (
