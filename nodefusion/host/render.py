@@ -27,30 +27,42 @@ __CSS__
 </div>
 
 <div id="app" style="display:none">
-  <header>
-    <h1>Node<span>Fusion</span> · 运行观测报告</h1>
+  <header class="topbar">
+    <div class="brand-lockup">
+      <div class="brand-mark" aria-hidden="true">NF</div>
+      <div>
+        <div class="brand-name">Node<span>Fusion</span></div>
+        <div class="brand-kicker">运行观测报告</div>
+      </div>
+    </div>
     <span id="outcome" class="badge"></span>
     <div class="hmeta" id="hmeta"></div>
+    <button id="quick-events" class="top-action" type="button" title="打开事件浏览器">事件浏览器</button>
+    <button id="toggle-detail" class="top-action" type="button" title="切换检查点详情">收起详情</button>
   </header>
 
   <div class="capability" id="capability" style="display:none"></div>
 
-  <div class="timebar">
-    <button id="prev">◀ 上一快照</button>
-    <button id="play">播放</button>
-    <button id="next">下一快照 ▶</button>
+  <div class="timebar" aria-label="时间控制">
+    <div class="transport">
+      <button id="prev" type="button" title="上一快照">上一帧</button>
+      <button id="play" type="button" class="primary-control">播放</button>
+      <button id="next" type="button" title="下一快照">下一帧</button>
+    </div>
     <input type="range" id="slider" min="0" value="0">
     <span class="tlabel" id="tlabel"></span>
   </div>
-  <div class="minimapwrap"><canvas id="minimap"></canvas></div>
+  <div class="minimapwrap">
+    <canvas id="minimap"></canvas>
+    <div class="minimap-axis" aria-hidden="true"><span id="mini-start">0</span><span id="mini-end">—</span></div>
+  </div>
 
   <!-- 变化摘要条：只回答"相对上一个快照，这一刻有什么变了"。
        全部是从两个快照相减得到的纯事实，不含任何对实验意图的猜测。 -->
   <div class="deltabar" id="deltabar" style="display:none"></div>
 
   <div class="main">
-    <div class="left">
-      <nav class="tabs">
+    <nav class="tabs" aria-label="报告章节">
         <button data-tab="compare">对比</button>
         <button data-tab="overview" class="on">概览</button>
         <button data-tab="phys">物理内存</button>
@@ -58,31 +70,28 @@ __CSS__
         <button data-tab="vm">虚拟内存与页表</button>
         <button data-tab="fs">文件系统与磁盘</button>
         <button data-tab="events">事件</button>
+        <button data-tab="functions">函数轨迹</button>
         <button data-tab="metrics">指标</button>
         <button data-tab="console">控制台</button>
-      </nav>
+    </nav>
+    <div class="left">
       <div class="panel on" id="panel-overview"></div>
       <div class="panel" id="panel-phys"></div>
       <div class="panel" id="panel-procs"></div>
       <div class="panel" id="panel-vm"></div>
       <div class="panel" id="panel-fs"></div>
       <div class="panel" id="panel-events"></div>
+      <div class="panel" id="panel-functions"></div>
       <div class="panel" id="panel-metrics"></div>
       <div class="panel" id="panel-console"></div>
       <div class="panel" id="panel-compare"></div>
     </div>
     <div class="right">
       <div id="detail">
-        <div class="dsec">
-          <div class="t">使用方法</div>
-          <div class="hint">
-            <b>按时间看</b>：拖动上方时间轴，或用 ← → 逐个快照步进，
-            下面各页会显示那一刻整个系统的状态。<br><br>
-            <b>按事件看</b>：切到「事件」页，筛选某类 syscall / 缺页 / 中断 /
-            上下文切换 / 磁盘事件，点任意一行会把时间定位过去，
-            这里会显示它的参数、前后系统变化和邻近事件。<br><br>
-            凡是外部观测无法确定的信息，都会明确标成未知，不会用推测值填充。
-          </div>
+        <div class="detail-empty">
+          <div class="detail-empty-icon" aria-hidden="true">⌖</div>
+          <h2>检查点详情</h2>
+          <p>选择事件、进程或物理页，查看当前时间点的关联数据。</p>
         </div>
       </div>
     </div>

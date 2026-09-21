@@ -22,11 +22,12 @@ const NF = {
   playing: false,
   speed: 260,        // 播放时每帧停留毫秒数（录屏可用 ?speed= 调）
   loop: false,
+  detailOpen: true,
   tab: 'overview',
   selEvent: null,
   selPage: null,
   selPid: null,
-  filters: { text: '', kind: '', res: '', pid: '' },
+  filters: { text: '', kind: '', res: '', pid: '', cpu: '', group: '', from: '', to: '' },
 };
 
 /* ------------------------------------------------------------------ 工具 */
@@ -37,6 +38,10 @@ const el = (tag, cls, txt) => {
   if (cls) e.className = cls;
   if (txt !== undefined) e.textContent = txt;
   return e;
+};
+const shortText = (value, limit = 160) => {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
 };
 /* 64 位的地址和寄存器值放不进 JS 的 double。打包侧（bundle.py 的 _js_safe）
    已经把这类值发成 "0x…" 字符串了 —— 因为一旦它们以 JSON 数字的形式进来，
@@ -124,6 +129,16 @@ function evGet(run, i) {
   };
 }
 
+function eventGroup(kind) {
+  if (/^(syscall|sbi)\./.test(kind)) return '系统调用';
+  if (/^(trap|interrupt|firmware)\./.test(kind)) return '异常与中断';
+  if (/^(disk|bcache|inode|log)\./.test(kind)) return '文件与 I/O';
+  if (/^(phys|pagetable|vm)\./.test(kind)) return '内存与页表';
+  if (/^(sched|proc|sync)\./.test(kind)) return '进程与同步';
+  if (/^func\./.test(kind)) return '函数入口';
+  return '其他';
+}
+
 /* ------------------------------------------------------------ 物理内存图 */
 
 // 归属类别配色。用户页在此基础上按 pid 微调色相，让不同进程一眼可分。
@@ -149,15 +164,15 @@ const KIND_LABEL = {
  * 图例只给颜色和名字的话，没学过的人根本不知道自己在看什么。
  */
 const KIND_DEF = {
-  0: '在内核的空闲页链表里，还没有被分配出去',
-  1: '内核代码和静态数据本身占的页，开机就固定在那里',
-  2: '内核运行期间分配的页，不属于任何单个进程',
-  3: '某个进程地址空间里的页，只被这一个进程的页表映射',
-  4: '存放页表本身的页（Sv39 三级页表的节点），不存放用户数据',
-  5: '保存进程陷入内核那一刻的寄存器现场，每个进程一页',
-  6: '进程在内核态执行时用的栈，每个进程一页',
-  7: '同一页物理内存同时出现在两个或更多进程的页表里',
-  8: '外部观测无法确定归属，如实标为未知，不做猜测',
+  0: '未分配',
+  1: '内核代码 / 静态数据',
+  2: '内核运行时分配',
+  3: '单进程用户页',
+  4: '页表节点',
+  5: 'trapframe',
+  6: '内核栈',
+  7: '多进程共享',
+  8: '归属未知',
 };
 
 function pidTint(rgb, pid) {
@@ -346,50 +361,81 @@ function drawMinimap(run) {
 
 /* ---------------------------------------------------------------- 折线图 */
 
+function axisNum(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '—';
+  const a = Math.abs(n);
+  if (a >= 1e9) return `${(n / 1e9).toFixed(a >= 1e10 ? 0 : 1)}G`;
+  if (a >= 1e6) return `${(n / 1e6).toFixed(a >= 1e7 ? 0 : 1)}M`;
+  if (a >= 1e3) return `${(n / 1e3).toFixed(a >= 1e4 ? 0 : 1)}K`;
+  return Number.isInteger(n) ? n.toLocaleString('en-US') : n.toFixed(1);
+}
+
 function drawChart(canvas, series, opts) {
   opts = opts || {};
   const w = canvas.clientWidth || 600, h = canvas.clientHeight || 130;
   canvas.width = w; canvas.height = h;
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = '#161b22'; ctx.fillRect(0, 0, w, h);
-  const pad = 4;
-  let maxY = 1, maxX = 1;
-  // null 表示"这个时刻测不到"，不是 0。参与不了取最大值，也不能画点：
-  // null / maxY === 0 会把它画成贴着底轴的一条线，看上去就是"一直是 0"。
-  const okPt = (p) => p && p[1] !== null && p[1] !== undefined && !Number.isNaN(p[1]);
+  const margin = { left: 52, right: 12, top: 22, bottom: 25 };
+  const plotW = Math.max(10, w - margin.left - margin.right);
+  const plotH = Math.max(10, h - margin.top - margin.bottom);
+  let maxY = 0;
+  const okPt = (p) => p && p[1] !== null && p[1] !== undefined && Number.isFinite(Number(p[1]));
   for (const s of series) for (const p of s.points) {
-    if (!okPt(p)) continue;
-    if (p[1] > maxY) maxY = p[1];
-    if (p[0] > maxX) maxX = p[0];
+    if (okPt(p)) maxY = Math.max(maxY, Number(p[1]));
   }
-  // 网格
+  maxY = Math.max(1, maxY);
+  const minX = Number.isFinite(Number(opts.xMin)) ? Number(opts.xMin) : 0;
+  const fallbackX = Math.max(...series.flatMap((s) => s.points.filter((p) => p && p[0] !== null).map((p) => Number(p[0]))), 1);
+  const maxX = Number.isFinite(Number(opts.xMax)) ? Number(opts.xMax) : fallbackX;
+  const spanX = Math.max(1, maxX - minX);
+  const xPos = (x) => margin.left + ((Number(x) - minX) / spanX) * plotW;
+  const yPos = (y) => margin.top + plotH - (Number(y) / maxY) * plotH;
+
+  ctx.font = '10px monospace';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#8b98a8';
+  ctx.textAlign = 'left';
+  ctx.fillText(opts.title || '', margin.left, 10);
+  ctx.textAlign = 'right';
+  ctx.fillText(`峰值 ${axisNum(maxY)}`, w - margin.right, 10);
+
   ctx.strokeStyle = '#2a3140'; ctx.lineWidth = 1;
-  for (let i = 1; i < 4; i++) {
-    const y = pad + ((h - 2 * pad) * i) / 4;
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+  ctx.fillStyle = '#8b98a8';
+  for (let i = 0; i <= 4; i++) {
+    const y = margin.top + (plotH * i) / 4;
+    ctx.beginPath(); ctx.moveTo(margin.left, y); ctx.lineTo(w - margin.right, y); ctx.stroke();
+    ctx.textAlign = 'right'; ctx.fillText(axisNum(maxY * (1 - i / 4)), margin.left - 7, y);
   }
+  for (let i = 0; i <= 4; i++) {
+    const x = margin.left + (plotW * i) / 4;
+    ctx.beginPath(); ctx.moveTo(x, margin.top); ctx.lineTo(x, margin.top + plotH); ctx.stroke();
+    ctx.textAlign = i === 0 ? 'left' : i === 4 ? 'right' : 'center';
+    ctx.fillText(axisNum(minX + (spanX * i) / 4), x, h - 12);
+  }
+  ctx.strokeStyle = '#657384';
+  ctx.beginPath(); ctx.moveTo(margin.left, margin.top); ctx.lineTo(margin.left, margin.top + plotH);
+  ctx.lineTo(w - margin.right, margin.top + plotH); ctx.stroke();
+
   for (const s of series) {
-    ctx.strokeStyle = s.color; ctx.lineWidth = 1.4; ctx.beginPath();
-    // 测不到的点直接断开线段（下一个有效点重新 moveTo），让"这段没有数据"
-    // 在图上看起来就是没有数据，而不是一段贴着 0 的平线。
+    ctx.strokeStyle = s.color; ctx.lineWidth = 1.5; ctx.beginPath();
     let pen = false;
     for (const p of s.points) {
       if (!okPt(p)) { pen = false; continue; }
-      const x = (p[0] / maxX) * w;
-      const y = h - pad - (p[1] / maxY) * (h - 2 * pad);
+      const x = xPos(p[0]);
+      const y = yPos(p[1]);
+      if (x < margin.left || x > w - margin.right) { pen = false; continue; }
       pen ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
       pen = true;
     }
     ctx.stroke();
   }
-  // 播放头
-  const total = NF.runs[0].meta.total_insns || 1;
-  ctx.strokeStyle = '#4aa3ff'; ctx.lineWidth = 1; ctx.beginPath();
-  const px = (NF.cur / total) * w;
-  ctx.moveTo(px, 0); ctx.lineTo(px, h); ctx.stroke();
-  // 图例与量程
-  ctx.fillStyle = '#6b7784'; ctx.font = '10px monospace';
-  ctx.fillText(opts.title ? `${opts.title}  峰值 ${num(maxY)}` : `峰值 ${num(maxY)}`, 6, 12);
+  const px = xPos(NF.cur);
+  if (px >= margin.left && px <= w - margin.right) {
+    ctx.strokeStyle = '#4aa3ff'; ctx.lineWidth = 1; ctx.beginPath();
+    ctx.moveTo(px, margin.top); ctx.lineTo(px, margin.top + plotH); ctx.stroke();
+  }
 }
 
 /* ------------------------------------------------------------------ 渲染 */
@@ -431,30 +477,29 @@ function renderCapability() {
   const c = run.meta.capability;
   const box = $('#capability');
   const items = [];
-  // 有没有 guest 语义都要说。原来只在缺失时提示，结果补上语义之后这一栏整个消失了，
-  // 反而让人不知道"现在这些数到底是外部推的还是内核自己报的"。
-  items.push(c.guest_semantics_note);
+  const compact = (value, limit = 140) => shortText(value, limit);
+  items.push(c.nftrace_records
+    ? `内核语义：${num(c.nftrace_records)} 条 nftrace`
+    : '内核语义：未启用 nftrace');
   if (c.missing_watch_functions && c.missing_watch_functions.length) {
-    items.push(`未匹配观察规则 ${num(c.missing_watch_functions.length)} 条：` +
-               c.missing_watch_functions.join('、'));
+    const names = c.missing_watch_functions.slice(0, 4).join('、');
+    items.push(`缺少观察点：${num(c.missing_watch_functions.length)} 个${names ? `（${names}${c.missing_watch_functions.length > 4 ? '…' : ''}）` : ''}`);
   }
   if (c.missing_layout_fields && c.missing_layout_fields.length) {
-    items.push('这个内核缺少的结构体字段：' + c.missing_layout_fields.join('、'));
+    items.push(`缺少字段：${num(c.missing_layout_fields.length)} 个`);
   }
-  if (c.trace_truncated_at_eof) items.push('轨迹文件在结尾处被截断（QEMU 被强制杀掉），最后一段记录可能不完整。');
-  if (c.plugin_truncated) items.push('物理内存快照因为达到体积上限被截断，后段时间的内存状态不完整。');
+  if (c.trace_truncated_at_eof) items.push('轨迹在结尾截断');
+  if (c.plugin_truncated) items.push('物理内存快照在结尾截断');
   if (run.meta.event_selection && run.meta.event_selection.dropped) {
     const s = run.meta.event_selection;
-    items.push(`交互事件流按 ${s.policy} 抽样：原始 ${num(s.raw)} 条，保留 ${num(s.retained)} 条，` +
-               `丢弃 ${num(s.dropped)} 条（步长 ${num(s.stride)}；syscall / trap / 中断 / ` +
-               `上下文切换 / 进程 / 日志 / 磁盘 / panic 全部保留）。指标仍按原始事件计算。`);
+    items.push(`事件流：${num(s.retained)} / ${num(s.raw)} 条（${s.policy} 抽样）`);
   }
   for (const [kind, d] of Object.entries(c.absent_declared || {})) {
     const why = d.why === 'feature' ? '内核没有这项功能' : '内核有该行为但缺少所需观测粒度';
-    items.push(`${kind}：${why}。依据：${d.evidence}`);
+    items.push(`${kind}：${why}`);
   }
-  for (const n of run.meta.notes || []) items.push(n);
-  for (const wn of run.meta.warnings || []) items.push(`观测器告警（指令 ${fmtInsn(wn.insn)}）：${wn.text}`);
+  for (const n of run.meta.notes || []) items.push(compact(n));
+  for (const wn of run.meta.warnings || []) items.push(`告警 @${fmtInsn(wn.insn)}：${compact(wn.text)}`);
 
   const cov = c.coverage || null;
   const metric = cov && cov.metrics;
@@ -489,6 +534,10 @@ function renderTime() {
   const total = run.meta.total_insns || 1;
   $('#slider').max = String(total);
   $('#slider').value = String(NF.cur);
+  const miniStart = $('#mini-start');
+  const miniEnd = $('#mini-end');
+  if (miniStart) miniStart.textContent = '0';
+  if (miniEnd) miniEnd.textContent = fmtInsn(total);
   const st = stateAt(run, NF.cur);
   const si = stateIndexAt(run, NF.cur);
   $('#tlabel').innerHTML =
@@ -529,8 +578,8 @@ function renderOverview() {
     const hi = r.filter((x) => x > 1);
     // 同一类挂了好几个观察点、限流还不一样，那这个数既不是全量也不是干净的
     // 1/N，只能说"部分"。
-    return r.some((x) => x <= 1) ? `（部分 1/${hi.join('、1/')} 抽样）`
-                                 : `（1/${hi.join('、1/')} 抽样）`;
+    return r.some((x) => x <= 1) ? ` · 1/${hi.join('、1/')}`
+                                 : ` · 1/${hi.join('、1/')}`;
   };
   /*
    * 每个累计数都配一条"平均多久发生一次"。
@@ -559,7 +608,7 @@ function renderOverview() {
               : per >= 1e3 ? (per / 1e3).toFixed(1) + 'K' : per.toFixed(0);
     return `平均每 ${fmt} 条指令一次`;
   };
-  card(fmtInsn(m.total_insns), '总指令数', '从虚拟机上电第一条指令算起');
+  card(fmtInsn(m.total_insns), '总指令数', '运行全程');
   card(num(m.syscalls), '系统调用', rate(m.syscalls));
   card(num(m.page_faults), '缺页异常', rate(m.page_faults));
   card(num(m.context_switches), '上下文切换' + tagOf('context_switches'),
@@ -577,9 +626,9 @@ function renderOverview() {
   const netUnknown =
     (m.kalloc === null || m.kfree === null) ? '净分配未知（没有观测点）'
     : (ka || kf)
-      ? `实际 ${num(m.kalloc)}～${num(m.kalloc * (ka || 1))}`
-        + ` / ${num(m.kfree)}～${num(m.kfree * (kf || 1))}，净值算不出来`
-    : `净分配 ${num(m.kalloc - m.kfree)} 页`;
+      ? `样本 ${num(m.kalloc)}～${num(m.kalloc * (ka || 1))}`
+        + ` / ${num(m.kfree)}～${num(m.kfree * (kf || 1))}`
+    : `净 ${num(m.kalloc - m.kfree)} 页`;
   card(num(m.kalloc) + ' / ' + num(m.kfree), 'kalloc / kfree' + tagOf('kalloc'),
        netUnknown);
   card(num(m.disk_io), '磁盘 I/O' + tagOf('disk_io'), rate(m.disk_io, 'disk_io'));
@@ -593,9 +642,7 @@ function renderOverview() {
   // 而且不成立的时候恰好会给出一个特别像结论的数（0.0%）。所以只要有一侧
   // 抽样过就不给百分比 —— 这是三态里的"测不准"，跟"测出来是 0"不一样。
   const hrSampled = !!(smet.bcache_reads || smet.disk_io);
-  const hrSub = hrSampled
-    ? `${num(m.bcache_reads)} 条缓存读样本；设备读也被抽样，差值不可用`
-    : `${num(m.bcache_hits)} 命中 / ${num(m.bcache_reads)} 次读`;
+  const hrSub = hrSampled ? '样本不可合并' : `${num(m.bcache_hits)} / ${num(m.bcache_reads)} 次读`;
   card((m.bcache_hit_rate === null || hrSampled)
          ? '—' : (m.bcache_hit_rate * 100).toFixed(1) + '%',
        '缓存命中率', hrSub);
@@ -611,31 +658,29 @@ function renderOverview() {
     const r = `实际 ${num(n)}～${num(n * hi)} 次`;
     return sub ? `${sub} · ${r}` : r;
   };
-  card(num(m.vm_maps), '映射区域建立' + tagOf('vm_maps'),
-       withRange('一次调用映一段', m.vm_maps, 'vm_maps'));
-  card(num(m.page_table_maps), '页表项写入' + tagOf('page_table_maps'),
-       withRange('一次调用写一个 PTE', m.page_table_maps, 'page_table_maps'));
+  card(num(m.vm_maps), '映射区域' + tagOf('vm_maps'),
+       withRange('一次 / 段', m.vm_maps, 'vm_maps'));
+  card(num(m.page_table_maps), '页表项' + tagOf('page_table_maps'),
+       withRange('一次 / PTE', m.page_table_maps, 'page_table_maps'));
   card(num(m.log_commits), '日志提交' + tagOf('log_commits'),
        withRange('', m.log_commits, 'log_commits'));
   p.appendChild(cards);
 
-  p.appendChild(el('div', 'hint',
-    '缓存命中率是外部推导量：每次 bread 都要取到一个块，只有未命中才会真的触发磁盘 I/O，' +
-    '所以 命中 ≈ bread 次数 − 磁盘 I/O 次数。这不是内核直接告诉我们的数字。'));
+  p.appendChild(el('div', 'hint', '缓存命中率：bread 次数 − 磁盘 I/O，外部推导。'));
 
   // 上面若干张卡片显示 "—"，是因为这个内核里压根没有对应的函数可挂观测点。
   // 不写清楚的话，"—" 和 "0" 在读者眼里都是"没发生"，而这两件事完全不同。
   if (m.unobservable_reason) {
     const d = el('details', 'inline-disclosure hint');
-    d.appendChild(el('summary', null, '为什么有指标显示“—”'));
-    d.appendChild(el('div', 'disclosure-body', m.unobservable_reason));
+    d.appendChild(el('summary', null, '指标不可用'));
+    d.appendChild(el('div', 'disclosure-body', shortText(m.unobservable_reason, 90)));
     p.appendChild(d);
   }
 
   // 当前时刻的系统概况
   p.appendChild(el('h3', null, '当前时刻的系统状态'));
   if (!st) {
-    p.appendChild(el('div', 'hint', '这个时刻还没有物理内存快照，无法重建系统状态。'));
+    p.appendChild(el('div', 'hint', '此时刻无物理内存快照。'));
   } else {
     const g = el('div', 'cards');
     const c2 = (v, l) => {
@@ -665,7 +710,7 @@ function renderProcTable(run, st) {
   // 那是个结论；这里没有结论。
   if (st.procs_ok === false) {
     return el('div', 'err-box',
-      '进程表无法重建：' + (st.procs_reason || '未知原因'));
+      '进程表不可用 · ' + shortText(st.procs_reason || '未知原因', 110));
   }
   // 列分两段。
   //
@@ -755,9 +800,7 @@ function renderProcTable(run, st) {
     // 进程只有这么点信息。
     const box = el('div');
     box.appendChild(t);
-    box.appendChild(el('div', 'hint',
-      '这份录制是用旧的分内核解码器解的，没有逐字段的来源信息，'
-      + '所以这里只列得出通用的那几列。'));
+    box.appendChild(el('div', 'hint', '旧格式：仅显示通用字段。'));
     return box;
   }
   if (dropped.length) {
@@ -766,8 +809,7 @@ function renderProcTable(run, st) {
     const d = el('details', 'inline-disclosure hint');
     d.appendChild(el('summary', null, `未显示的可选字段（${dropped.length}）`));
     d.appendChild(el('div', 'disclosure-body',
-      '这些字段在当前内核中不存在，所以表里没有对应的列；'
-      + '这与本次快照读取失败不同：' + dropped.join('；')));
+      dropped.map((item) => item.split('：')[0]).join('、') + '：当前内核未提供'));
     box.appendChild(d);
     return box;
   }
@@ -819,7 +861,7 @@ function renderCpuLanes(run) {
   for (let c = 0; c < ncpu; c++) {
     const cv = el('canvas', 'chart');
     cv.style.height = '26px';
-    wrap.appendChild(el('div', 'hint', `CPU ${c}（绿=用户态，蓝=内核态/机器态，灰=无采样）`));
+    wrap.appendChild(el('div', 'hint', `CPU ${c} · 用户 / 内核 / 无采样`));
     wrap.appendChild(cv);
     setTimeout(() => {
       const w = cv.clientWidth || 600, h = 26;
@@ -833,9 +875,14 @@ function renderCpuLanes(run) {
         ctx.fillRect(x, 2, 1, h - 4);
       }
       const px = Math.floor((NF.cur / total) * w);
-      ctx.fillStyle = '#fff'; ctx.fillRect(px, 0, 1, h);
+      ctx.fillStyle = 'oklch(98% .005 215)'; ctx.fillRect(px, 0, 1, h);
     }, 0);
   }
+  const axis = el('div', 'cpu-axis');
+  axis.appendChild(el('span', null, '0'));
+  axis.appendChild(el('span', null, axisNum(total / 2)));
+  axis.appendChild(el('span', null, axisNum(total)));
+  wrap.appendChild(axis);
   return wrap;
 }
 
@@ -847,7 +894,7 @@ function renderPhys() {
   if (!st) { p.appendChild(el('div', 'hint', '该时刻没有物理内存快照。')); return; }
   if (!st.phys_ok) {
     p.appendChild(el('div', 'err-box',
-      '物理内存归属无法重建：' + (st.phys_reason || '未知原因')));
+      '物理内存不可用 · ' + shortText(st.phys_reason || '未知原因', 110)));
   }
 
   const base = run.meta.ram_base || 0x80000000;
@@ -857,25 +904,10 @@ function renderPhys() {
   const rows = Math.ceil(st.total / cols);
 
   p.appendChild(el('div', 'hint',
-    `每个小方格 = 一页 ${psz / 1024} KiB 物理内存，共 ${num(st.total)} 页 = ` +
-    `${(st.total * psz / 1048576).toFixed(0)} MiB。按物理地址从左到右、从上到下排列，` +
-    `一行正好是 ${rowBytes / 1048576} MiB，左边标注的就是每行起始的物理地址。` +
-    `点击任意一格可以查看那一页的归属、属于哪个进程、被几个页表引用。` +
-    // 页表根从哪来会改变这张图的含义：来自进程表 = 权威的"当前有哪些地址空间"；
-    // 来自外部嗅探的 satp = 只知道"这段时间里哪些地址空间上过 CPU"，进程归属未知。
-    // 不说清楚，看的人会把后者当成前者。
-    (st.pt_root_src === 'observed-satp'
-      ? '　本图的地址空间来自外部观测到的 satp 值（这段时间内上过 CPU 的页表），' +
-        '不是内核进程表，因此页的进程归属未知。'
-      : '') +
-    // 一个页表根都没有的时刻（例如分页还没打开），这张图上几乎全是"未知"。
-    // 不说明的话，看的人会以为是观测失败。只陈述事实，不替它猜原因 ——
-    // 没观测到根，可能是 satp 还是 0，也可能是这段窗口内没有采样点。
-    (!st.pt_root_src
-      ? '　这一时刻没有观测到任何页表根，因此没有任何页的归属来自页表遍历；' +
-        '图上仅有的归属来自内核镜像的静态地址范围，其余一律标为未知。'
-      : '') +
-    (st.phys_reason ? `　注意：${st.phys_reason}` : '')));
+    `每格 ${psz / 1024} KiB · ${num(st.total)} 页 · ${rowBytes / 1048576} MiB / 行 · 点击查看页详情` +
+    (st.pt_root_src === 'observed-satp' ? ' · 地址空间来自 satp 观测' : '') +
+    (!st.pt_root_src ? ' · 未观测到页表根' : '') +
+    (st.phys_reason ? ` · ${shortText(st.phys_reason, 120)}` : '')));
 
   // 图例：颜色 + 名字 + 这个名字到底指什么。术语解释是操作系统概念本身，
   // 和这次跑的是什么程序无关，所以放在这里是安全的。
@@ -956,10 +988,8 @@ function renderPhys() {
   const folded = lines.filter((l) => l.type === 'gap')
                       .reduce((a, l) => a + (l.to - l.from + 1), 0);
   p.appendChild(el('div', 'hint',
-    (prevSt ? `和上一个快照（指令 ${fmtInsn(prevSt.insn)}）相比，这一帧有 ${num(changed)} 页归属变了：` +
-              `刚被占用的页会提亮，刚被释放的页压成暗红色。` : '') +
-    (folded ? `　已折叠 ${folded} 行全空闲区域（${folded * rowBytes / 1048576} MiB），` +
-              `勾掉上面的选项可以看完整的 ${(st.total * psz / 1048576).toFixed(0)} MiB。` : '')));
+    (prevSt ? `变化页 ${num(changed)}` : '') +
+    (folded ? ` · 折叠空闲 ${folded} 行` : '')));
 
   // 卡片：每个绝对数都配一个参照系，否则"31,763"这种数字没法判断大小
   const g = el('div', 'cards');
@@ -978,7 +1008,7 @@ function renderPhys() {
   };
   // 数值为 null 表示这一项本次拿不到（比如没有空闲链表就不知道空闲页数）。
   // 这时候连参照系一起换成说明，绝不能让 pct/mib 算出 NaN 冒充一个数。
-  const why = (reason) => reason || '本次运行无法确定';
+  const why = (reason) => shortText(reason || '未确定', 60);
   c2(num(st.used), '已用物理页',
      st.used === null ? why(st.phys_reason)
                       : `${pct(st.used)}　${mib(st.used)}` + deltaStr(prevSt, st, 'used'));
@@ -986,8 +1016,8 @@ function renderPhys() {
      st.free === null ? why(st.phys_reason) : `${pct(st.free)}　${mib(st.free)}`);
   c2(num(st.shared), '多进程共享页',
      st.shared === null ? why(st.procs_reason)
-     : st.shared ? `${pct(st.shared)}　省下 ${mib(st.shared)}`
-                 : '当前没有被共享的页');
+     : st.shared ? `${pct(st.shared)}　${mib(st.shared)}`
+                 : '0 页共享');
   c2(num(st.total), '物理页总数', `${mib(st.total)}　每页 ${psz / 1024} KiB`);
   p.appendChild(g);
 }
@@ -1012,16 +1042,12 @@ function renderProcs() {
   p.appendChild(el('h3', null, '进程表'));
   p.appendChild(renderProcTable(run, st));
 
-  p.appendChild(el('h3', null, '各核当前运行的进程（由 swtch 的上下文指针在虚拟机外部重建）'));
+  p.appendChild(el('h3', null, '各核当前进程'));
   if (!st.cpus.length) {
     // 空表配一排 xv6 的表头（push_off 深度 / 中断使能）是在暗示"这些量存在，
     // 只是这一刻没有" —— 而 rCore 和 ArceOS 根本没有 xv6 那个 per-CPU 结构。
     // 一行都没有的时候就别画表。
-    p.appendChild(el('div', 'hint',
-      '这份录制没有重建出"每个核上跑着谁"。这一栏读的是 xv6 那种 per-CPU 结构'
-      + '（cpus[]，里面有 push_off 深度和中断使能）；别的内核即使有等价的东西，'
-      + '也还没有在 manifest 里声明成实体。'
-      + '事件表里的 pid 归属不受影响 —— 那是另一条路（按 swtch 的上下文指针跟的）。'));
+    p.appendChild(el('div', 'hint', '未重建 per-CPU 运行表。'));
   } else {
     const t = el('table');
     const hr = el('tr');
@@ -1052,11 +1078,7 @@ function renderProcs() {
   const hasSleepState = states.includes('SLEEPING');
   p.appendChild(el('h3', null, '等待与同步关系'));
   if (!hasSleepState && st.procs.length) {
-    p.appendChild(el('div', 'hint',
-      '这一栏按 xv6 的 sleep/wakeup 模型组织：进程睡在一个 chan（等待通道）上。'
-      + '当前内核这一刻的状态只有 ' + states.join('、') + '，里面没有 SLEEPING，'
-      + '也没有 chan 这个概念，所以这里排不出等待关系。'
-      + '这说的是词汇对不上，不是"没有任务在等待"。'));
+    p.appendChild(el('div', 'hint', `当前内核未提供 xv6 chan 字段（状态：${states.join('、')}）。`));
   } else if (!sleepers.length) {
     p.appendChild(el('div', 'hint', '当前没有进程处于睡眠状态。'));
   } else {
@@ -1107,12 +1129,10 @@ function renderVm() {
   if (!pr) { p.appendChild(el('div', 'hint', '选一个进程来查看它的用户地址空间与页表。')); return; }
 
   if (pr.vm_error) {
-    p.appendChild(el('div', 'err-box', '这棵页表没能完整遍历：' + pr.vm_error));
+    p.appendChild(el('div', 'err-box', '页表遍历不完整 · ' + shortText(pr.vm_error, 110)));
   }
   p.appendChild(el('div', 'hint',
-    `页表根 ${hex(pr.pagetable)}，进程大小 ${num(pr.sz)} 字节` +
-    `（约 ${Math.ceil(pr.sz / 4096)} 页），实际映射 ${pr.user_pages} 个用户页，` +
-    `其中 ${pr.cow_pages} 个带 COW 标记，页表自身占 ${pr.pt_pages} 页。`));
+    `根 ${hex(pr.pagetable)} · ${num(pr.sz)} B · 用户页 ${num(pr.user_pages)} · COW ${num(pr.cow_pages)} · 页表 ${num(pr.pt_pages)}`));
 
   const t = el('table');
   const hr = el('tr');
@@ -1154,10 +1174,10 @@ function renderFs() {
   const section = (title, res, cols, rowfn, emptyText) => {
     p.appendChild(el('h3', null, title));
     if (!res.ok) {
-      p.appendChild(el('div', 'err-box', '无法解读：' + res.reason));
+      p.appendChild(el('div', 'err-box', '资源不可用 · ' + shortText(res.reason, 110)));
       return;
     }
-    if (!res.rows.length) { p.appendChild(el('div', 'hint', emptyText)); return; }
+    if (!res.rows.length) { p.appendChild(el('div', 'hint', shortText(emptyText))); return; }
     const t = el('table'); const hr = el('tr');
     cols.forEach((c) => hr.appendChild(el('th', null, c)));
     t.appendChild(hr);
@@ -1190,7 +1210,7 @@ function renderFs() {
     // 空有两种成因，结论相反：内核确实没有资源表，还是我们压根没去看。
     // 后端把原因带上来了，照发。
     p.appendChild(el('div', 'hint',
-                     st.resources_reason || '该内核没有可显示的资源表。'));
+                     shortText(st.resources_reason || '该内核没有可显示的资源表。')));
   }
   for (const res of resources) {
     // show_when_any：默认只铺"在用"的行。这是**内核的判断**，写在 manifest
@@ -1205,7 +1225,7 @@ function renderFs() {
             res.empty || '当前没有内容。');
     // 少掉的可选列要说出来。默默少一列的话，读的人会以为这个内核就没这项。
     for (const n of res.notes || []) {
-      p.appendChild(el('div', 'hint', n));
+      p.appendChild(el('div', 'hint', shortText(n)));
     }
   }
 
@@ -1215,9 +1235,7 @@ function renderFs() {
   const anyFds = st.procs.some((pr) => pr.fds);
   p.appendChild(el('h3', null, '每进程文件描述符'));
   if (!anyFds) {
-    p.appendChild(el('div', 'hint',
-      '这份录制里没有解出每进程的打开文件表 —— 要么这个内核不用"进程持有 fd 数组"'
-      + '这种结构，要么 manifest 没有声明它。这跟"所有进程都没打开文件"不是一回事。'));
+    p.appendChild(el('div', 'hint', '未记录每进程 fd 表。'));
   } else {
     const t = el('table'); const hr = el('tr');
     ['进程', 'pid', '已打开的 fd'].forEach((h) => hr.appendChild(el('th', null, h)));
@@ -1247,15 +1265,23 @@ function applyFilters() {
   const n = run.events.insn.length;
   evFiltered = [];
   const txt = f.text.trim().toLowerCase();
+  const from = f.from === '' ? null : Number(f.from);
+  const to = f.to === '' ? null : Number(f.to);
   for (let i = 0; i < n; i++) {
+    const insn = Number(run.events.insn[i]);
+    if (from !== null && Number.isFinite(from) && insn < from) continue;
+    if (to !== null && Number.isFinite(to) && insn > to) continue;
     const kind = run.dict.kinds[run.events.kind[i]];
     if (f.kind && kind !== f.kind) continue;
+    if (f.group && eventGroup(kind) !== f.group) continue;
     if (f.res && run.dict.res[run.events.res[i]] !== f.res) continue;
     if (f.pid !== '' && String(run.events.pid[i]) !== f.pid) continue;
+    if (f.cpu !== '' && String(run.events.cpu[i]) !== f.cpu) continue;
     if (txt) {
       const fn = run.dict.funcs[run.events.func[i]] || '';
       const d = run.events.detail[i];
-      const hay = (kind + ' ' + fn + ' ' + (d ? JSON.stringify(d) : '')).toLowerCase();
+      const hay = (kind + ' ' + (run.dict.res[run.events.res[i]] || '') + ' ' + fn + ' ' +
+                   (d ? JSON.stringify(d) : '')).toLowerCase();
       if (hay.indexOf(txt) < 0) continue;
     }
     evFiltered.push(i);
@@ -1267,7 +1293,31 @@ function renderEvents() {
   const p = $('#panel-events');
   p.innerHTML = '';
 
-  const f = el('div', 'filters');
+  const heading = el('div', 'section-heading');
+  const title = el('div');
+  title.appendChild(el('h2', null, '事件浏览器'));
+  title.appendChild(el('div', 'section-subtitle', '筛选事件，点击行定位。'));
+  heading.appendChild(title);
+  const shortcut = el('span', 'shortcut-hint', '按 / 聚焦搜索');
+  heading.appendChild(shortcut);
+  p.appendChild(heading);
+
+  const f = el('div', 'filters event-filters');
+  const updateTextFilter = (key, input) => {
+    const start = input.selectionStart, end = input.selectionEnd;
+    NF.filters[key] = input.value;
+    clearTimeout(NF.filterTimer);
+    NF.filterTimer = setTimeout(() => {
+      renderEvents();
+      const replacement = document.getElementById(input.id);
+      if (replacement) {
+        replacement.focus();
+        if (start !== null && end !== null) replacement.setSelectionRange(start, end);
+      }
+    }, 180);
+  };
+  const searchWrap = el('label', 'filter-control filter-search');
+  searchWrap.appendChild(el('span', 'filter-label', '搜索'));
   const kinds = [...new Set(run.dict.kinds)].sort();
   const kSel = el('select');
   kSel.appendChild(new Option('全部事件类型', ''));
@@ -1281,28 +1331,137 @@ function renderEvents() {
   rSel.value = NF.filters.res;
   rSel.onchange = () => { NF.filters.res = rSel.value; renderEvents(); };
 
-  const pIn = el('input'); pIn.type = 'text'; pIn.placeholder = 'pid'; pIn.style.width = '60px';
+  const groupSel = el('select');
+  groupSel.appendChild(new Option('全部语义分组', ''));
+  const groups = [...new Set(run.dict.kinds.map(eventGroup))].sort();
+  for (const group of groups) groupSel.appendChild(new Option(group, group));
+  groupSel.value = NF.filters.group;
+  groupSel.onchange = () => { NF.filters.group = groupSel.value; renderEvents(); };
+
+  const pIn = el('input'); pIn.id = 'event-pid'; pIn.type = 'text'; pIn.placeholder = '例如 2';
   pIn.value = NF.filters.pid;
-  pIn.oninput = () => { NF.filters.pid = pIn.value; renderEvents(); };
+  pIn.oninput = () => updateTextFilter('pid', pIn);
 
-  const tIn = el('input'); tIn.type = 'text'; tIn.placeholder = '搜索函数名 / 参数 / 系统调用名…';
+  const tIn = el('input'); tIn.id = 'event-search'; tIn.type = 'search'; tIn.placeholder = '函数名、参数、系统调用…';
   tIn.value = NF.filters.text;
-  tIn.oninput = () => { NF.filters.text = tIn.value; renderEvents(); };
+  tIn.oninput = () => updateTextFilter('text', tIn);
+  searchWrap.appendChild(tIn);
 
-  const jump = el('button', null, '跳到当前时刻');
+  const pidWrap = el('label', 'filter-control');
+  pidWrap.appendChild(el('span', 'filter-label', 'PID'));
+  pidWrap.appendChild(pIn);
+  const cpuWrap = el('label', 'filter-control');
+  cpuWrap.appendChild(el('span', 'filter-label', 'CPU'));
+  const cpuSel = el('select');
+  cpuSel.appendChild(new Option('全部 CPU', ''));
+  for (const cpu of [...new Set(run.events.cpu)].sort((a, b) => a - b)) cpuSel.appendChild(new Option(`CPU ${cpu}`, String(cpu)));
+  cpuSel.value = NF.filters.cpu;
+  cpuSel.onchange = () => { NF.filters.cpu = cpuSel.value; renderEvents(); };
+  cpuWrap.appendChild(cpuSel);
+
+  const kindWrap = el('label', 'filter-control');
+  kindWrap.appendChild(el('span', 'filter-label', '事件类型'));
+  kindWrap.appendChild(kSel);
+  const resWrap = el('label', 'filter-control');
+  resWrap.appendChild(el('span', 'filter-label', '资源'));
+  resWrap.appendChild(rSel);
+
+  const fromWrap = el('label', 'filter-control range-control');
+  fromWrap.appendChild(el('span', 'filter-label', '指令起点'));
+  const fromIn = el('input'); fromIn.id = 'event-from'; fromIn.type = 'text'; fromIn.inputMode = 'numeric'; fromIn.placeholder = '0';
+  fromIn.value = NF.filters.from; fromIn.oninput = () => updateTextFilter('from', fromIn);
+  fromWrap.appendChild(fromIn);
+  const toWrap = el('label', 'filter-control range-control');
+  toWrap.appendChild(el('span', 'filter-label', '指令终点'));
+  const toIn = el('input'); toIn.id = 'event-to'; toIn.type = 'text'; toIn.inputMode = 'numeric'; toIn.placeholder = num(run.meta.total_insns);
+  toIn.value = NF.filters.to; toIn.oninput = () => updateTextFilter('to', toIn);
+  toWrap.appendChild(toIn);
+
+  const jump = el('button', 'secondary-control', '跳到当前时刻');
   jump.onclick = () => { scrollToCurrent(); };
+  const clear = el('button', 'ghost-control', '清除筛选');
+  clear.onclick = () => { clearTimeout(NF.filterTimer); NF.filters = { text: '', kind: '', res: '', pid: '', cpu: '', group: '', from: '', to: '' }; renderEvents(); };
 
-  f.appendChild(kSel); f.appendChild(rSel); f.appendChild(pIn); f.appendChild(tIn); f.appendChild(jump);
+  const groupWrap = el('label', 'filter-control');
+  groupWrap.appendChild(el('span', 'filter-label', '语义分组'));
+  groupWrap.appendChild(groupSel);
+  f.appendChild(searchWrap); f.appendChild(groupWrap); f.appendChild(kindWrap); f.appendChild(resWrap); f.appendChild(pidWrap); f.appendChild(cpuWrap);
+  f.appendChild(fromWrap); f.appendChild(toWrap); f.appendChild(jump); f.appendChild(clear);
   p.appendChild(f);
 
+  const presets = el('div', 'range-presets');
+  presets.appendChild(el('span', null, '时间范围'));
+  const preset = (label, from, to) => {
+    const b = el('button', 'range-preset' + (NF.filters.from === from && NF.filters.to === to ? ' selected' : ''), label);
+    b.type = 'button';
+    b.onclick = () => { NF.filters.from = from; NF.filters.to = to; renderEvents(); };
+    presets.appendChild(b);
+  };
+  preset('全部', '', '');
+  const si = stateIndexAt(run, NF.cur);
+  if (si >= 0) preset('当前快照', String(si ? run.states[si - 1].insn : 0), String(run.states[si].insn));
+  if (run.meta.program_start_insn) preset('目标程序', String(run.meta.program_start_insn), '');
+  p.appendChild(presets);
+
   applyFilters();
-  const info = el('div', 'hint',
-    `共 ${num(evFiltered.length)} 条事件（总计 ${num(run.events.insn.length)} 条）。` +
-    `点击任意一行会把时间轴定位到该事件，并在右侧展示它前后的系统变化。`);
+  const info = el('div', 'result-bar');
+  info.appendChild(el('strong', null, `${num(evFiltered.length)} 条结果`));
+  info.appendChild(el('span', null, ` / ${num(run.events.insn.length)} 条事件`));
+  if (NF.filters.kind || NF.filters.group || NF.filters.res || NF.filters.pid || NF.filters.cpu || NF.filters.text || NF.filters.from || NF.filters.to) {
+    info.appendChild(el('span', 'result-active', '已应用筛选'));
+  }
   p.appendChild(info);
+  if (!evFiltered.length) {
+    const empty = el('div', 'event-empty');
+    empty.appendChild(el('strong', null, '没有匹配的事件'));
+    empty.appendChild(el('p', null, '清除筛选或调整范围。'));
+    p.appendChild(empty);
+    return;
+  }
+
+  const facet = el('div', 'event-facets');
+  const counts = new Map();
+  for (let i = 0; i < run.events.insn.length; i++) {
+    const k = run.dict.kinds[run.events.kind[i]];
+    counts.set(k, (counts.get(k) || 0) + 1);
+  }
+  [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).forEach(([kind, count]) => {
+    const b = el('button', 'facet' + (NF.filters.kind === kind ? ' selected' : ''));
+    b.type = 'button'; b.title = `筛选 ${kind}`;
+    b.appendChild(el('span', null, kind)); b.appendChild(el('b', null, num(count)));
+    b.onclick = () => { NF.filters.kind = NF.filters.kind === kind ? '' : kind; renderEvents(); };
+    facet.appendChild(b);
+  });
+  if (facet.childElementCount) p.appendChild(facet);
+
+  const density = el('div', 'event-density');
+  const densityHead = el('div', 'density-head');
+  densityHead.appendChild(el('div', 'density-label', '事件分布'));
+  const bars = el('div', 'density-bars');
+  const bins = 48; const totalInsn = Number(run.meta.total_insns) || 1; const binCounts = Array(bins).fill(0);
+  for (const i of evFiltered) {
+    const at = Math.min(bins - 1, Math.floor(Number(run.events.insn[i]) / totalInsn * bins));
+    binCounts[at]++;
+  }
+  const peak = Math.max(1, ...binCounts);
+  densityHead.appendChild(el('span', 'density-meta', `每段 ${axisNum(totalInsn / bins)} 指令 · 峰值 ${num(peak)}`));
+  density.appendChild(densityHead);
+  binCounts.forEach((count, bin) => {
+    const b = el('button', 'density-bar'); b.type = 'button'; b.title = `${num(count)} 条事件`;
+    b.setAttribute('aria-label', `第 ${bin + 1} 个时间段，${num(count)} 条事件`);
+    b.style.height = `${Math.max(4, Math.round(count / peak * 100))}%`;
+    b.onclick = () => { NF.filters.from = String(Math.floor(bin / bins * totalInsn)); NF.filters.to = String(Math.ceil((bin + 1) / bins * totalInsn)); renderEvents(); };
+    bars.appendChild(b);
+  });
+  density.appendChild(bars);
+  const densityAxis = el('div', 'density-axis');
+  densityAxis.appendChild(el('span', null, '0'));
+  densityAxis.appendChild(el('span', null, axisNum(totalInsn / 2)));
+  densityAxis.appendChild(el('span', null, axisNum(totalInsn)));
+  density.appendChild(densityAxis); p.appendChild(density);
 
   const scroll = el('div'); scroll.id = 'evscroll';
-  const table = el('table');
+  const table = el('table'); table.className = 'event-table';
   const hr = el('tr');
   ['指令号', 'tick', 'CPU', 'pid', '事件', '资源', '函数', '要点'].forEach((h) => hr.appendChild(el('th', null, h)));
   table.appendChild(hr);
@@ -1311,7 +1470,7 @@ function renderEvents() {
   p.appendChild(scroll);
 
   // 简易虚拟滚动：只渲染视口附近的行
-  const ROW = 21;
+  const ROW = 34;
   const spacerTop = el('tr'); const tdT = el('td'); tdT.colSpan = 8; spacerTop.appendChild(tdT);
   const spacerBot = el('tr'); const tdB = el('td'); tdB.colSpan = 8; spacerBot.appendChild(tdB);
 
@@ -1328,16 +1487,21 @@ function renderEvents() {
       const i = evFiltered[k];
       const e = evGet(run, i);
       const tr = el('tr', 'clickable');
+      tr.tabIndex = 0;
+      tr.setAttribute('aria-label', `${e.kind}，指令 ${fmtInsn(e.insn)}，${summarize(e)}`);
       if (NF.selEvent === i) tr.className += ' sel';
       tr.appendChild(el('td', 'mono', fmtInsn(e.insn)));
       tr.appendChild(el('td', 'mono', e.tick === null ? '—' : String(e.tick)));
       tr.appendChild(el('td', 'mono', String(e.cpu)));
       tr.appendChild(el('td', 'mono', e.pid === null ? '—' : String(e.pid)));
-      tr.appendChild(el('td', null, e.kind));
+      const kindCell = el('td'); kindCell.appendChild(el('span', 'event-kind', e.kind)); tr.appendChild(kindCell);
       tr.appendChild(el('td', null, e.res));
       tr.appendChild(el('td', 'mono', e.func || '—'));
       tr.appendChild(el('td', 'mono', summarize(e)));
       tr.onclick = () => { selectEvent(i); };
+      tr.onkeydown = (key) => {
+        if (key.key === 'Enter' || key.key === ' ') { key.preventDefault(); selectEvent(i); }
+      };
       body.appendChild(tr);
     }
     body.appendChild(spacerBot);
@@ -1402,10 +1566,117 @@ function scrollToCurrent() {
 }
 
 function selectEvent(i) {
+  const previousScroll = $('#evscroll')?.scrollTop;
   NF.selEvent = i;
   NF.cur = NF.runs[0].events.insn[i];
   render();
+  const scroll = $('#evscroll');
+  if (scroll && previousScroll !== undefined) { scroll.scrollTop = previousScroll; scroll._paint(); }
   showEventDetail(NF.runs[0], i);
+}
+
+function renderFunctions() {
+  const run = NF.runs[0];
+  const p = $('#panel-functions');
+  p.innerHTML = '';
+  const heading = el('div', 'section-heading');
+  const title = el('div');
+  title.appendChild(el('h2', null, '函数轨迹'));
+  title.appendChild(el('div', 'section-subtitle', '按命名空间聚合入口事件。'));
+  heading.appendChild(title);
+  p.appendChild(heading);
+
+  const entries = [];
+  for (let i = 0; i < run.events.insn.length; i++) {
+    const kind = run.dict.kinds[run.events.kind[i]];
+    if (!kind.startsWith('func.')) continue;
+    const fn = run.dict.funcs[run.events.func[i]] || kind.slice(5);
+    entries.push({ i, fn, insn: run.events.insn[i], cpu: run.events.cpu[i], pid: run.events.pid[i] });
+  }
+  if (!entries.length) {
+    const empty = el('div', 'event-empty');
+    empty.appendChild(el('strong', null, '无函数入口事件'));
+    empty.appendChild(el('p', null, '前往事件浏览器。'));
+    p.appendChild(empty);
+    return;
+  }
+
+  const controls = el('div', 'trace-controls');
+  const search = el('input'); search.type = 'search'; search.placeholder = '筛选函数名'; search.id = 'function-search';
+  const cpu = el('select'); cpu.id = 'function-cpu'; cpu.appendChild(new Option('全部 CPU', ''));
+  for (const c of [...new Set(entries.map((e) => e.cpu))].sort((a, b) => a - b)) cpu.appendChild(new Option(`CPU ${c}`, String(c)));
+  const limit = el('select'); limit.id = 'function-limit';
+  for (const n of [40, 80, 160]) limit.appendChild(new Option(`最近 ${n} 条`, String(n)));
+  limit.value = '80';
+  controls.appendChild(search); controls.appendChild(cpu); controls.appendChild(limit); p.appendChild(controls);
+
+  const grid = el('div', 'trace-grid');
+  const treePanel = el('section', 'trace-panel');
+  treePanel.appendChild(el('div', 'trace-panel-title', '函数活动树'));
+  treePanel.appendChild(el('div', 'trace-panel-note', '按命名空间聚合，数字为次数。'));
+  const sequencePanel = el('section', 'trace-panel');
+  sequencePanel.appendChild(el('div', 'trace-panel-title', '入口顺序'));
+  sequencePanel.appendChild(el('div', 'trace-panel-note', '按记录顺序排列。'));
+  const tree = el('div', 'function-tree'); const sequence = el('div', 'function-sequence');
+  treePanel.appendChild(tree); sequencePanel.appendChild(sequence);
+  grid.appendChild(treePanel); grid.appendChild(sequencePanel); p.appendChild(grid);
+
+  function paint() {
+    const q = search.value.trim().toLowerCase();
+    const selectedCpu = cpu.value;
+    const filtered = entries.filter((e) => (!q || e.fn.toLowerCase().includes(q)) && (selectedCpu === '' || String(e.cpu) === selectedCpu));
+    const counts = new Map();
+    for (const e of filtered) counts.set(e.fn, (counts.get(e.fn) || 0) + 1);
+    const max = Math.max(1, ...counts.values());
+    tree.innerHTML = '';
+    const root = { label: '', count: 0, children: new Map(), fn: null };
+    const partsOf = (fn) => fn.split(/::|[\\/]/).filter(Boolean).slice(0, 8);
+    for (const [fn, count] of counts) {
+      let node = root; node.count += count;
+      for (const part of partsOf(fn)) {
+        if (!node.children.has(part)) node.children.set(part, { label: part, count: 0, children: new Map(), fn: null });
+        node = node.children.get(part); node.count += count;
+      }
+      node.fn = fn;
+    }
+    const paintNode = (node, depth, parent) => {
+      [...node.children.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)).forEach((child) => {
+        const row = el('button', 'function-row'); row.type = 'button';
+        row.style.paddingLeft = `${8 + depth * 16}px`;
+        row.style.setProperty('--bar', `${Math.round(child.count / Math.max(1, root.count) * 100)}%`);
+        row.title = child.fn ? `在事件浏览器中筛选 ${child.fn}` : `展开 ${child.label}`;
+        const marker = child.children.size ? '› ' : '  ';
+        row.appendChild(el('span', 'function-name', marker + child.label));
+        row.appendChild(el('span', 'function-count', num(child.count)));
+        parent.appendChild(row);
+        if (child.children.size && depth < 2) {
+          const children = el('div', 'function-children');
+          children.hidden = depth > 0;
+          row.onclick = () => { children.hidden = !children.hidden; row.firstChild.textContent = `${children.hidden ? '› ' : '⌄ '}${child.label}`; };
+          parent.appendChild(children);
+          paintNode(child, depth + 1, children);
+        } else if (child.fn) {
+          row.onclick = () => { NF.filters.text = child.fn; setTab('events'); };
+        }
+      });
+    };
+    paintNode(root, 0, tree);
+    if (!counts.size) tree.appendChild(el('div', 'trace-muted', '没有匹配的函数。'));
+
+    sequence.innerHTML = '';
+    const cap = Number(limit.value) || 80;
+    filtered.slice(-cap).forEach((e, index, arr) => {
+      if (index) sequence.appendChild(el('div', 'sequence-link'));
+      const node = el('button', 'sequence-node'); node.type = 'button'; node.title = '定位到这条入口事件';
+      node.appendChild(el('span', 'sequence-index', String(index + 1).padStart(2, '0')));
+      node.appendChild(el('span', 'sequence-function', e.fn));
+      node.appendChild(el('span', 'sequence-meta', `${fmtInsn(e.insn)} · CPU ${e.cpu}`));
+      node.onclick = () => selectEvent(e.i);
+      sequence.appendChild(node);
+    });
+    if (!filtered.length) sequence.appendChild(el('div', 'trace-muted', '没有匹配的入口事件。'));
+  }
+  search.oninput = paint; cpu.onchange = paint; limit.onchange = paint; paint();
 }
 
 /* ---------------------------------------------------------------- 指标图 */
@@ -1415,11 +1686,21 @@ function renderMetrics() {
   const m = run.metrics;
   const p = $('#panel-metrics');
   p.innerHTML = '';
-  p.appendChild(el('div', 'hint',
-    '横轴是指令号（主时间轴）。所有曲线都直接来自这次真实运行的记录，没有插值或平滑。'));
+  p.appendChild(el('div', 'hint', '横轴：指令号。曲线来自运行记录。'));
 
   const mk = (title, series) => {
     p.appendChild(el('h3', null, title));
+    const named = series.filter((s) => s.name);
+    if (named.length > 1) {
+      const legend = el('div', 'chart-legend');
+      named.forEach((s) => {
+        const item = el('span');
+        const swatch = el('i'); swatch.style.background = s.color;
+        item.appendChild(swatch); item.appendChild(document.createTextNode(s.name));
+        legend.appendChild(item);
+      });
+      p.appendChild(legend);
+    }
     const cv = el('canvas', 'chart');
     p.appendChild(cv);
     setTimeout(() => drawChart(cv, series, { title }), 0);
@@ -1433,13 +1714,12 @@ function renderMetrics() {
   const anyVal = (pts) => pts.some((p) => p[1] !== null && p[1] !== undefined);
   if (anyVal(usedPts) || anyVal(sharedPts)) {
     mk('物理内存占用（每次快照）', [
-      { color: '#4aa3ff', points: usedPts },
-      { color: '#3fb950', points: sharedPts },
+      { color: '#4aa3ff', name: '已用', points: usedPts },
+      { color: '#3fb950', name: '共享', points: sharedPts },
     ]);
   } else {
     p.appendChild(el('h3', null, '物理内存占用（每次快照）'));
-    p.appendChild(el('div', 'hint',
-      '这个内核里解不出空闲页链表与进程表，已用/共享页数每个快照都是未知，无法绘制。'));
+    p.appendChild(el('div', 'hint', '无可用快照数据。'));
   }
 
   // 累计计数曲线
@@ -1458,20 +1738,20 @@ function renderMetrics() {
   const mkWatched = (title, metric, series) => {
     if (m[metric] === null || m[metric] === undefined) {
       p.appendChild(el('h3', null, title));
-      p.appendChild(el('div', 'hint', '没有观测点，这条曲线无法绘制（画成 0 会让人误以为没发生过）。'));
+      p.appendChild(el('div', 'hint', '无观测点'));
       return;
     }
     mk(title, series);
   };
-  mk('累计系统调用', [{ color: '#a371f7', points: cum((k) => k === 'syscall.enter') }]);
-  mk('累计缺页异常', [{ color: '#d29922', points: cum((k) => k === 'trap.page_fault') }]);
+  mk('累计系统调用', [{ color: '#a371f7', name: '系统调用', points: cum((k) => k === 'syscall.enter') }]);
+  mk('累计缺页异常', [{ color: '#d29922', name: '缺页', points: cum((k) => k === 'trap.page_fault') }]);
   mkWatched('累计上下文切换', 'context_switches',
-    [{ color: '#4aa3ff', points: cum((k) => k === 'sched.switch') }]);
+    [{ color: '#4aa3ff', name: '切换', points: cum((k) => k === 'sched.switch') }]);
   mkWatched('累计磁盘 I/O', 'disk_io',
-    [{ color: '#f85149', points: cum((k) => k === 'disk.io') }]);
+    [{ color: '#f85149', name: '磁盘 I/O', points: cum((k) => k === 'disk.io') }]);
   mkWatched('累计 kalloc / kfree', 'kalloc', [
-    { color: '#3fb950', points: cum((k) => k === 'phys.alloc') },
-    { color: '#f85149', points: cum((k) => k === 'phys.free') },
+    { color: '#3fb950', name: 'kalloc', points: cum((k) => k === 'phys.alloc') },
+    { color: '#f85149', name: 'kfree', points: cum((k) => k === 'phys.free') },
   ]);
 
   p.appendChild(el('h3', null, '全部事件类型统计'));
@@ -1484,10 +1764,7 @@ function renderMetrics() {
   // 少掉中间那一档的话，"这趟没发生"会跟"没人映射它"一样只是表里少一行，
   // 而这两句该让人做的事正好相反。老 run 的 HTML 里没有这两个字段，所以
   // 下面都带兜底 —— 拿旧数据打开新界面，退化成只有第一档，不该炸。
-  p.appendChild(el('div', 'hint',
-    '「0 次」是挂了观察点、这趟没触发 —— 量出来的 0，换个负载可能就有。'
-    + '「没有」是 manifest 声明过本内核没有这件事，鼠标悬停看依据。'
-    + '两者都跟「表里没这一行」（没人映射，说不好）不是一回事。'));
+  p.appendChild(el('div', 'hint', '0 次 = 已观测；— = 未观测。抽样项显示区间。'));
   // 全趟被限流丢掉的命中数。插件那边留这个计数器的原话是"没有这个数，抽稀过
   // 的事件流和本来就稀疏的事件流在报告里分不出来"。null = 这趟没记（旧轨迹）,
   // 跟 0（一条没丢）不是一回事，所以只在有数的时候说。
@@ -1496,10 +1773,7 @@ function renderMetrics() {
     const kept = run.events.insn.length;
     const hit = kept + drops;
     p.appendChild(el('div', 'hint',
-      `带「抽样」标的那几行是抽稀过的：全趟命中 ${num(hit)} 次，`
-      + `写下 ${num(kept)} 条，被 @rN 限流丢掉 ${num(drops)} 次`
-      + `（${(100 * drops / hit).toFixed(1)}%）。`
-      + '丢掉的数只有总数，没有按类别分 —— 所以单类只给得出区间，给不出点值。'));
+      `抽样：记录 ${num(kept)} / 命中 ${num(hit)} · 丢弃 ${num(drops)}（${(100 * drops / hit).toFixed(1)}%）`));
   }
   const t = el('table'); const hr = el('tr');
   ['事件类型', '次数', ''].forEach((h) => hr.appendChild(el('th', null, h)));
@@ -1588,7 +1862,7 @@ function renderConsole() {
   const p = $('#panel-console');
   p.innerHTML = '';
   p.appendChild(el('div', 'hint',
-    'guest 串口输出的原样记录。程序崩溃或内核 panic 时，这里是第一现场。'));
+    'guest 串口输出。'));
   const pre = el('pre', 'console', run.meta.console || '(没有控制台输出)');
   p.appendChild(pre);
 }
@@ -1603,11 +1877,11 @@ function showEventDetail(run, i) {
   box.appendChild(sec('选中的事件', [
     ['事件类型', e.kind], ['资源', e.res], ['指令号', fmtInsn(e.insn)],
     ['tick', e.tick === null ? '—' : String(e.tick)], ['CPU', String(e.cpu)],
-    ['进程', e.pid === null ? '未知（该时刻没有上下文切换记录可依据）' : `pid ${e.pid}`],
+    ['进程', e.pid === null ? '—' : `pid ${e.pid}`],
     ['PC', hex(e.pc)],
     // 用户态地址在内核符号表里当然查不到 —— 这不是"解析失败"，要说清楚，
     // 否则会被误读成工具出了问题。
-    ['函数', e.func || (e.pc && e.pc < 0x80000000 ? '用户态地址（不在内核符号表里）' : '—')],
+    ['函数', e.func || (e.pc && e.pc < 0x80000000 ? '用户态' : '—')],
   ]));
 
   if (e.detail && Object.keys(e.detail).length) {
@@ -1621,17 +1895,17 @@ function showEventDetail(run, i) {
       }
       return [k, String(v)];
     });
-    box.appendChild(sec('事件参数（全部来自异常发生瞬间的真实寄存器 / 函数入参）', rows));
+    box.appendChild(sec('事件参数', rows));
   }
 
   if (e.unknown && e.unknown.length) {
     const d = el('div', 'dsec');
-    d.appendChild(el('div', 't', '外部观测无法确定的信息'));
+    d.appendChild(el('div', 't', '未知字段'));
     const ul = el('ul');
     for (const u of e.unknown) {
       ul.appendChild(el('li', 'unknown', {
-        allocated_pa: 'kalloc 返回的物理页：函数入口看不到返回值，需要内核侧 nftrace 语义才能确定',
-        csr: '部分 CSR 在这次回调里读不到',
+        allocated_pa: 'kalloc 返回页：未记录',
+        csr: 'CSR：未记录',
       }[u] || u));
     }
     d.appendChild(ul);
@@ -1658,11 +1932,9 @@ function showEventDetail(run, i) {
     cmp('多进程共享页', a.shared, b.shared);
     cmp('活动进程数', plen(a), plen(b));
     box.appendChild(sec(
-      `前后对比（快照 ${si} @ 指令 ${fmtInsn(a.insn)} → 快照 ${si + 1} @ 指令 ${fmtInsn(b.insn)}）`,
+      `快照 ${si} → ${si + 1}`,
       rows));
-    box.appendChild(el('div', 'hint',
-      '这一栏比较的是该事件所处的两次内存快照之间的变化，' +
-      '不是这一条事件单独造成的变化 —— 两次快照之间还发生了别的事情。'));
+    box.appendChild(el('div', 'hint', '事件所在快照之间的变化。'));
   }
 
   // 邻近事件
@@ -1671,7 +1943,7 @@ function showEventDetail(run, i) {
     const x = evGet(run, k);
     near.push([fmtInsn(x.insn), (k === i ? '▶ ' : '') + x.kind + ' ' + summarize(x)]);
   }
-  box.appendChild(sec('前后相邻的事件', near));
+  box.appendChild(sec('相邻事件', near));
 }
 
 function showPageDetail(run, st, idx) {
@@ -1874,13 +2146,11 @@ function renderCompare() {
   const p = $('#panel-compare');
   p.innerHTML = '';
   if (NF.runs.length < 2) {
-    p.appendChild(el('div', 'hint', '这份报告只包含一次运行，没有可对比的对象。'));
+    p.appendChild(el('div', 'hint', '仅包含一次运行。'));
     return;
   }
   const [A, B] = NF.runs;
-  p.appendChild(el('div', 'hint',
-    '两次运行使用同一个工作负载、同一套观测配置，只有内核实现/算法不同。' +
-    '下面所有数字都来自各自的真实运行记录，按指令号对齐到当前时刻。'));
+  p.appendChild(el('div', 'hint', '同一工作负载，按指令号对齐。'));
 
   const wrap = el('div', 'cmp');
   for (const run of NF.runs) {
@@ -1951,16 +2221,18 @@ function renderCompare() {
   }
   p.appendChild(t);
 
-  p.appendChild(el('h3', null, '物理内存占用随时间的对比（只画目标程序执行期间）'));
-  p.appendChild(el('div', 'hint',
-    '横轴是指令号。启动阶段被排除在外 —— 那一段两次运行完全一样，' +
-    '而且 kinit 释放物理页的过程会产生一个与实验无关的巨大峰值。'));
+  p.appendChild(el('h3', null, '目标程序阶段：物理内存'));
+  p.appendChild(el('div', 'hint', '横轴：指令号。'));
   const cv = el('canvas', 'chart'); cv.style.height = '180px';
   p.appendChild(cv);
   setTimeout(() => drawChart(cv, [
-    { color: '#4aa3ff', points: progStates(A).map((s) => [s.insn, s.used]) },
-    { color: '#f85149', points: progStates(B).map((s) => [s.insn, s.used]) },
-  ], { title: `蓝=${A.meta.run}　红=${B.meta.run}（纵轴：已用物理页）` }), 0);
+    { color: '#4aa3ff', name: A.meta.run, points: progStates(A).map((s) => [s.insn, s.used]) },
+    { color: '#f85149', name: B.meta.run, points: progStates(B).map((s) => [s.insn, s.used]) },
+  ], {
+    title: '已用物理页',
+    xMin: Math.min(A.meta.program_start_insn || 0, B.meta.program_start_insn || 0),
+    xMax: Math.max(A.meta.total_insns || 0, B.meta.total_insns || 0),
+  }), 0);
 }
 
 /* ------------------------------------------------------------------ 主控 */
@@ -1969,6 +2241,7 @@ function setTab(t) {
   NF.tab = t;
   for (const b of document.querySelectorAll('nav.tabs button')) {
     b.classList.toggle('on', b.dataset.tab === t);
+    b.setAttribute('aria-current', b.dataset.tab === t ? 'page' : 'false');
   }
   for (const p of document.querySelectorAll('.panel')) {
     p.classList.toggle('on', p.id === 'panel-' + t);
@@ -2018,10 +2291,21 @@ function render() {
   renderDelta();
   const r = {
     overview: renderOverview, phys: renderPhys, procs: renderProcs,
-    vm: renderVm, fs: renderFs, events: renderEvents,
+    vm: renderVm, fs: renderFs, events: renderEvents, functions: renderFunctions,
     metrics: renderMetrics, console: renderConsole, compare: renderCompare,
   }[NF.tab];
   if (r) r();
+}
+
+function toggleDetail() {
+  NF.detailOpen = !NF.detailOpen;
+  const main = $('.main');
+  if (main) main.classList.toggle('detail-collapsed', !NF.detailOpen);
+  const button = $('#toggle-detail');
+  if (button) {
+    button.textContent = NF.detailOpen ? '收起详情' : '展开详情';
+    button.setAttribute('aria-expanded', String(NF.detailOpen));
+  }
 }
 
 function step(dir) {
@@ -2260,6 +2544,8 @@ async function boot() {
     $('#play').onclick = play;
     $('#prev').onclick = () => step(-1);
     $('#next').onclick = () => step(1);
+    $('#quick-events').onclick = () => setTab('events');
+    $('#toggle-detail').onclick = toggleDetail;
     $('#minimap').onclick = (e) => {
       const r = e.target.getBoundingClientRect();
       NF.cur = Math.round(((e.clientX - r.left) / r.width) * (NF.runs[0].meta.total_insns || 1));
@@ -2267,6 +2553,10 @@ async function boot() {
     };
     window.addEventListener('keydown', (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+      if (e.key === '/' && NF.tab === 'events') {
+        const search = $('#event-search');
+        if (search) { search.focus(); e.preventDefault(); }
+      }
       if (e.key === 'ArrowRight') { step(1); e.preventDefault(); }
       if (e.key === 'ArrowLeft') { step(-1); e.preventDefault(); }
       if (e.key === ' ') { play(); e.preventDefault(); }
@@ -2277,7 +2567,7 @@ async function boot() {
     setTab(NF.tab);
   } catch (err) {
     $('#loading').innerHTML = '';
-    const box = el('div', 'err-box', '加载失败：' + err.message);
+    const box = el('div', 'err-box', '加载失败 · ' + shortText(err.message, 120));
     $('#loading').appendChild(box);
     console.error(err);
   }
