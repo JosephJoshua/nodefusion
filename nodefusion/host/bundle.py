@@ -7,6 +7,7 @@ import zlib
 from collections import Counter
 from pathlib import Path
 
+from ..model.symbols import demangle, demangle_v0
 from . import guest as guest_mod
 from .analyze import Analysis
 
@@ -63,22 +64,17 @@ class Interner:
 
 
 def _event_selection(events: list, *, materialize: bool) -> tuple[list, dict]:
-    """Apply interactive sampling with bounded auxiliary memory.
-
-    Multi-million-event runs used to allocate an additional tuple for every
-    raw event before selecting the small diagnostic sample.  Two linear passes
-    preserve exactly the same systematic sample while storing only retained
-    events.  Coverage audits can avoid materializing even those.
-    """
+    """Bound the interactive event stream while auditing the full raw trace."""
     raw_kinds = Counter(e.kind for e in events)
-    priority_raw = sum(_is_semantic(e.kind) for e in events)
+    priority_raw = sum(count for kind, count in raw_kinds.items()
+                       if _is_semantic(kind))
     if len(events) <= MAX_EVENTS:
         return (events if materialize else []), {
             "applied": False,
-            "policy": "semantic-full/func-systematic-v2",
+            "policy": "kind-preserving/systematic-v3",
             "raw": len(events), "retained": len(events), "dropped": 0,
             "target_limit": MAX_EVENTS, "minimum_spare": MIN_SPARE_EVENTS,
-            "always_keep": "all normalized events (everything except func.*)",
+            "always_keep": "all events when the raw stream fits",
             "priority_raw": priority_raw,
             "spare_raw": len(events) - priority_raw,
             "spare_budget": 0, "stride": 1,
@@ -86,17 +82,34 @@ def _event_selection(events: list, *, materialize: bool) -> tuple[list, dict]:
             "dropped_kinds": {},
         }
 
-    room = max(MAX_EVENTS - priority_raw, MIN_SPARE_EVENTS)
     spare_raw = len(events) - priority_raw
+    semantic_kinds = {k for k in raw_kinds if _is_semantic(k)}
+    reserved_spare = min(MIN_SPARE_EVENTS, spare_raw)
+    priority_budget = min(priority_raw, MAX_EVENTS - reserved_spare)
+    room = MAX_EVENTS - priority_budget
     step = max(1, spare_raw // room) if room > 0 and spare_raw else 1
     chosen: list = []
     retained_kinds: Counter = Counter()
     dropped_kinds: dict[str, int] = {}
     spare_seen = 0
     spare_kept = 0
+    semantic_seen = 0
+    first_kinds: set[str] = set()
+    nonfirst_seen = 0
+    nonfirst_total = priority_raw - len(semantic_kinds)
+    nonfirst_budget = max(0, priority_budget - len(semantic_kinds))
     for e in events:
-        retain = _is_semantic(e.kind)
-        if not retain:
+        if _is_semantic(e.kind):
+            semantic_seen += 1
+            if e.kind not in first_kinds:
+                first_kinds.add(e.kind)
+                retain = len(first_kinds) <= priority_budget
+            else:
+                retain = (nonfirst_total > 0 and
+                          (nonfirst_seen + 1) * nonfirst_budget // nonfirst_total
+                          > nonfirst_seen * nonfirst_budget // nonfirst_total)
+                nonfirst_seen += 1
+        else:
             retain = room > 0 and spare_kept < room and spare_seen % step == 0
             spare_seen += 1
             if retain:
@@ -113,11 +126,14 @@ def _event_selection(events: list, *, materialize: bool) -> tuple[list, dict]:
 
     return chosen, {
         "applied": True,
-        "policy": "semantic-full/func-systematic-v2",
+        "policy": "kind-preserving/systematic-v3",
         "raw": len(events), "retained": retained, "dropped": dropped,
         "target_limit": MAX_EVENTS, "minimum_spare": MIN_SPARE_EVENTS,
-        "always_keep": "all normalized events (everything except func.*)",
+        "always_keep": "first event of each normalized kind within budget",
         "priority_raw": priority_raw, "spare_raw": spare_raw,
+        "semantic_budget": priority_budget,
+        "semantic_retained": semantic_seen - sum(v for k, v in dropped_kinds.items()
+                                                if _is_semantic(k)),
         "spare_budget": room, "stride": step if room > 0 and spare_raw else None,
         "retained_kinds": dict(sorted(retained_kinds.items())),
         "dropped_kinds": dict(sorted(dropped_kinds.items())),
@@ -169,9 +185,10 @@ def _coverage(a: Analysis, metrics: dict, states: list[dict], selection: dict) -
     This intentionally asks more than the old "N scalar metrics have values"
     sentence.  A run is complete only when applicable metrics are exact, every
     normalized event carries all fields its decoder promised, post-start
-    snapshots decode, manifest fields decode, and the interactive export loses
-    no normalized event.  A manifest declaration with ``why = feature`` is N/A;
-    a granularity declaration remains a gap.
+    snapshots decode, and manifest fields decode.  The browser's bounded event
+    sample is reported separately; coverage uses the entire raw stream.  A
+    manifest declaration with ``why = feature`` is N/A; a granularity
+    declaration remains a gap.
     """
     absent = metrics.get("absent_declared") or {}
     feature_absent = {kind for kind, spec in absent.items()
@@ -257,7 +274,9 @@ def _coverage(a: Analysis, metrics: dict, states: list[dict], selection: dict) -
         if _is_semantic(kind))
     watch_source = str(a.manifest.get("watch_source") or "")
     full_watch_scope = bool(watch_source) and "[" not in watch_source
-    trace_ok = not a.trace.truncated_at_eof
+    trace_ok = (a.trace.end is not None
+                and not a.trace.truncated_at_eof
+                and a.manifest.get("trace_complete") is not False)
     plugin_ok = not (a.trace.end and a.trace.end.truncated)
 
     blockers = []
@@ -275,9 +294,6 @@ def _coverage(a: Analysis, metrics: dict, states: list[dict], selection: dict) -
     if bad_field_cells:
         blockers.append({"check": "manifest_fields", "count": bad_field_cells,
                          "states": dict(sorted(field_states.items()))})
-    if dropped_semantic:
-        blockers.append({"check": "interactive_semantic_events",
-                         "count": dropped_semantic})
     if not full_watch_scope:
         blockers.append({"check": "watch_scope", "value": watch_source or None})
     if not trace_ok or not plugin_ok:
@@ -285,7 +301,7 @@ def _coverage(a: Analysis, metrics: dict, states: list[dict], selection: dict) -
                          "trace_complete": trace_ok, "snapshots_complete": plugin_ok})
 
     # Atomic denominator: each applicable metric, normalized event, snapshot
-    # channel, manifest field cell, export-retained normalized event, scope and
+    # channel, manifest field cell, scope and
     # two integrity checks.  The status is authoritative; percent is a compact
     # display value and reaches 100 only when no blocker exists.
     pre_allocator_states = sum(
@@ -297,10 +313,9 @@ def _coverage(a: Analysis, metrics: dict, states: list[dict], selection: dict) -
         0 if "resources" in snapshot_na else len(s.get("resources", []))
         for s in relevant_states)
     field_units = sum(field_states.values())
-    total = (len(applicable) + len(semantic_events) + snapshot_units + field_units
-             + len(semantic_events) + 3)
+    total = (len(applicable) + len(semantic_events) + snapshot_units + field_units + 3)
     failed = (len(missing_metrics) + len(sampled_metrics) + len(unknown_events)
-              + bad_snap_total + bad_field_cells + dropped_semantic
+              + bad_snap_total + bad_field_cells
               + (0 if full_watch_scope else 1) + (0 if trace_ok else 1)
               + (0 if plugin_ok else 1))
     passed = max(0, total - failed)
@@ -361,10 +376,12 @@ def build(a: Analysis) -> dict:
 
     events, drop_info = _select_events(a.events)
     metrics = a.metrics()
+    caller_cache: dict[str, str] = {}
 
     ev = {
         "insn": [], "cpu": [], "kind": [], "res": [], "pid": [],
-        "pc": [], "func": [], "tick": [], "detail": [], "unknown": [],
+        "pc": [], "func": [], "entry": [], "entry_name": [], "caller": [],
+        "tick": [], "detail": [], "unknown": [],
     }
     for e in events:
         ev["insn"].append(e.insn)
@@ -374,6 +391,19 @@ def build(a: Analysis) -> dict:
         ev["pid"].append(e.pid if e.pid is not None else -1)
         ev["pc"].append(e.pc or 0)
         ev["func"].append(fn(e.func))
+        ev["entry"].append(1 if e.function_entry else 0)
+        ev["entry_name"].append(fn(e.entry_name) if e.entry_name else -1)
+        caller = None
+        if e.function_entry and e.return_address and a.elf is not None:
+            raw, _ = a.elf.resolve_pc(e.return_address)
+            if raw:
+                caller = caller_cache.get(raw)
+                if caller is None:
+                    caller = (demangle(raw)
+                              or demangle_v0(raw, impls=True, generics=True)
+                              or raw)
+                    caller_cache[raw] = caller
+        ev["caller"].append(fn(caller) if caller else -1)
         ev["tick"].append(e.tick if e.tick is not None else -1)
         ev["detail"].append(e.detail or None)
         ev["unknown"].append(e.unknown or None)
@@ -487,6 +517,10 @@ def build(a: Analysis) -> dict:
             "warnings": [{"insn": i, "text": t} for i, t in tr.warnings],
             "console": a.console[-20000:],
             "event_selection": drop_info,
+            "function_entries": {
+                "raw": sum(e.function_entry for e in a.events),
+                "retained": sum(e.function_entry for e in events),
+            },
             "capability": capability,
             "kind_names": {k: v for k, v in guest_mod.KIND_NAMES.items()},
         },

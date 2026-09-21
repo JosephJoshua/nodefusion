@@ -1582,16 +1582,24 @@ function renderFunctions() {
   const heading = el('div', 'section-heading');
   const title = el('div');
   title.appendChild(el('h2', null, '函数轨迹'));
-  title.appendChild(el('div', 'section-subtitle', '按命名空间聚合入口事件。'));
+  const entryCounts = run.meta.function_entries;
+  const scope = entryCounts && entryCounts.raw > entryCounts.retained
+    ? ` · 显示 ${num(entryCounts.retained)} / ${num(entryCounts.raw)} 条`
+    : '';
+  title.appendChild(el('div', 'section-subtitle', `函数入口${scope} · 返回地址可定位直接调用方；无返回事件。`));
   heading.appendChild(title);
   p.appendChild(heading);
 
   const entries = [];
   for (let i = 0; i < run.events.insn.length; i++) {
     const kind = run.dict.kinds[run.events.kind[i]];
-    if (!kind.startsWith('func.')) continue;
-    const fn = run.dict.funcs[run.events.func[i]] || kind.slice(5);
-    entries.push({ i, fn, insn: run.events.insn[i], cpu: run.events.cpu[i], pid: run.events.pid[i] });
+    if (run.events.entry ? run.events.entry[i] !== 1 : !kind.startsWith('func.')) continue;
+    const entryName = run.events.entry_name?.[i] ?? -1;
+    const callerId = run.events.caller?.[i] ?? -1;
+    const fn = (entryName >= 0 ? run.dict.funcs[entryName] : '')
+      || run.dict.funcs[run.events.func[i]] || kind.slice(5);
+    const caller = callerId >= 0 ? run.dict.funcs[callerId] : '';
+    entries.push({ i, fn, caller, insn: run.events.insn[i], cpu: run.events.cpu[i], pid: run.events.pid[i] });
   }
   if (!entries.length) {
     const empty = el('div', 'event-empty');
@@ -1608,12 +1616,19 @@ function renderFunctions() {
   const limit = el('select'); limit.id = 'function-limit';
   for (const n of [40, 80, 160]) limit.appendChild(new Option(`最近 ${n} 条`, String(n)));
   limit.value = '80';
-  controls.appendChild(search); controls.appendChild(cpu); controls.appendChild(limit); p.appendChild(controls);
+  const grouping = el('select'); grouping.id = 'function-grouping';
+  grouping.appendChild(new Option('调用关系', 'caller'));
+  grouping.appendChild(new Option('名称层级', 'namespace'));
+  if (!entries.some((e) => e.caller)) grouping.value = 'namespace';
+  controls.appendChild(search); controls.appendChild(cpu); controls.appendChild(grouping);
+  controls.appendChild(limit); p.appendChild(controls);
 
   const grid = el('div', 'trace-grid');
   const treePanel = el('section', 'trace-panel');
-  treePanel.appendChild(el('div', 'trace-panel-title', '函数活动树'));
-  treePanel.appendChild(el('div', 'trace-panel-note', '按命名空间聚合，数字为次数。'));
+  const treeTitle = el('div', 'trace-panel-title', '调用关系');
+  const treeNote = el('div', 'trace-panel-note', '由入口时的返回地址定位直接调用方。');
+  treePanel.appendChild(treeTitle);
+  treePanel.appendChild(treeNote);
   const sequencePanel = el('section', 'trace-panel');
   sequencePanel.appendChild(el('div', 'trace-panel-title', '入口顺序'));
   sequencePanel.appendChild(el('div', 'trace-panel-note', '按记录顺序排列。'));
@@ -1624,11 +1639,34 @@ function renderFunctions() {
   function paint() {
     const q = search.value.trim().toLowerCase();
     const selectedCpu = cpu.value;
-    const filtered = entries.filter((e) => (!q || e.fn.toLowerCase().includes(q)) && (selectedCpu === '' || String(e.cpu) === selectedCpu));
+    const filtered = entries.filter((e) => (!q || e.fn.toLowerCase().includes(q) || e.caller.toLowerCase().includes(q)) && (selectedCpu === '' || String(e.cpu) === selectedCpu));
     const counts = new Map();
     for (const e of filtered) counts.set(e.fn, (counts.get(e.fn) || 0) + 1);
-    const max = Math.max(1, ...counts.values());
     tree.innerHTML = '';
+    if (grouping.value === 'caller') {
+      treeTitle.textContent = '调用关系';
+      treeNote.textContent = '由入口时的返回地址定位直接调用方。';
+      const edges = new Map();
+      for (const e of filtered) {
+        if (!e.caller) continue;
+        const key = `${e.caller}\0${e.fn}`;
+        if (!edges.has(key)) edges.set(key, { caller: e.caller, fn: e.fn, count: 0, index: e.i });
+        edges.get(key).count++;
+      }
+      [...edges.values()].sort((a, b) => b.count - a.count || a.fn.localeCompare(b.fn))
+        .slice(0, 120).forEach((edge) => {
+          const row = el('button', 'function-row'); row.type = 'button';
+          row.style.setProperty('--bar', `${Math.round(edge.count / Math.max(1, filtered.length) * 100)}%`);
+          row.title = '定位到一条入口事件';
+          row.appendChild(el('span', 'function-name', `${edge.caller} → ${edge.fn}`));
+          row.appendChild(el('span', 'function-count', num(edge.count)));
+          row.onclick = () => { setTab('events'); selectEvent(edge.index); };
+          tree.appendChild(row);
+        });
+      if (!edges.size) tree.appendChild(el('div', 'trace-muted', '这些入口的返回地址无法定位调用方。'));
+    } else {
+    treeTitle.textContent = '名称层级';
+    treeNote.textContent = '按命名空间聚合，数字为次数。';
     const root = { label: '', count: 0, children: new Map(), fn: null };
     const partsOf = (fn) => fn.split(/::|[\\/]/).filter(Boolean).slice(0, 8);
     for (const [fn, count] of counts) {
@@ -1662,6 +1700,7 @@ function renderFunctions() {
     };
     paintNode(root, 0, tree);
     if (!counts.size) tree.appendChild(el('div', 'trace-muted', '没有匹配的函数。'));
+    }
 
     sequence.innerHTML = '';
     const cap = Number(limit.value) || 80;
@@ -1670,13 +1709,14 @@ function renderFunctions() {
       const node = el('button', 'sequence-node'); node.type = 'button'; node.title = '定位到这条入口事件';
       node.appendChild(el('span', 'sequence-index', String(index + 1).padStart(2, '0')));
       node.appendChild(el('span', 'sequence-function', e.fn));
-      node.appendChild(el('span', 'sequence-meta', `${fmtInsn(e.insn)} · CPU ${e.cpu}`));
+      node.appendChild(el('span', 'sequence-meta', `${fmtInsn(e.insn)} · CPU ${e.cpu}${e.caller ? ` · ${e.caller} →` : ''}`));
       node.onclick = () => selectEvent(e.i);
       sequence.appendChild(node);
     });
     if (!filtered.length) sequence.appendChild(el('div', 'trace-muted', '没有匹配的入口事件。'));
   }
-  search.oninput = paint; cpu.onchange = paint; limit.onchange = paint; paint();
+  search.oninput = paint; cpu.onchange = paint; grouping.onchange = paint;
+  limit.onchange = paint; paint();
 }
 
 /* ---------------------------------------------------------------- 指标图 */

@@ -32,6 +32,7 @@ Thumbs.db
 *.tmp
 # 工具的落盘目录（浏览器快照 / 会话产物），不是源码
 /.playwright-mcp/
+/.playwright-cli/
 /.omc/
 /output/
 /tmp/

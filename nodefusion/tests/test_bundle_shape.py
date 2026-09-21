@@ -8,6 +8,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from nodefusion.host import bundle as B                      # noqa: E402
+from nodefusion.host.analyze import Event                     # noqa: E402
 from nodefusion.host.guest import SystemState                # noqa: E402
 from nodefusion.host.resources import ResourceTable          # noqa: E402
 
@@ -40,6 +41,36 @@ def _table(name="bcache") -> ResourceTable:
 
 def test_the_format_string_says_two():
     assert B.build(_analysis(_state()))["format"] == "nodefusion.bundle/2"
+
+
+def test_semantic_function_entries_remain_visible_in_function_trace():
+    a = _analysis(_state())
+    a.elf = NS(resolve_pc=lambda addr: ("_ZN2os2vm3map17h1234567890abcdefE", 0))
+    a.events = [
+        Event(1, 0, "vm.map", "vm", func="map_region", function_entry=True,
+              entry_name="os::vm::map_region", return_address=0x80001000),
+        Event(2, 0, "trap.enter", "trap", func="trap_handler"),
+    ]
+    result = B.build(a)
+    assert result["events"]["entry"] == [1, 0]
+    assert result["dict"]["funcs"][result["events"]["entry_name"][0]] == \
+        "os::vm::map_region"
+    assert result["events"]["caller"][0] >= 0
+    assert result["events"]["caller"][1] == -1
+    assert result["meta"]["function_entries"] == {"raw": 1, "retained": 1}
+
+
+def test_caller_names_demangle_rust_trait_impls():
+    raw = ("_RNvXs5_NtNtNtNtCsaZSK9boPIKd_13starry_kernel2mm6aspace"
+           "7backend3cowNtB5_10CowBackendNtB7_10BackendOps9clone_map")
+    a = _analysis(_state())
+    a.elf = NS(resolve_pc=lambda addr: (raw, 0))
+    a.events = [Event(1, 0, "vm.map", "vm", function_entry=True,
+                      entry_name="map_page", return_address=0x80001000)]
+    result = B.build(a)
+    caller_id = result["events"]["caller"][0]
+    assert result["dict"]["funcs"][caller_id] == \
+        "starry_kernel::mm::aspace::backend::cow::CowBackend::clone_map"
 
 
 def test_resources_is_always_there_even_when_empty():
@@ -132,6 +163,33 @@ def test_bounded_selector_preserves_order_and_systematic_sample(monkeypatch):
     assert audit["retained"] == 6
 
 
+def test_large_semantic_stream_stays_browser_bounded(monkeypatch):
+    monkeypatch.setattr(B, "MAX_EVENTS", 10)
+    monkeypatch.setattr(B, "MIN_SPARE_EVENTS", 3)
+    events = [NS(kind="syscall.enter", insn=i) for i in range(80)]
+    events += [NS(kind="proc.exit", insn=80)]
+    events += [NS(kind="func.hot", insn=i) for i in range(81, 101)]
+    selected, audit = B._select_events(events)
+    assert len(selected) == audit["retained"] == 10
+    assert any(e.kind == "syscall.enter" for e in selected)
+    assert any(e.kind == "proc.exit" for e in selected)
+    assert audit["semantic_retained"] == 7
+    assert audit["dropped_kinds"]["syscall.enter"] == 74
+    assert audit["raw"] == audit["retained"] + audit["dropped"]
+
+
+def test_interactive_sampling_does_not_erase_raw_semantic_coverage(monkeypatch):
+    monkeypatch.setattr(B, "MAX_EVENTS", 10)
+    monkeypatch.setattr(B, "MIN_SPARE_EVENTS", 3)
+    a = _analysis(_state())
+    a.events = [Event(i, 0, "syscall.enter", "syscall") for i in range(40)]
+    audit = B.build(a)["meta"]["capability"]["coverage"]
+    assert audit["semantic_events"]["raw"] == 40
+    assert audit["semantic_events"]["dropped_from_interactive"] == 30
+    assert not any(b["check"] == "interactive_semantic_events"
+                   for b in audit["blockers"])
+
+
 def test_event_selection_without_sampling_is_still_auditable(monkeypatch):
     monkeypatch.setattr(B, "MAX_EVENTS", 10)
     events = [NS(kind="heap.alloc", insn=i) for i in range(3)]
@@ -147,9 +205,9 @@ def test_compact_coverage_audit_matches_the_rendered_bundle():
     assert B.coverage(a) == B.build(a)["meta"]["capability"]["coverage"]
 
 
-def test_every_normalized_namespace_is_lossless_in_interactive_export(monkeypatch):
+def test_every_normalized_namespace_is_retained_when_budget_allows(monkeypatch):
     """Adding a new semantic namespace must not require editing an allowlist."""
-    monkeypatch.setattr(B, "MAX_EVENTS", 4)
+    monkeypatch.setattr(B, "MAX_EVENTS", 7)
     monkeypatch.setattr(B, "MIN_SPARE_EVENTS", 1)
     semantic = [
         NS(kind="phys.alloc", insn=1), NS(kind="heap.alloc", insn=2),
@@ -190,6 +248,14 @@ def test_missing_absolute_physical_counters_block_strict_coverage():
     assert coverage["snapshots"]["physical_counters"] == 1
     assert any(blocker["check"] == "snapshots"
                for blocker in coverage["blockers"])
+
+
+def test_missing_end_record_blocks_strict_coverage():
+    analysis = _analysis(_state())
+    analysis.manifest["watch_source"] = "manifest:test"
+    result = B.coverage(analysis)
+    assert any(blocker["check"] == "trace_integrity"
+               for blocker in result["blockers"])
 
 
 

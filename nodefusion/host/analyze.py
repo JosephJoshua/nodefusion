@@ -88,6 +88,9 @@ class Event:
     tick: int | None = None
     detail: dict = field(default_factory=dict)
     unknown: list = field(default_factory=list)
+    function_entry: bool = False
+    entry_name: str | None = None
+    return_address: int | None = None
 
     def to_json(self) -> dict:
         d = {"insn": self.insn, "cpu": self.cpu, "kind": self.kind,
@@ -941,7 +944,8 @@ class Analysis:
         func, _ = self.elf.resolve_pc(w.pc)
         return Event(insn=w.insn, cpu=w.cpu, kind=kind, resource=resource,
                      pid=pid, proc=proc, pc=w.pc, func=func or entry["symbol"],
-                     detail=detail, unknown=unknown)
+                     detail=detail, unknown=unknown, function_entry=True,
+                     entry_name=entry["symbol"], return_address=w.ra or None)
 
     def _discon_event(self, d: trace_mod.Discon, si: int,
                       cur_slot: dict) -> Event | None:
