@@ -34,18 +34,19 @@ QEMU + TCG plugin -> trace.nfb -> Python analysis -> self-contained HTML
 | --- | --- | --- | --- |
 | xv6-riscv | [`xv6.toml`](nodefusion/manifests/xv6.toml) | [`artifacts/xv6`](artifacts/xv6) | 启动、lazy allocation、COW 对比样例；样例来自较早的录制 |
 | rCore | [`rcore.toml`](nodefusion/manifests/rcore.toml) | [`artifacts/rcore`](artifacts/rcore) | ch1--ch8 的章节证据；ch7 有严格 100% 适用项审计 |
-| ArceOS | [`arceos.toml`](nodefusion/manifests/arceos.toml) | [`artifacts/arceos`](artifacts/arceos) | `app-childtask` 样例；unikernel 工作负载，观察范围较窄 |
+| ArceOS | [`arceos.toml`](nodefusion/manifests/arceos.toml) | [`artifacts/arceos`](artifacts/arceos) | 四个应用的报告；当前录制存在覆盖缺项 |
 | StarryOS | [`starry.toml`](nodefusion/manifests/starry.toml) | [`artifacts/starryos`](artifacts/starryos) | 子系统和应用证据；严格审计达到 100% 适用项覆盖 |
 | uCoreOS | [`ucore.toml`](nodefusion/manifests/ucore.toml) | [`artifacts/ucoreos`](artifacts/ucoreos) | Tutorial ch1--ch8 每章均有 100% 适用项覆盖记录 |
 
 “100%”指当前内核构建和 workload 下的适用项全部通过审计，记录见
-[`artifacts/coverage-100pct-2026-09-15.json`](artifacts/coverage-100pct-2026-09-15.json)
+[StarryOS showcase](artifacts/starryos/showcase/starry-100pct-final.evidence.json)、
+[rCore ch7](artifacts/rcore/ch7/rcore-ch7-100pct-final.evidence.json)
 和 [uCoreOS 各章的 coverage.json](artifacts/ucoreos)。每个声明项按适用性记录；
 内核未提供对应机制时，
 该项标为 `not applicable`。例如 rCore 和 uCoreOS 的文件系统未提供日志层，
 `log.commit` 在它们的覆盖结果中标为 `not applicable`。
 
-StarryOS 的 showcase 原始流包含 3,013,733 条事件；交互式报告按文档化策略保留
+StarryOS 的 showcase 原始流包含 6,659,153 条事件；交互式报告按文档化策略保留
 150,000 条用于浏览，覆盖率和统计使用完整原始流。原始 `trace.nfb` 保存在归档中，
 仓库中的 JSON sidecar、MP4 和覆盖索引用于复核产物范围与校验和。
 

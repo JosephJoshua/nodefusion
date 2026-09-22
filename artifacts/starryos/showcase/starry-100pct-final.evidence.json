@@ -9,6 +9,10 @@
     "kernel_layout.json": "ddecca44bdc49240ff4459b0ddea7a3e3ef704b9a00ce9a70bc05134110422ee"
   },
   "kernel_elf_sha256": "7d540ba98b149fc2933870eddeecfdfcb70386b43a7b0369a32be2558b158e66",
+  "archive_bytes": {
+    "trace.nfb": 878077631,
+    "kernel_elf": 215240248
+  },
   "html_sha256": "852ad7fb8e3680da63b56e58d98049625b5fe7088c37e273ac5185d76da84762",
   "html_bytes": 7309314,
   "function_trace": {

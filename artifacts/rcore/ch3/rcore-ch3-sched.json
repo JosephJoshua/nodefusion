@@ -131,5 +131,135 @@
     "outcome": "completed",
     "compare": false
   },
-  "mp4_sha256": "73eac4931d32513e23caf09cfdfcb2555b4d06b05120407d8059203be6e6bbcf"
+  "mp4_sha256": "73eac4931d32513e23caf09cfdfcb2555b4d06b05120407d8059203be6e6bbcf",
+  "report": {
+    "schema": "nodefusion.artifact-evidence/1",
+    "run": "rcore-ch3-sched",
+    "kernel_kind": "rcore",
+    "source_sha256": {
+      "trace.nfb": "ae5ed9ce9130e56b6067aca363e8fbce457b517836ef79c060c43a4db157a69a",
+      "manifest.json": "053c6e87fbbd085c863389ca14129f423ade39ebe743aafa2e27106e02341049",
+      "watchlist.json": "2ead075d856a070bb98145520fce095144d19049fbc81fb166c8ed89be3b4895",
+      "kernel_layout.json": "7d456ff23f52f09edd3ebca61dfb3b6cb5628e410f913e09302f3c12343f452f"
+    },
+    "kernel_elf_sha256": "ee39fba12a6d548a4ba0a94a9b48a425832958d431515b72d5658c439e2255e3",
+    "html_sha256": "39dbfee87ca1c56a32f3fcd5517b42a3c34150c8de58a359be505e27cefd1b42",
+    "html_bytes": 208950,
+    "function_trace": {
+      "kind": "function-entry sequence (no return events)",
+      "raw": 214,
+      "retained": 214
+    },
+    "coverage": {
+      "status": "incomplete",
+      "percent": 98.84,
+      "passed": 5110,
+      "total": 5170,
+      "metrics": {
+        "covered": 7,
+        "applicable": 18,
+        "not_applicable": [
+          "log_commits"
+        ],
+        "missing": [
+          "bcache_reads",
+          "bcache_hits",
+          "bcache_hit_rate",
+          "kalloc",
+          "kfree",
+          "disk_io",
+          "forks",
+          "execs",
+          "vm_maps",
+          "vm_unmaps",
+          "page_table_maps"
+        ],
+        "sampled": []
+      },
+      "semantic_events": {
+        "raw": 2297,
+        "unknown": 0,
+        "unknown_fields": {},
+        "dropped_from_interactive": 0
+      },
+      "snapshots": {
+        "checked": 33,
+        "incomplete": 0,
+        "physical_memory": 0,
+        "physical_counters": 33,
+        "processes": 16,
+        "resources": 0
+      },
+      "snapshot_not_applicable": [],
+      "manifest_fields": {
+        "cells": 2720,
+        "states": {
+          "absent": 2176,
+          "present": 544
+        },
+        "not_applicable": 2176,
+        "unresolved": 0
+      },
+      "full_watch_scope": true,
+      "blockers": [
+        {
+          "check": "metrics",
+          "items": [
+            "bcache_reads",
+            "bcache_hits",
+            "bcache_hit_rate",
+            "kalloc",
+            "kfree",
+            "disk_io",
+            "forks",
+            "execs",
+            "vm_maps",
+            "vm_unmaps",
+            "page_table_maps"
+          ]
+        },
+        {
+          "check": "snapshots",
+          "items": {
+            "incomplete": 0,
+            "physical_memory": 0,
+            "physical_counters": 33,
+            "processes": 16,
+            "resources": 0
+          }
+        }
+      ]
+    },
+    "event_selection": {
+      "applied": false,
+      "policy": "kind-preserving/systematic-v3",
+      "raw": 2348,
+      "retained": 2348,
+      "dropped": 0,
+      "target_limit": 150000,
+      "minimum_spare": 25000,
+      "always_keep": "all events when the raw stream fits",
+      "priority_raw": 2297,
+      "spare_raw": 51,
+      "spare_budget": 0,
+      "stride": 1,
+      "retained_kinds": {
+        "firmware.trap": 22,
+        "func.deref": 1,
+        "func.run_first_task": 1,
+        "func.run_next_task": 33,
+        "func.sys_yield": 15,
+        "func.task::run_first_task": 1,
+        "interrupt.timer": 8,
+        "kernel.panic": 1,
+        "proc.exit": 7,
+        "sbi.call": 2000,
+        "sched.switch": 33,
+        "syscall.enter": 104,
+        "syscall.exit": 7,
+        "trap.enter": 115
+      },
+      "dropped_kinds": {}
+    }
+  }
 }

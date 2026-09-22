@@ -1,7 +1,9 @@
 # 运行报告
 
-每份新生成的 HTML 旁边有同名的 `.evidence.json`：记录原始 trace、manifest、
-watchlist、布局、ELF 和 HTML 的 SHA-256，以及严格覆盖检查和函数入口数量。
+每份 HTML 的证据记录原始 trace、manifest、watchlist、布局、ELF 和 HTML 的
+SHA-256，以及覆盖检查和函数入口数量。独立报告使用同名 `.evidence.json`；
+已有视频的报告写入视频 JSON 的 `report` 字段；uCoreOS 每章使用 `coverage.json`。
+同目录的 MP4 对应同名 JSON，较早的独立录制仍以自己的文件名保留。
 HTML 可以直接在浏览器打开。原始 trace 和 ELF 体积较大，保留在录制归档中。
 覆盖百分比按该次运行的适用检查计算；执行路径范围取决于工作负载。
 
@@ -26,5 +28,6 @@ python -m scripts.regenerate_artifact \
   --replace
 ```
 
-仅在要求所有适用项通过时加 `--strict`。旧的 MP4/JSON 和早期 HTML 属于各自
-录制批次，以对应 sidecar 中的哈希区分。
+仅在要求所有适用项通过时加 `--strict`。命令默认生成独立证据；同一次录制的
+视频与报告可用 `python -m scripts.consolidate_artifacts artifacts` 做一次性合并
+（针对仓库已知的章节与应用路径）。不同录制批次以各自的来源哈希区分。

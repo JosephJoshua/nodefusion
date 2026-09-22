@@ -19,12 +19,45 @@ EXPECTED_RUNS = {
 }
 
 
+def report_sidecars():
+    entries = []
+    for path in sorted(ARTIFACTS.rglob("*.evidence.json")):
+        entries.append((path, path.with_name(path.name.removesuffix(".evidence.json") + ".html")))
+    for path in sorted(ARTIFACTS.glob("ucoreos/ch*/coverage.json")):
+        htmls = list(path.parent.glob("ucore-*.html"))
+        assert len(htmls) == 1
+        entries.append((path, htmls[0]))
+    for path in sorted(ARTIFACTS.rglob("*.json")):
+        if path.name == "coverage.json" or path.name.endswith(".evidence.json"):
+            continue
+        sidecar = json.loads(path.read_text(encoding="utf-8"))
+        if sidecar.get("report", {}).get("schema") == "nodefusion.artifact-evidence/1":
+            entries.append((path, path.with_name(sidecar["html"])))
+    return sorted(entries)
+
+
+def record_from(path):
+    sidecar = json.loads(path.read_text(encoding="utf-8"))
+    return sidecar.get("report", sidecar)
+
+
 def test_all_chapter_and_app_artifacts_are_present():
-    files = list(ARTIFACTS.rglob("*.evidence.json"))
-    runs = {json.loads(path.read_text(encoding="utf-8"))["run"] for path in files}
+    entries = report_sidecars()
+    assert len(entries) == 24
+    runs = {record_from(path)["run"] for path, _ in entries}
+    assert len(runs) == 24
     normalized = {name if not name.startswith(("rcore-", "ucore-"))
                   else "-".join(name.split("-")[:2]) for name in runs}
     assert EXPECTED_RUNS <= normalized
+
+
+def test_tracecomplete_reuses_its_recording_folder():
+    folder = ARTIFACTS / "arceos/apps/tracecomplete"
+    manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+    evidence = record_from(folder / "tracecomplete.evidence.json")
+    assert evidence["run"] == manifest["run_name"]
+    assert evidence["kernel_elf_sha256"] == manifest["kernel_elf_identity"]["sha256"]
+    assert sha256(folder / "tracecomplete.html") == evidence["html_sha256"]
 
 
 def _report(path: Path, entries: list[int], retained: int) -> None:
@@ -88,7 +121,8 @@ def test_finalize_demangles_and_updates_verified_evidence(tmp_path):
                     f'<script type="application/nodefusion">{encode(data)}</script>',
                     encoding="utf-8")
     sidecar = tmp_path / "report.evidence.json"
-    sidecar.write_text(json.dumps({"html_sha256": sha256(html)}), encoding="utf-8")
+    sidecar.write_text(json.dumps({"schema": "nodefusion.artifact-evidence/1",
+                                   "html_sha256": sha256(html)}), encoding="utf-8")
     assert finalize(sidecar) == 1
     assert finalize(sidecar) == 0
     record = json.loads(sidecar.read_text(encoding="utf-8"))
@@ -97,15 +131,14 @@ def test_finalize_demangles_and_updates_verified_evidence(tmp_path):
     assert smoke_report(html)["dict"]["funcs"][0].endswith("CowBackend::clone_map")
 
 
-@pytest.mark.parametrize("evidence", sorted(ARTIFACTS.rglob("*.evidence.json")))
-def test_regenerated_artifact_matches_evidence(evidence):
-    record = json.loads(evidence.read_text(encoding="utf-8"))
+@pytest.mark.parametrize("evidence,html", report_sidecars())
+def test_regenerated_artifact_matches_evidence(evidence, html):
+    record = record_from(evidence)
     assert len(record["kernel_elf_sha256"]) == 64
     assert set(record["source_sha256"]) == {
         "trace.nfb", "manifest.json", "watchlist.json", "kernel_layout.json"
     }
     assert all(len(value) == 64 for value in record["source_sha256"].values())
-    html = evidence.with_name(evidence.name.removesuffix(".evidence.json") + ".html")
     assert html.stat().st_size == record["html_bytes"]
     assert sha256(html) == record["html_sha256"]
     data = smoke_report(html)

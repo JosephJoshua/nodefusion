@@ -17,8 +17,21 @@ from scripts.regenerate_artifact import _DATA, sha256, smoke_report
 
 
 def finalize(evidence: Path) -> int:
-    record = json.loads(evidence.read_text(encoding="utf-8"))
-    html = evidence.with_name(evidence.name.removesuffix(".evidence.json") + ".html")
+    sidecar = json.loads(evidence.read_text(encoding="utf-8"))
+    if sidecar.get("format") == "nodefusion.video-evidence/1":
+        record = sidecar["report"]
+        html = evidence.with_name(sidecar["html"])
+    elif sidecar.get("schema") == "nodefusion.artifact-evidence/1":
+        record = sidecar
+        if evidence.name == "coverage.json":
+            matches = list(evidence.parent.glob("ucore-*.html"))
+            if len(matches) != 1:
+                raise ValueError(f"expected one chapter report: {evidence.parent}")
+            html = matches[0]
+        else:
+            html = evidence.with_name(evidence.name.removesuffix(".evidence.json") + ".html")
+    else:
+        raise ValueError(f"unsupported report sidecar: {evidence}")
     if sha256(html) != record["html_sha256"]:
         raise ValueError(f"HTML hash differs from sidecar: {html}")
     data = smoke_report(html)
@@ -49,7 +62,7 @@ def finalize(evidence: Path) -> int:
     staged_evidence = evidence.with_name(f".{evidence.name}.tmp-{os.getpid()}")
     try:
         staged_evidence.write_text(
-            json.dumps(record, ensure_ascii=False, indent=2) + "\n",
+            json.dumps(sidecar, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8")
         staged_evidence.replace(evidence)
     finally:
@@ -62,6 +75,11 @@ def main() -> None:
     parser.add_argument("root", type=Path)
     args = parser.parse_args()
     files = sorted(args.root.rglob("*.evidence.json"))
+    files += sorted(args.root.glob("ucoreos/ch*/coverage.json"))
+    files += sorted(path for path in args.root.rglob("*.json")
+                    if path.name not in {"coverage.json"} and
+                    json.loads(path.read_text(encoding="utf-8")).get("report", {}).get(
+                        "schema") == "nodefusion.artifact-evidence/1")
     if not files:
         parser.error("no regenerated evidence files found")
     for path in files:

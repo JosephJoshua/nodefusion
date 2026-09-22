@@ -1,42 +1,139 @@
 {
-  "schema": "nodefusion.ucore-chapter-coverage/1",
-  "generated_utc": "2026-09-15",
-  "manifest": "nodefusion/manifests/ucore.toml",
-  "strict_invariants": {
-    "blockers": 0,
-    "semantic_dropped_from_interactive": 0,
-    "snapshot_failures": 0,
-    "manifest_unresolved": 0
+  "schema": "nodefusion.artifact-evidence/1",
+  "run": "ucore-ch3-probe",
+  "kernel_kind": "ucore",
+  "source_sha256": {
+    "trace.nfb": "8089e49eb02dfe0d7ecd8c0ef26a99a93e5e0558ffced58b2e66da9202fc1991",
+    "manifest.json": "b805bf25333ce630aa5a84e227b3b806f4c1190fe48a618f3bbf48700c9d38a2",
+    "watchlist.json": "8f76b75e526ee6aa1a72c6b23208d7381048db2b6c49ef71312ddf4d85c7f1b2",
+    "kernel_layout.json": "11a400cb44888749d7a0f5a00b6d454c14c782beb1694bc59c0e3f8693b6f4fe"
   },
-  "chapter": {
-    "chapter": 3,
-    "run": "ucore-ch3-probe",
+  "kernel_elf_sha256": "68d63c6fb2fb4d6a31c749a13ac2a21a955a16208020066948b47ad256b6efe6",
+  "archive_bytes": {"trace.nfb": 119407606, "kernel_elf": 135880},
+  "html_sha256": "65e7f0cd0cbcc046a70ab162f309ff4853b2a874b9de07e0f75c95f5e81f3a09",
+  "html_bytes": 1013818,
+  "function_trace": {
+    "kind": "function-entry sequence (no return events)",
+    "raw": 769168,
+    "retained": 129078
+  },
+  "coverage": {
     "status": "complete",
     "percent": 100.0,
-    "semantic_events": 839060,
-    "semantic_unknown": 0,
-    "snapshots": 15,
-    "manifest_cells": 1920,
-    "metrics_applicable": 7,
-    "metrics_not_applicable": [
-      "bcache_hit_rate",
-      "bcache_hits",
-      "bcache_reads",
-      "disk_io",
-      "execs",
-      "forks",
-      "kalloc",
-      "kfree",
-      "log_commits",
-      "page_table_maps",
-      "vm_maps",
-      "vm_unmaps"
+    "passed": 841020,
+    "total": 841020,
+    "metrics": {
+      "covered": 7,
+      "applicable": 7,
+      "not_applicable": [
+        "bcache_hit_rate",
+        "bcache_hits",
+        "bcache_reads",
+        "disk_io",
+        "execs",
+        "forks",
+        "kalloc",
+        "kfree",
+        "log_commits",
+        "page_table_maps",
+        "vm_maps",
+        "vm_unmaps"
+      ],
+      "missing": [],
+      "sampled": []
+    },
+    "semantic_events": {
+      "raw": 839060,
+      "unknown": 0,
+      "unknown_fields": {},
+      "dropped_from_interactive": 714060
+    },
+    "snapshots": {
+      "checked": 15,
+      "incomplete": 0,
+      "physical_memory": 0,
+      "physical_counters": 0,
+      "processes": 0,
+      "resources": 0
+    },
+    "snapshot_not_applicable": [
+      "physical_counters",
+      "resources"
     ],
-    "trace_bytes": 119407606,
-    "trace_sha256": "8089e49eb02dfe0d7ecd8c0ef26a99a93e5e0558ffced58b2e66da9202fc1991",
-    "html_bytes": 4192254,
-    "html_sha256": "fa10048f3108356da776ebd8fa376ccbe1ef674f62f8f34d747474e1a2629b81",
-    "kernel_elf_bytes": 135880,
-    "kernel_elf_sha256": "68d63c6fb2fb4d6a31c749a13ac2a21a955a16208020066948b47ad256b6efe6"
+    "manifest_fields": {
+      "cells": 1920,
+      "states": {
+        "absent": 1440,
+        "present": 480
+      },
+      "not_applicable": 1440,
+      "unresolved": 0
+    },
+    "full_watch_scope": true,
+    "blockers": []
+  },
+  "event_selection": {
+    "applied": true,
+    "policy": "kind-preserving/systematic-v3",
+    "raw": 909567,
+    "retained": 150000,
+    "dropped": 759567,
+    "target_limit": 150000,
+    "minimum_spare": 25000,
+    "always_keep": "first event of each normalized kind within budget",
+    "priority_raw": 839060,
+    "spare_raw": 70507,
+    "semantic_budget": 125000,
+    "semantic_retained": 125000,
+    "spare_budget": 25000,
+    "stride": 2,
+    "retained_kinds": {
+      "firmware.trap": 3,
+      "func.allocpid": 9,
+      "func.console_putchar": 316,
+      "func.finished": 3,
+      "func.loader_init": 1,
+      "func.set_next_timer": 14,
+      "func.sys_gettimeofday": 24657,
+      "interrupt.clock": 7,
+      "interrupt.timer": 7,
+      "proc.alloc": 2,
+      "proc.exit": 3,
+      "proc.initproc": 1,
+      "sbi.call": 99,
+      "sched.enter": 1,
+      "sched.switch": 20816,
+      "sched.yield": 10413,
+      "sched.yield_to_scheduler": 10404,
+      "syscall.dispatch": 20814,
+      "syscall.enter": 20813,
+      "syscall.write": 5,
+      "trap.init": 1,
+      "trap.userret": 20812,
+      "trap.usertrap": 20799
+    },
+    "dropped_kinds": {
+      "firmware.trap": 16,
+      "func.console_putchar": 311,
+      "func.finished": 4,
+      "func.load_app": 9,
+      "func.run_all_app": 1,
+      "func.set_next_timer": 21,
+      "func.sys_gettimeofday": 45160,
+      "func.timer_init": 1,
+      "interrupt.clock": 28,
+      "interrupt.timer": 27,
+      "proc.alloc": 7,
+      "proc.exit": 4,
+      "sbi.call": 563,
+      "sched.switch": 118915,
+      "sched.yield": 59445,
+      "sched.yield_to_scheduler": 59461,
+      "syscall.dispatch": 118869,
+      "syscall.enter": 118871,
+      "syscall.write": 30,
+      "trap.userret": 118906,
+      "trap.usertrap": 118918
+    }
   }
 }

@@ -245,5 +245,178 @@
     "outcome": "completed",
     "compare": false
   },
-  "mp4_sha256": "7dda1c20b7b317a0cd1d236ca28cfc18f5efbc11c38402647c68d8fbbd0af293"
+  "mp4_sha256": "7dda1c20b7b317a0cd1d236ca28cfc18f5efbc11c38402647c68d8fbbd0af293",
+  "report": {
+    "schema": "nodefusion.artifact-evidence/1",
+    "run": "rcore-ch6-usertest",
+    "kernel_kind": "rcore",
+    "source_sha256": {
+      "trace.nfb": "9d7819d5acfbf439f319f99ffe3e93b42ad7fd8a5914407932bb490ee3b6a1e0",
+      "manifest.json": "5ccdef9339d64086d3adc22ae1c28ffddfd341a1f7477047d424e561000cc2b2",
+      "watchlist.json": "506a132b6e6e403604bae321ff84170760bde788ea89abd3808150b8dae8fbcf",
+      "kernel_layout.json": "33c7bd3d9469cc75228ce46a322c790ac6b0a2c7d533f607a7c40862214a4972"
+    },
+    "kernel_elf_sha256": "57942a68b4cae1b7fe7641b23f8c52037cbf1d41221fe2c8c1570dba0013d9f2",
+    "html_sha256": "c8673f4ca2536dd59b776002ab2c60eead726fe809358aaed873c4c385be2789",
+    "html_bytes": 490916,
+    "function_trace": {
+      "kind": "function-entry sequence (no return events)",
+      "raw": 56626,
+      "retained": 56626
+    },
+    "coverage": {
+      "status": "incomplete",
+      "percent": 99.65,
+      "passed": 63056,
+      "total": 63280,
+      "metrics": {
+        "covered": 17,
+        "applicable": 18,
+        "not_applicable": [
+          "log_commits"
+        ],
+        "missing": [
+          "vm_unmaps"
+        ],
+        "sampled": []
+      },
+      "semantic_events": {
+        "raw": 62354,
+        "unknown": 190,
+        "unknown_fields": {
+          "allocated_pa": 163,
+          "from_pid": 15,
+          "to_pid": 13
+        },
+        "dropped_from_interactive": 0
+      },
+      "snapshots": {
+        "checked": 33,
+        "incomplete": 0,
+        "physical_memory": 0,
+        "physical_counters": 33,
+        "processes": 0,
+        "resources": 0
+      },
+      "snapshot_not_applicable": [],
+      "manifest_fields": {
+        "cells": 740,
+        "states": {
+          "absent": 74,
+          "empty": 33,
+          "present": 633
+        },
+        "not_applicable": 74,
+        "unresolved": 0
+      },
+      "full_watch_scope": true,
+      "blockers": [
+        {
+          "check": "metrics",
+          "items": [
+            "vm_unmaps"
+          ]
+        },
+        {
+          "check": "semantic_event_fields",
+          "count": 190,
+          "fields": {
+            "allocated_pa": 163,
+            "from_pid": 15,
+            "to_pid": 13
+          }
+        },
+        {
+          "check": "snapshots",
+          "items": {
+            "incomplete": 0,
+            "physical_memory": 0,
+            "physical_counters": 33,
+            "processes": 0,
+            "resources": 0
+          }
+        }
+      ]
+    },
+    "event_selection": {
+      "applied": false,
+      "policy": "kind-preserving/systematic-v3",
+      "raw": 66382,
+      "retained": 66382,
+      "dropped": 0,
+      "target_limit": 150000,
+      "minimum_spare": 25000,
+      "always_keep": "all events when the raw stream fits",
+      "priority_raw": 62354,
+      "spare_raw": 4028,
+      "spare_budget": 0,
+      "stride": 1,
+      "retained_kinds": {
+        "bcache.read": 435,
+        "disk.io": 152,
+        "file.read": 1496,
+        "file.write": 1555,
+        "firmware.trap": 19,
+        "func.DiskInode::read_at": 246,
+        "func.Stdin::readable": 3052,
+        "func.VirtIOBlk<H>::read_block": 152,
+        "func.dma_alloc": 1,
+        "func.kernel_token": 3,
+        "func.list_apps": 1,
+        "func.ls": 1,
+        "func.name": 109,
+        "func.open": 1,
+        "func.read_all": 3,
+        "func.remap_test": 1,
+        "func.root_inode": 1,
+        "func.unmap@0": 1,
+        "func.virt_to_phys": 456,
+        "heap.alloc": 211,
+        "heap.free": 136,
+        "heap.realloc": 6,
+        "inode.bmap": 243,
+        "inode.dirlookup": 3,
+        "inode.namei": 3,
+        "inode.read": 137,
+        "interrupt.timer": 4,
+        "pagetable.map": 32331,
+        "pagetable.new": 6,
+        "pagetable.unmap": 2,
+        "phys.alloc": 163,
+        "phys.free": 54,
+        "proc.create": 1,
+        "proc.exec": 2,
+        "proc.exit": 1,
+        "proc.fork": 2,
+        "proc.initproc": 1,
+        "sbi.call": 6605,
+        "sched.enter": 1,
+        "sched.switch": 27,
+        "sched.yield": 12,
+        "syscall.dispatch": 3128,
+        "syscall.enter": 3128,
+        "syscall.exec": 2,
+        "syscall.exit": 1,
+        "syscall.fork": 2,
+        "syscall.read": 1496,
+        "syscall.spawn": 27,
+        "syscall.waitpid": 36,
+        "syscall.write": 1556,
+        "task.kstack_alloc": 3,
+        "task.kstack_free": 1,
+        "task.pid_free": 1,
+        "trap.enter": 3132,
+        "trap.userret": 3132,
+        "vm.copy": 2,
+        "vm.from_elf": 3,
+        "vm.init": 1,
+        "vm.kernel_init": 1,
+        "vm.map": 39,
+        "vm.remove_area": 1,
+        "vm.translate_buffer": 3052,
+        "vm.translate_str": 2
+      },
+      "dropped_kinds": {}
+    }
+  }
 }

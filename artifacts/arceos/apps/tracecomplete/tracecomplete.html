@@ -3,24 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
 <title>NodeFusion · arceos-tracecomplete</title>
 <style>
 /* NodeFusion 通用可视化前端样式。
    刻意保持信息密度：这是一个工程观测界面，不是宣传页。 */
 
 :root {
-  --bg: #0d1117;
-  --bg2: #161b22;
-  --bg3: #1c2230;
-  --line: #2a3140;
-  --fg: #e6edf3;
-  --fg2: #9aa7b5;
-  --fg3: #6b7784;
-  --accent: #4aa3ff;
-  --ok: #3fb950;
-  --warn: #d29922;
-  --err: #f85149;
-  --purple: #a371f7;
+  --bg: oklch(97% .006 215);
+  --bg2: oklch(99% .004 215);
+  --bg3: oklch(94% .008 215);
+  --line: oklch(86% .012 215);
+  --fg: oklch(25% .018 225);
+  --fg2: oklch(42% .015 225);
+  --fg3: oklch(54% .012 225);
+  --accent: oklch(48% .13 200);
+  --ok: oklch(43% .12 150);
+  --warn: oklch(48% .12 75);
+  --err: oklch(48% .17 25);
+  --purple: oklch(47% .13 305);
   --mono: ui-monospace, "Cascadia Code", "Consolas", "DejaVu Sans Mono", monospace;
 }
 
@@ -29,7 +30,7 @@
 html, body {
   margin: 0; padding: 0; height: 100%;
   background: var(--bg); color: var(--fg);
-  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
   font-size: 13px;
 }
 
@@ -64,11 +65,22 @@ header h1 span { color: var(--accent); }
 
 .capability {
   background: rgba(210,153,34,.08); border-bottom: 1px solid var(--line);
-  padding: 6px 14px; font-size: 12px; color: var(--warn);
-  display: flex; gap: 8px; align-items: flex-start;
+  padding: 5px 14px; font-size: 12px; color: var(--warn);
+  display: flex; align-items: center;
 }
-.capability .k { color: var(--fg3); }
+.capability.coverage-complete { background: rgba(63,185,80,.08); color: var(--ok); }
+.capability details { width: 100%; }
+.capability summary {
+  cursor: pointer; list-style: none; display: flex; align-items: center;
+  justify-content: space-between; gap: 12px;
+}
+.capability summary::-webkit-details-marker { display: none; }
+.capability .cap-headline { font-weight: 600; }
+.capability .cap-more { color: var(--fg3); font-size: 11px; font-weight: 400; }
 .capability ul { margin: 3px 0 0 16px; padding: 0; color: var(--fg2); }
+.capability li { margin: 3px 0; overflow-wrap: anywhere; }
+.inline-disclosure summary { cursor: pointer; color: var(--fg2); }
+.inline-disclosure .disclosure-body { margin-top: 5px; color: var(--fg3); }
 
 /* ------------------------------------------------------------------ time */
 
@@ -125,6 +137,9 @@ nav.tabs button.on { color: var(--fg); border-bottom-color: var(--accent); }
 h3 { font-size: 13px; margin: 16px 0 7px; color: var(--fg); font-weight: 600; }
 h3:first-child { margin-top: 0; }
 .hint { color: var(--fg3); font-size: 11.5px; margin: 4px 0 8px; line-height: 1.5; }
+/* 挨着数字的次要说明（比如抽样类别的"实际 57～14592"）。压暗是要的：
+   它是个区间，不该跟旁边那个精确计数抢同样的分量。 */
+.dim { color: var(--fg3); font-size: 11px; }
 
 /* ---------------------------------------------------------------- tables */
 
@@ -210,6 +225,8 @@ pre.console {
 
 canvas.chart { width: 100%; height: 130px; display: block; background: var(--bg2);
   border: 1px solid var(--line); border-radius: 5px; margin-bottom: 10px; }
+.chart-legend { display: flex; flex-wrap: wrap; gap: 10px; margin: -2px 0 5px; color: var(--fg2); font: 10px var(--mono); }
+.chart-legend i { display: inline-block; width: 8px; height: 8px; margin-right: 4px; border-radius: 50%; }
 
 /* --------------------------------------------------------------- compare */
 
@@ -268,7 +285,7 @@ canvas.chart { width: 100%; height: 130px; display: block; background: var(--bg2
 .deltabar {
   margin: 0 10px 8px; padding: 7px 12px; font-size: 12px;
   background: var(--bg2); border: 1px solid var(--line);
-  border-left: 3px solid var(--accent); border-radius: 5px;
+  border-radius: 5px;
   color: var(--fg2); font-family: var(--mono);
 }
 .deltabar b { color: var(--fg); }
@@ -280,6 +297,199 @@ canvas.chart { width: 100%; height: 130px; display: block; background: var(--bg2
 .physopt label { cursor: pointer; }
 .physaxis .atick.gap { color: #6e7681; font-size: 9px; font-style: italic; }
 
+/* Investigation workspace */
+body { font-size: 13px; }
+button, input, select { font: inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible,
+tr.clickable:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button { transition: background-color .16s ease-out, color .16s ease-out, border-color .16s ease-out; }
+.topbar {
+  min-height: 64px; padding: 10px 20px; gap: 16px;
+  background: var(--bg2);
+}
+.brand-lockup { display: flex; align-items: center; gap: 10px; flex: none; }
+.brand-mark {
+  display: grid; place-items: center; width: 36px; height: 36px;
+  background: var(--fg); color: var(--bg2); border-radius: 6px;
+  font-family: var(--mono); font-size: 13px; font-weight: 700;
+}
+.brand-name { font-size: 16px; font-weight: 750; line-height: 1.1; }
+.brand-name span { color: var(--accent); }
+.brand-kicker { margin-top: 3px; color: var(--fg3); font-size: 10px; }
+.hmeta { flex: 1; min-width: 0; gap: 5px 16px; align-items: center; }
+.hmeta > div { white-space: nowrap; }
+.hmeta > div:nth-child(n+6) { display: none; }
+.badge { border-radius: 4px; white-space: nowrap; }
+.top-action, .secondary-control, .ghost-control {
+  border: 1px solid var(--line); border-radius: 5px; background: var(--bg2);
+  color: var(--fg); padding: 7px 11px; cursor: pointer; white-space: nowrap;
+}
+.top-action:hover, .secondary-control:hover, .ghost-control:hover { border-color: var(--accent); color: var(--accent); }
+.capability { padding: 5px 20px; }
+.timebar { padding: 10px 20px 7px; gap: 18px; background: var(--bg2); }
+.transport { display: flex; gap: 4px; flex: none; }
+.timebar button { min-height: 32px; padding: 5px 10px; font-weight: 600; }
+.timebar .primary-control { background: var(--fg); color: var(--bg2); border-color: var(--fg); min-width: 58px; }
+.timebar .primary-control:hover { background: var(--accent); border-color: var(--accent); color: var(--bg2); }
+.timebar input[type=range] { min-width: 80px; }
+.tlabel { min-width: 270px; text-align: right; line-height: 1.5; }
+.minimapwrap { padding: 0 20px 8px; }
+.minimap-axis, .density-axis, .cpu-axis {
+  display: flex; justify-content: space-between; color: var(--fg3);
+  font: 10px var(--mono); line-height: 1.2;
+}
+.minimap-axis { padding: 2px 1px 0; }
+.deltabar { margin: 0; padding: 7px 20px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; }
+.main { background: var(--bg); }
+.main.detail-collapsed .right { display: none; }
+.main.detail-collapsed .left { flex: 1; }
+nav.tabs {
+  width: 182px; flex: none; display: flex; flex-direction: column; gap: 2px;
+  padding: 18px 9px; border-bottom: 0; border-right: 1px solid var(--line);
+  background: var(--bg2); overflow-y: auto;
+}
+nav.tabs button {
+  width: 100%; min-height: 36px; text-align: left; padding: 7px 11px;
+  border: 1px solid transparent; border-radius: 5px; font-size: 12px; font-weight: 550;
+}
+nav.tabs button:hover { background: var(--bg3); color: var(--fg); }
+nav.tabs button.on { background: var(--bg3); border-color: var(--line); color: var(--fg); font-weight: 700; }
+.panel { padding: 22px 24px 30px; }
+.right { width: min(340px, 28vw); padding: 20px; background: var(--bg2); }
+.cards { gap: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin: 8px 0 18px; }
+.card { min-width: 150px; flex: 1 1 18%; padding: 14px 13px; border: 0; border-radius: 0; background: transparent; }
+.card .v { font-size: 20px; color: var(--fg); font-weight: 700; }
+.card .l { color: var(--fg2); font-size: 11px; }
+.card .s { white-space: normal; overflow-wrap: anywhere; }
+h3 { margin: 22px 0 9px; font-size: 14px; }
+.hint { color: var(--fg2); }
+th { padding: 9px 10px; background: var(--bg); color: var(--fg2); font-weight: 650; }
+td { padding: 8px 10px; border-bottom-color: var(--line); }
+tr.clickable:hover td { background: var(--bg3); }
+tr.sel td { background: color-mix(in oklch, var(--accent) 12%, var(--bg)); }
+.section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
+.section-heading h2 { margin: 0 0 4px; font-size: 20px; line-height: 1.2; }
+.section-subtitle { color: var(--fg2); font-size: 12px; }
+.shortcut-hint { color: var(--fg3); font-family: var(--mono); font-size: 11px; white-space: nowrap; }
+.event-filters {
+  display: grid; grid-template-columns: minmax(190px, 2fr) repeat(2, minmax(140px, 1fr)) minmax(82px, .55fr);
+  gap: 10px; align-items: end; margin: 0 0 14px;
+}
+.filter-control { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.filter-label { font-size: 11px; font-weight: 650; color: var(--fg2); }
+.filters input, .filters select {
+  width: 100%; height: 34px; min-width: 0; padding: 6px 9px;
+  background: var(--bg2); border-color: var(--line); border-radius: 5px; color: var(--fg);
+}
+.filters input[type=text] { min-width: 0; }
+.filter-control:focus-within .filter-label { color: var(--accent); }
+.range-control { grid-column: span 1; }
+.event-filters > button { height: 34px; }
+.range-presets { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin: -2px 0 15px; color: var(--fg3); font-size: 11px; }
+.range-presets > span { margin-right: 5px; font-weight: 650; }
+.range-preset { padding: 4px 8px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--fg2); cursor: pointer; }
+.range-preset:hover { background: var(--bg3); color: var(--fg); }
+.range-preset.selected { border-color: var(--line); background: var(--bg2); color: var(--accent); font-weight: 650; }
+.result-bar { display: flex; align-items: center; gap: 4px; margin: 0 0 10px; color: var(--fg2); }
+.result-bar strong { color: var(--fg); font-size: 14px; }
+.result-active { margin-left: 8px; color: var(--accent); font-size: 11px; }
+.event-facets { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 11px; margin-bottom: 3px; }
+.facet {
+  display: inline-flex; align-items: center; gap: 9px; flex: none; height: 28px;
+  padding: 4px 8px; background: var(--bg2); border: 1px solid var(--line);
+  border-radius: 5px; color: var(--fg2); cursor: pointer; font-family: var(--mono); font-size: 11px;
+}
+.facet b { color: var(--fg3); font-weight: 500; }
+.facet:hover, .facet.selected { color: var(--accent); border-color: var(--accent); background: color-mix(in oklch, var(--accent) 8%, var(--bg2)); }
+.event-density { margin: 5px 0 14px; padding: 9px 10px 7px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg2); }
+.density-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+.density-label { color: var(--fg2); font-size: 10px; font-weight: 650; }
+.density-meta { color: var(--fg3); font: 10px var(--mono); white-space: nowrap; }
+.density-bars { display: flex; align-items: end; gap: 2px; height: 34px; }
+.density-bar { flex: 1; min-width: 2px; height: 4px; padding: 0; border: 0; border-radius: 2px 2px 0 0; background: color-mix(in oklch, var(--accent) 55%, var(--bg3)); cursor: pointer; }
+.density-bar:hover { background: var(--accent); }
+.density-axis { padding-top: 4px; }
+#evscroll { height: calc(100vh - 430px); min-height: 230px; border-radius: 5px; background: var(--bg2); }
+.event-table { table-layout: auto; white-space: nowrap; }
+.event-table th { background: var(--bg2); }
+.event-table td { height: 34px; max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+.event-table tbody > tr:first-child td, .event-table tbody > tr:last-child td { padding: 0; border: 0; }
+.event-kind { color: var(--accent); font-family: var(--mono); font-weight: 600; }
+.event-empty { padding: 42px 20px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg2); text-align: center; }
+.event-empty strong { font-size: 14px; }
+.event-empty p { margin: 7px 0 0; color: var(--fg2); }
+.right .dsec .t { color: var(--fg2); font-weight: 700; }
+.detail-empty { padding: 28px 10px; color: var(--fg2); }
+.detail-empty-icon { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 6px; color: var(--accent); font-size: 21px; }
+.detail-empty h2 { color: var(--fg); font-size: 14px; margin: 16px 0 5px; }
+.detail-empty p { max-width: 28ch; margin: 0; line-height: 1.55; }
+.trace-controls { display: flex; gap: 8px; margin: 0 0 16px; }
+.trace-controls input, .trace-controls select { height: 34px; min-width: 150px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg2); color: var(--fg); }
+.trace-controls input { flex: 1; min-width: 220px; }
+.trace-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; min-height: 420px; }
+.trace-panel { min-width: 0; border-top: 1px solid var(--line); background: var(--bg2); padding: 14px; }
+.trace-panel-title { font-size: 13px; font-weight: 700; }
+.trace-panel-note { color: var(--fg2); font-size: 11px; margin: 4px 0 12px; }
+.function-tree, .function-sequence { max-height: calc(100vh - 400px); min-height: 290px; overflow: auto; }
+.function-row { position: relative; display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 32px; padding: 6px 8px; border: 0; border-bottom: 1px solid var(--line); background: linear-gradient(90deg, color-mix(in oklch, var(--accent) 10%, transparent) var(--bar), transparent var(--bar)); color: var(--fg); text-align: left; cursor: pointer; }
+.function-row:hover { background-color: var(--bg3); }
+.function-name, .sequence-function { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 11px; }
+.function-count, .sequence-meta { flex: none; margin-left: 10px; color: var(--fg2); font-family: var(--mono); font-size: 11px; }
+.sequence-link { width: 1px; height: 10px; margin-left: 18px; background: var(--line); }
+.sequence-node { display: grid; grid-template-columns: 25px minmax(0, 1fr); gap: 4px 8px; width: 100%; padding: 7px 8px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--fg); text-align: left; cursor: pointer; }
+.sequence-node:hover { border-color: var(--line); background: var(--bg3); }
+.sequence-index { grid-row: span 2; color: var(--accent); font-family: var(--mono); font-size: 10px; }
+.sequence-meta { margin-left: 0; font-size: 10px; }
+.trace-muted { padding: 28px 8px; color: var(--fg2); font-size: 12px; }
+.cpu-axis { margin: 2px 0 12px 40px; }
+.physwrap canvas, #physcanvas, pre.console { background: oklch(16% .012 225); }
+.err-box { background: color-mix(in oklch, var(--err) 8%, var(--bg2)); }
+@media (max-width: 1180px) {
+  .right { width: 290px; }
+  nav.tabs { width: 158px; }
+  .event-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .filter-search { grid-column: span 2; }
+}
+@media (max-width: 850px) {
+  #app { min-height: 100vh; height: auto; }
+  .topbar { padding: 10px 14px; }
+  .hmeta { order: 3; flex-basis: 100%; }
+  .top-action { margin-left: auto; }
+  .timebar { flex-wrap: wrap; gap: 8px; padding: 9px 14px; }
+  .timebar input[type=range] { order: 3; flex-basis: 100%; min-width: 0; width: 100%; }
+  .tlabel { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .minimapwrap { padding: 0 14px 8px; }
+  .main { flex-direction: column; }
+  nav.tabs { width: 100%; flex-direction: row; padding: 5px 10px; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+  nav.tabs button { width: auto; white-space: nowrap; flex: none; }
+  .left { min-height: 500px; }
+  .panel { padding: 18px 14px; min-height: 460px; }
+  .right { width: 100%; max-height: 340px; border-left: 0; border-top: 1px solid var(--line); padding: 14px; }
+  .main.detail-collapsed .right { display: none; }
+  #evscroll { height: 54vh; }
+  .trace-grid { grid-template-columns: 1fr; }
+  .function-tree, .function-sequence { max-height: 42vh; }
+}
+@media (max-width: 560px) {
+  .brand-kicker, .shortcut-hint { display: none; }
+  .hmeta > div:nth-child(n+4) { display: none; }
+  nav.tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: visible; gap: 2px; }
+  nav.tabs button { white-space: normal; text-align: center; line-height: 1.25; padding: 7px 3px; }
+  .timebar .transport { width: 100%; }
+  .transport button { flex: 1; }
+  .tlabel { text-align: left; order: 2; }
+  .event-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .filter-search { grid-column: span 2; }
+  .trace-controls { flex-wrap: wrap; }
+  .trace-controls input { flex-basis: 100%; min-width: 0; }
+  .trace-controls select { flex: 1; min-width: 0; }
+  .section-heading h2 { font-size: 17px; }
+  .card { flex-basis: 45%; min-width: 0; }
+  .physwrap { padding-left: 62px; }
+  .physaxis { width: 58px; }
+}
+@media (prefers-reduced-motion: reduce) { button { transition: none; } }
+
 </style>
 </head>
 <body>
@@ -288,30 +498,42 @@ canvas.chart { width: 100%; height: 130px; display: block; background: var(--bg2
 </div>
 
 <div id="app" style="display:none">
-  <header>
-    <h1>Node<span>Fusion</span> · 运行观测报告</h1>
+  <header class="topbar">
+    <div class="brand-lockup">
+      <div class="brand-mark" aria-hidden="true">NF</div>
+      <div>
+        <div class="brand-name">Node<span>Fusion</span></div>
+        <div class="brand-kicker">运行观测报告</div>
+      </div>
+    </div>
     <span id="outcome" class="badge"></span>
     <div class="hmeta" id="hmeta"></div>
+    <button id="quick-events" class="top-action" type="button" title="打开事件浏览器">事件浏览器</button>
+    <button id="toggle-detail" class="top-action" type="button" title="切换检查点详情">收起详情</button>
   </header>
 
   <div class="capability" id="capability" style="display:none"></div>
 
-  <div class="timebar">
-    <button id="prev">◀ 上一快照</button>
-    <button id="play">播放</button>
-    <button id="next">下一快照 ▶</button>
+  <div class="timebar" aria-label="时间控制">
+    <div class="transport">
+      <button id="prev" type="button" title="上一快照">上一帧</button>
+      <button id="play" type="button" class="primary-control">播放</button>
+      <button id="next" type="button" title="下一快照">下一帧</button>
+    </div>
     <input type="range" id="slider" min="0" value="0">
     <span class="tlabel" id="tlabel"></span>
   </div>
-  <div class="minimapwrap"><canvas id="minimap"></canvas></div>
+  <div class="minimapwrap">
+    <canvas id="minimap"></canvas>
+    <div class="minimap-axis" aria-hidden="true"><span id="mini-start">0</span><span id="mini-end">—</span></div>
+  </div>
 
   <!-- 变化摘要条：只回答"相对上一个快照，这一刻有什么变了"。
        全部是从两个快照相减得到的纯事实，不含任何对实验意图的猜测。 -->
   <div class="deltabar" id="deltabar" style="display:none"></div>
 
   <div class="main">
-    <div class="left">
-      <nav class="tabs">
+    <nav class="tabs" aria-label="报告章节">
         <button data-tab="compare">对比</button>
         <button data-tab="overview" class="on">概览</button>
         <button data-tab="phys">物理内存</button>
@@ -319,38 +541,35 @@ canvas.chart { width: 100%; height: 130px; display: block; background: var(--bg2
         <button data-tab="vm">虚拟内存与页表</button>
         <button data-tab="fs">文件系统与磁盘</button>
         <button data-tab="events">事件</button>
+        <button data-tab="functions">函数轨迹</button>
         <button data-tab="metrics">指标</button>
         <button data-tab="console">控制台</button>
-      </nav>
+    </nav>
+    <div class="left">
       <div class="panel on" id="panel-overview"></div>
       <div class="panel" id="panel-phys"></div>
       <div class="panel" id="panel-procs"></div>
       <div class="panel" id="panel-vm"></div>
       <div class="panel" id="panel-fs"></div>
       <div class="panel" id="panel-events"></div>
+      <div class="panel" id="panel-functions"></div>
       <div class="panel" id="panel-metrics"></div>
       <div class="panel" id="panel-console"></div>
       <div class="panel" id="panel-compare"></div>
     </div>
     <div class="right">
       <div id="detail">
-        <div class="dsec">
-          <div class="t">使用方法</div>
-          <div class="hint">
-            <b>按时间看</b>：拖动上方时间轴，或用 ← → 逐个快照步进，
-            下面各页会显示那一刻整个系统的状态。<br><br>
-            <b>按事件看</b>：切到「事件」页，筛选某类 syscall / 缺页 / 中断 /
-            上下文切换 / 磁盘事件，点任意一行会把时间定位过去，
-            这里会显示它的参数、前后系统变化和邻近事件。<br><br>
-            凡是外部观测无法确定的信息，都会明确标成未知，不会用推测值填充。
-          </div>
+        <div class="detail-empty">
+          <div class="detail-empty-icon" aria-hidden="true">⌖</div>
+          <h2>检查点详情</h2>
+          <p>选择事件、进程或物理页，查看当前时间点的关联数据。</p>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<script type="application/nodefusion" data-name="arceos-tracecomplete">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</script>
+<script type="application/nodefusion" data-name="arceos-tracecomplete">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</script>
 
 <script>
 /*
@@ -377,11 +596,12 @@ const NF = {
   playing: false,
   speed: 260,        // 播放时每帧停留毫秒数（录屏可用 ?speed= 调）
   loop: false,
+  detailOpen: true,
   tab: 'overview',
   selEvent: null,
   selPage: null,
   selPid: null,
-  filters: { text: '', kind: '', res: '', pid: '' },
+  filters: { text: '', kind: '', res: '', pid: '', cpu: '', group: '', from: '', to: '' },
 };
 
 /* ------------------------------------------------------------------ 工具 */
@@ -392,6 +612,10 @@ const el = (tag, cls, txt) => {
   if (cls) e.className = cls;
   if (txt !== undefined) e.textContent = txt;
   return e;
+};
+const shortText = (value, limit = 160) => {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
 };
 /* 64 位的地址和寄存器值放不进 JS 的 double。打包侧（bundle.py 的 _js_safe）
    已经把这类值发成 "0x…" 字符串了 —— 因为一旦它们以 JSON 数字的形式进来，
@@ -479,6 +703,16 @@ function evGet(run, i) {
   };
 }
 
+function eventGroup(kind) {
+  if (/^(syscall|sbi)\./.test(kind)) return '系统调用';
+  if (/^(trap|interrupt|firmware)\./.test(kind)) return '异常与中断';
+  if (/^(disk|bcache|inode|log)\./.test(kind)) return '文件与 I/O';
+  if (/^(phys|pagetable|vm)\./.test(kind)) return '内存与页表';
+  if (/^(sched|proc|sync)\./.test(kind)) return '进程与同步';
+  if (/^func\./.test(kind)) return '函数入口';
+  return '其他';
+}
+
 /* ------------------------------------------------------------ 物理内存图 */
 
 // 归属类别配色。用户页在此基础上按 pid 微调色相，让不同进程一眼可分。
@@ -504,15 +738,15 @@ const KIND_LABEL = {
  * 图例只给颜色和名字的话，没学过的人根本不知道自己在看什么。
  */
 const KIND_DEF = {
-  0: '在内核的空闲页链表里，还没有被分配出去',
-  1: '内核代码和静态数据本身占的页，开机就固定在那里',
-  2: '内核运行期间分配的页，不属于任何单个进程',
-  3: '某个进程地址空间里的页，只被这一个进程的页表映射',
-  4: '存放页表本身的页（Sv39 三级页表的节点），不存放用户数据',
-  5: '保存进程陷入内核那一刻的寄存器现场，每个进程一页',
-  6: '进程在内核态执行时用的栈，每个进程一页',
-  7: '同一页物理内存同时出现在两个或更多进程的页表里',
-  8: '外部观测无法确定归属，如实标为未知，不做猜测',
+  0: '未分配',
+  1: '内核代码 / 静态数据',
+  2: '内核运行时分配',
+  3: '单进程用户页',
+  4: '页表节点',
+  5: 'trapframe',
+  6: '内核栈',
+  7: '多进程共享',
+  8: '归属未知',
 };
 
 function pidTint(rgb, pid) {
@@ -701,50 +935,81 @@ function drawMinimap(run) {
 
 /* ---------------------------------------------------------------- 折线图 */
 
+function axisNum(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '—';
+  const a = Math.abs(n);
+  if (a >= 1e9) return `${(n / 1e9).toFixed(a >= 1e10 ? 0 : 1)}G`;
+  if (a >= 1e6) return `${(n / 1e6).toFixed(a >= 1e7 ? 0 : 1)}M`;
+  if (a >= 1e3) return `${(n / 1e3).toFixed(a >= 1e4 ? 0 : 1)}K`;
+  return Number.isInteger(n) ? n.toLocaleString('en-US') : n.toFixed(1);
+}
+
 function drawChart(canvas, series, opts) {
   opts = opts || {};
   const w = canvas.clientWidth || 600, h = canvas.clientHeight || 130;
   canvas.width = w; canvas.height = h;
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = '#161b22'; ctx.fillRect(0, 0, w, h);
-  const pad = 4;
-  let maxY = 1, maxX = 1;
-  // null 表示"这个时刻测不到"，不是 0。参与不了取最大值，也不能画点：
-  // null / maxY === 0 会把它画成贴着底轴的一条线，看上去就是"一直是 0"。
-  const okPt = (p) => p && p[1] !== null && p[1] !== undefined && !Number.isNaN(p[1]);
+  const margin = { left: 52, right: 12, top: 22, bottom: 25 };
+  const plotW = Math.max(10, w - margin.left - margin.right);
+  const plotH = Math.max(10, h - margin.top - margin.bottom);
+  let maxY = 0;
+  const okPt = (p) => p && p[1] !== null && p[1] !== undefined && Number.isFinite(Number(p[1]));
   for (const s of series) for (const p of s.points) {
-    if (!okPt(p)) continue;
-    if (p[1] > maxY) maxY = p[1];
-    if (p[0] > maxX) maxX = p[0];
+    if (okPt(p)) maxY = Math.max(maxY, Number(p[1]));
   }
-  // 网格
+  maxY = Math.max(1, maxY);
+  const minX = Number.isFinite(Number(opts.xMin)) ? Number(opts.xMin) : 0;
+  const fallbackX = Math.max(...series.flatMap((s) => s.points.filter((p) => p && p[0] !== null).map((p) => Number(p[0]))), 1);
+  const maxX = Number.isFinite(Number(opts.xMax)) ? Number(opts.xMax) : fallbackX;
+  const spanX = Math.max(1, maxX - minX);
+  const xPos = (x) => margin.left + ((Number(x) - minX) / spanX) * plotW;
+  const yPos = (y) => margin.top + plotH - (Number(y) / maxY) * plotH;
+
+  ctx.font = '10px monospace';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#8b98a8';
+  ctx.textAlign = 'left';
+  ctx.fillText(opts.title || '', margin.left, 10);
+  ctx.textAlign = 'right';
+  ctx.fillText(`峰值 ${axisNum(maxY)}`, w - margin.right, 10);
+
   ctx.strokeStyle = '#2a3140'; ctx.lineWidth = 1;
-  for (let i = 1; i < 4; i++) {
-    const y = pad + ((h - 2 * pad) * i) / 4;
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+  ctx.fillStyle = '#8b98a8';
+  for (let i = 0; i <= 4; i++) {
+    const y = margin.top + (plotH * i) / 4;
+    ctx.beginPath(); ctx.moveTo(margin.left, y); ctx.lineTo(w - margin.right, y); ctx.stroke();
+    ctx.textAlign = 'right'; ctx.fillText(axisNum(maxY * (1 - i / 4)), margin.left - 7, y);
   }
+  for (let i = 0; i <= 4; i++) {
+    const x = margin.left + (plotW * i) / 4;
+    ctx.beginPath(); ctx.moveTo(x, margin.top); ctx.lineTo(x, margin.top + plotH); ctx.stroke();
+    ctx.textAlign = i === 0 ? 'left' : i === 4 ? 'right' : 'center';
+    ctx.fillText(axisNum(minX + (spanX * i) / 4), x, h - 12);
+  }
+  ctx.strokeStyle = '#657384';
+  ctx.beginPath(); ctx.moveTo(margin.left, margin.top); ctx.lineTo(margin.left, margin.top + plotH);
+  ctx.lineTo(w - margin.right, margin.top + plotH); ctx.stroke();
+
   for (const s of series) {
-    ctx.strokeStyle = s.color; ctx.lineWidth = 1.4; ctx.beginPath();
-    // 测不到的点直接断开线段（下一个有效点重新 moveTo），让"这段没有数据"
-    // 在图上看起来就是没有数据，而不是一段贴着 0 的平线。
+    ctx.strokeStyle = s.color; ctx.lineWidth = 1.5; ctx.beginPath();
     let pen = false;
     for (const p of s.points) {
       if (!okPt(p)) { pen = false; continue; }
-      const x = (p[0] / maxX) * w;
-      const y = h - pad - (p[1] / maxY) * (h - 2 * pad);
+      const x = xPos(p[0]);
+      const y = yPos(p[1]);
+      if (x < margin.left || x > w - margin.right) { pen = false; continue; }
       pen ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
       pen = true;
     }
     ctx.stroke();
   }
-  // 播放头
-  const total = NF.runs[0].meta.total_insns || 1;
-  ctx.strokeStyle = '#4aa3ff'; ctx.lineWidth = 1; ctx.beginPath();
-  const px = (NF.cur / total) * w;
-  ctx.moveTo(px, 0); ctx.lineTo(px, h); ctx.stroke();
-  // 图例与量程
-  ctx.fillStyle = '#6b7784'; ctx.font = '10px monospace';
-  ctx.fillText(opts.title ? `${opts.title}  峰值 ${num(maxY)}` : `峰值 ${num(maxY)}`, 6, 12);
+  const px = xPos(NF.cur);
+  if (px >= margin.left && px <= w - margin.right) {
+    ctx.strokeStyle = '#4aa3ff'; ctx.lineWidth = 1; ctx.beginPath();
+    ctx.moveTo(px, margin.top); ctx.lineTo(px, margin.top + plotH); ctx.stroke();
+  }
 }
 
 /* ------------------------------------------------------------------ 渲染 */
@@ -760,8 +1025,10 @@ function renderHeader() {
     d.appendChild(el('b', null, v));
     box.appendChild(d);
   };
+  add('运行', m.run || '—');
   add('程序', m.program || '—');
   add('内核', (m.kernel_dir || '').split(/[\\/]/).pop() || '—');
+  if (m.kernel_elf_sha256) add('ELF', m.kernel_elf_sha256.slice(0, 12));
   if (m.lab_stage !== null && m.lab_stage !== undefined) add('LAB_STAGE', String(m.lab_stage));
   if (m.make_vars && Object.keys(m.make_vars).length) {
     add('构建参数', Object.entries(m.make_vars).map(([a, b]) => `${a}=${b}`).join(' '));
@@ -784,32 +1051,56 @@ function renderCapability() {
   const c = run.meta.capability;
   const box = $('#capability');
   const items = [];
-  // 有没有 guest 语义都要说。原来只在缺失时提示，结果补上语义之后这一栏整个消失了，
-  // 反而让人不知道"现在这些数到底是外部推的还是内核自己报的"。
-  items.push(c.guest_semantics_note);
+  const compact = (value, limit = 140) => shortText(value, limit);
+  items.push(c.nftrace_records
+    ? `内核语义：${num(c.nftrace_records)} 条 nftrace`
+    : '内核语义：未启用 nftrace');
   if (c.missing_watch_functions && c.missing_watch_functions.length) {
-    items.push('这个内核里不存在的被观察函数：' + c.missing_watch_functions.join('、') +
-               '（相关事件不会出现，不代表没发生对应操作）');
+    const names = c.missing_watch_functions.slice(0, 4).join('、');
+    items.push(`缺少观察点：${num(c.missing_watch_functions.length)} 个${names ? `（${names}${c.missing_watch_functions.length > 4 ? '…' : ''}）` : ''}`);
   }
   if (c.missing_layout_fields && c.missing_layout_fields.length) {
-    items.push('这个内核缺少的结构体字段：' + c.missing_layout_fields.join('、'));
+    items.push(`缺少字段：${num(c.missing_layout_fields.length)} 个`);
   }
-  if (c.trace_truncated_at_eof) items.push('轨迹文件在结尾处被截断（QEMU 被强制杀掉），最后一段记录可能不完整。');
-  if (c.plugin_truncated) items.push('物理内存快照因为达到体积上限被截断，后段时间的内存状态不完整。');
+  if (c.trace_truncated_at_eof) items.push('轨迹在结尾截断');
+  if (c.plugin_truncated) items.push('物理内存快照在结尾截断');
   if (run.meta.event_selection && run.meta.event_selection.dropped) {
-    items.push(`事件总量超过上限，抽稀了 ${num(run.meta.event_selection.dropped)} 条高频低信息量事件` +
-               `（syscall / trap / 中断 / 上下文切换 / 进程 / 日志 / 磁盘 / panic 全部保留）。`);
+    const s = run.meta.event_selection;
+    items.push(`事件流：${num(s.retained)} / ${num(s.raw)} 条（${s.policy} 抽样）`);
   }
-  for (const n of run.meta.notes || []) items.push(n);
-  for (const wn of run.meta.warnings || []) items.push(`观测器告警（指令 ${fmtInsn(wn.insn)}）：${wn.text}`);
+  for (const [kind, d] of Object.entries(c.absent_declared || {})) {
+    const why = d.why === 'feature' ? '内核没有这项功能' : '内核有该行为但缺少所需观测粒度';
+    items.push(`${kind}：${why}`);
+  }
+  for (const n of run.meta.notes || []) items.push(compact(n));
+  for (const wn of run.meta.warnings || []) items.push(`告警 @${fmtInsn(wn.insn)}：${compact(wn.text)}`);
 
-  if (!items.length) { box.style.display = 'none'; return; }
+  const cov = c.coverage || null;
+  const metric = cov && cov.metrics;
+  const complete = cov && cov.status === 'complete';
+  const headline = cov
+    ? (complete
+        ? `100% 可适用覆盖 · 指标 ${metric.covered}/${metric.applicable}`
+        : `覆盖未完整 ${num(cov.percent)}% · 指标 ${metric.covered}/${metric.applicable} · `
+          + `${num((cov.blockers || []).length)} 类待解决`)
+    : '观测能力';
+
   box.style.display = 'flex';
+  box.className = 'capability ' + (complete ? 'coverage-complete' : 'coverage-incomplete');
   box.innerHTML = '';
-  box.appendChild(el('span', 'k', '观测能力说明'));
+  const disclosure = el('details', 'cap-disclosure');
+  const summary = el('summary');
+  summary.appendChild(el('span', 'cap-headline', headline));
+  summary.appendChild(el('span', 'cap-more', '详情'));
+  disclosure.appendChild(summary);
   const ul = el('ul');
   for (const t of items) ul.appendChild(el('li', null, t));
-  box.appendChild(ul);
+  if (cov && cov.blockers && cov.blockers.length) {
+    ul.appendChild(el('li', null, '机器审计未通过：' +
+      cov.blockers.map((b) => b.check).join('、')));
+  }
+  disclosure.appendChild(ul);
+  box.appendChild(disclosure);
 }
 
 function renderTime() {
@@ -817,6 +1108,10 @@ function renderTime() {
   const total = run.meta.total_insns || 1;
   $('#slider').max = String(total);
   $('#slider').value = String(NF.cur);
+  const miniStart = $('#mini-start');
+  const miniEnd = $('#mini-end');
+  if (miniStart) miniStart.textContent = '0';
+  if (miniEnd) miniEnd.textContent = fmtInsn(total);
   const st = stateAt(run, NF.cur);
   const si = stateIndexAt(run, NF.cur);
   $('#tlabel').innerHTML =
@@ -845,51 +1140,121 @@ function renderOverview() {
    * 光看"缺页异常 38,243"没人判断得了这是多还是少，但"平均每 21.6 万条指令一次"
    * 是个能直接感受的密度。分母是总指令数，任何运行都有，不需要知道跑的是什么。
    */
-  const rate = (n) => {
+  /*
+   * 哪些卡片上的数是 `@rN` 抽稀过的（#154）。这份对应关系不在这儿维护 ——
+   * analyze.py 的 `_METRIC_KINDS` 已经写死了"指标名 -> 事件类别"，
+   * `sampling.metrics` 就是拿它跟观察点上的 rate 交出来的结果。
+   */
+  const smet = (m.sampling || {}).metrics || {};
+  const tagOf = (name) => {
+    const r = smet[name];
+    if (!r || !r.length) return '';
+    const hi = r.filter((x) => x > 1);
+    // 同一类挂了好几个观察点、限流还不一样，那这个数既不是全量也不是干净的
+    // 1/N，只能说"部分"。
+    return r.some((x) => x <= 1) ? ` · 1/${hi.join('、1/')}`
+                                 : ` · 1/${hi.join('、1/')}`;
+  };
+  /*
+   * 每个累计数都配一条"平均多久发生一次"。
+   * 光看"缺页异常 38,243"没人判断得了这是多还是少，但"平均每 21.6 万条指令一次"
+   * 是个能直接感受的密度。分母是总指令数，任何运行都有，不需要知道跑的是什么。
+   *
+   * 抽样过的那些不给密度。分子少了 N 倍，除出来的密度就稀了 N 倍 ——
+   * "平均每 21M 条指令一次 kalloc"是个具体、好记、错了两个数量级的印象。
+   * 乘回去也不行：N 是上限不是实测（末尾不足 N 次的余数直接丢），
+   * 那样得出的是估算，不是量出来的。
+   */
+  const hiRate = (name) => {
+    const r = smet[name];
+    if (!r || !r.length) return 0;
+    const hi = Math.max(...r);
+    return hi > 1 ? hi : 0;
+  };
+  const rate = (n, name) => {
+    // 抽样过的不给密度，给区间。密度是拿计数当分子算的，分子少了 N 倍，
+    // 算出来的"平均每 21M 条指令一次"就是个具体、好记、错两个数量级的印象。
+    const hi = name ? hiRate(name) : 0;
+    if (hi) return `实际 ${num(n)}～${num(n * hi)} 次`;
     if (!n || !m.total_insns) return '';
     const per = m.total_insns / n;
     const fmt = per >= 1e6 ? (per / 1e6).toFixed(1) + 'M'
               : per >= 1e3 ? (per / 1e3).toFixed(1) + 'K' : per.toFixed(0);
     return `平均每 ${fmt} 条指令一次`;
   };
-  card(fmtInsn(m.total_insns), '总指令数', '从虚拟机上电第一条指令算起');
+  card(fmtInsn(m.total_insns), '总指令数', '运行全程');
   card(num(m.syscalls), '系统调用', rate(m.syscalls));
   card(num(m.page_faults), '缺页异常', rate(m.page_faults));
-  card(num(m.context_switches), '上下文切换', rate(m.context_switches));
+  card(num(m.context_switches), '上下文切换' + tagOf('context_switches'),
+       rate(m.context_switches, 'context_switches'));
   card(num(m.timer_interrupts + m.external_interrupts), '中断',
        `时钟 ${m.timer_interrupts} / 设备 ${m.external_interrupts}`);
   // JS 里 null - null === 0，直接相减会把"两个都测不到"变成"净分配 0 页"，
   // 那是编出来的数。任一侧不可观测，差值就没有意义。
-  card(num(m.kalloc) + ' / ' + num(m.kfree), 'kalloc / kfree',
-       (m.kalloc === null || m.kfree === null)
-         ? '净分配未知（没有观测点）'
-         : `净分配 ${num(m.kalloc - m.kfree)} 页`);
-  card(num(m.disk_io), '磁盘 I/O', rate(m.disk_io));
-  card(m.bcache_hit_rate === null ? '—' : (m.bcache_hit_rate * 100).toFixed(1) + '%',
-       '缓存命中率', `${num(m.bcache_hits)} 命中 / ${num(m.bcache_reads)} 次读`);
+  //
+  // 抽样过的那一侧同理，而且更阴（#154）：`kalloc 57 / kfree 53` 两个都是
+  // 1/256 抽样，差出来的 4 不是"净分配 4 页"—— 真实净值大约是它的 256 倍，
+  // 而两个独立抽样的差本身就是噪声，256 倍之后噪声也跟着放大。数字看着小、
+  // 精确、可信，结论却是错的，比显示"未知"糟得多。
+  const ka = hiRate('kalloc'), kf = hiRate('kfree');
+  const netUnknown =
+    (m.kalloc === null || m.kfree === null) ? '净分配未知（没有观测点）'
+    : (ka || kf)
+      ? `样本 ${num(m.kalloc)}～${num(m.kalloc * (ka || 1))}`
+        + ` / ${num(m.kfree)}～${num(m.kfree * (kf || 1))}`
+    : `净 ${num(m.kalloc - m.kfree)} 页`;
+  card(num(m.kalloc) + ' / ' + num(m.kfree), 'kalloc / kfree' + tagOf('kalloc'),
+       netUnknown);
+  card(num(m.disk_io), '磁盘 I/O' + tagOf('disk_io'), rate(m.disk_io, 'disk_io'));
+  // 命中率是 (缓存读 − 设备读) / 缓存读 —— 一个**差**除以一个数。两个分量各自
+  // 抽样之后这个式子就废了，哪怕限流一样：
+  //
+  //   Starry 这趟缓存读记 3 条、设备读记 1 条；两边都是 1/64，`3 - 1`
+  //   仍然不是两次命中。真实值落在两个区间里，不能由样本点相减得到。
+  //
+  // 比值"分子分母同除以 N 所以还在"那套说法只在数大的时候成立。这里不成立，
+  // 而且不成立的时候恰好会给出一个特别像结论的数（0.0%）。所以只要有一侧
+  // 抽样过就不给百分比 —— 这是三态里的"测不准"，跟"测出来是 0"不一样。
+  const hrSampled = !!(smet.bcache_reads || smet.disk_io);
+  const hrSub = hrSampled ? '样本不可合并' : `${num(m.bcache_hits)} / ${num(m.bcache_reads)} 次读`;
+  card((m.bcache_hit_rate === null || hrSampled)
+         ? '—' : (m.bcache_hit_rate * 100).toFixed(1) + '%',
+       '缓存命中率', hrSub);
   // 映射分两档，**按粒度不按内核**：区域级一次调用映一段（xv6 mappages、
   // ArceOS Backend::map），页级一次调用写一个 PTE（rCore PageTable::map）。
   // 两档以前共用一张卡片，于是 76583 和 32318 并排摆着看，而那是「映射了
   // 多少段」对「写了多少个 PTE」。标题得把粒度写出来，不然分开也白分。
-  card(num(m.vm_maps), '映射区域建立', '一次调用映一段');
-  card(num(m.page_table_maps), '页表项写入', '一次调用写一个 PTE');
-  card(num(m.log_commits), '日志提交');
+  // 这几张卡的副标题是**粒度说明**不是密度，所以区间得另外接上去，不能走
+  // `rate()`（那个是拿副标题的位置说密度的）。
+  const withRange = (sub, n, name) => {
+    const hi = hiRate(name);
+    if (!hi || n === null || n === undefined) return sub;
+    const r = `实际 ${num(n)}～${num(n * hi)} 次`;
+    return sub ? `${sub} · ${r}` : r;
+  };
+  card(num(m.vm_maps), '映射区域' + tagOf('vm_maps'),
+       withRange('一次 / 段', m.vm_maps, 'vm_maps'));
+  card(num(m.page_table_maps), '页表项' + tagOf('page_table_maps'),
+       withRange('一次 / PTE', m.page_table_maps, 'page_table_maps'));
+  card(num(m.log_commits), '日志提交' + tagOf('log_commits'),
+       withRange('', m.log_commits, 'log_commits'));
   p.appendChild(cards);
 
-  p.appendChild(el('div', 'hint',
-    '缓存命中率是外部推导量：每次 bread 都要取到一个块，只有未命中才会真的触发磁盘 I/O，' +
-    '所以 命中 ≈ bread 次数 − 磁盘 I/O 次数。这不是内核直接告诉我们的数字。'));
+  p.appendChild(el('div', 'hint', '缓存命中率：bread 次数 − 磁盘 I/O，外部推导。'));
 
   // 上面若干张卡片显示 "—"，是因为这个内核里压根没有对应的函数可挂观测点。
   // 不写清楚的话，"—" 和 "0" 在读者眼里都是"没发生"，而这两件事完全不同。
   if (m.unobservable_reason) {
-    p.appendChild(el('div', 'hint', m.unobservable_reason));
+    const d = el('details', 'inline-disclosure hint');
+    d.appendChild(el('summary', null, '指标不可用'));
+    d.appendChild(el('div', 'disclosure-body', shortText(m.unobservable_reason, 90)));
+    p.appendChild(d);
   }
 
   // 当前时刻的系统概况
   p.appendChild(el('h3', null, '当前时刻的系统状态'));
   if (!st) {
-    p.appendChild(el('div', 'hint', '这个时刻还没有物理内存快照，无法重建系统状态。'));
+    p.appendChild(el('div', 'hint', '此时刻无物理内存快照。'));
   } else {
     const g = el('div', 'cards');
     const c2 = (v, l) => {
@@ -919,7 +1284,7 @@ function renderProcTable(run, st) {
   // 那是个结论；这里没有结论。
   if (st.procs_ok === false) {
     return el('div', 'err-box',
-      '进程表无法重建：' + (st.procs_reason || '未知原因'));
+      '进程表不可用 · ' + shortText(st.procs_reason || '未知原因', 110));
   }
   // 列分两段。
   //
@@ -1009,17 +1374,17 @@ function renderProcTable(run, st) {
     // 进程只有这么点信息。
     const box = el('div');
     box.appendChild(t);
-    box.appendChild(el('div', 'hint',
-      '这份录制是用旧的分内核解码器解的，没有逐字段的来源信息，'
-      + '所以这里只列得出通用的那几列。'));
+    box.appendChild(el('div', 'hint', '旧格式：仅显示通用字段。'));
     return box;
   }
   if (dropped.length) {
     const box = el('div');
     box.appendChild(t);
-    box.appendChild(el('div', 'hint',
-      '这个内核没有下面这些字段，所以表里没有对应的列 —— '
-      + '不是这次没读到：' + dropped.join('；')));
+    const d = el('details', 'inline-disclosure hint');
+    d.appendChild(el('summary', null, `未显示的可选字段（${dropped.length}）`));
+    d.appendChild(el('div', 'disclosure-body',
+      dropped.map((item) => item.split('：')[0]).join('、') + '：当前内核未提供'));
+    box.appendChild(d);
     return box;
   }
   return t;
@@ -1070,7 +1435,7 @@ function renderCpuLanes(run) {
   for (let c = 0; c < ncpu; c++) {
     const cv = el('canvas', 'chart');
     cv.style.height = '26px';
-    wrap.appendChild(el('div', 'hint', `CPU ${c}（绿=用户态，蓝=内核态/机器态，灰=无采样）`));
+    wrap.appendChild(el('div', 'hint', `CPU ${c} · 用户 / 内核 / 无采样`));
     wrap.appendChild(cv);
     setTimeout(() => {
       const w = cv.clientWidth || 600, h = 26;
@@ -1084,9 +1449,14 @@ function renderCpuLanes(run) {
         ctx.fillRect(x, 2, 1, h - 4);
       }
       const px = Math.floor((NF.cur / total) * w);
-      ctx.fillStyle = '#fff'; ctx.fillRect(px, 0, 1, h);
+      ctx.fillStyle = 'oklch(98% .005 215)'; ctx.fillRect(px, 0, 1, h);
     }, 0);
   }
+  const axis = el('div', 'cpu-axis');
+  axis.appendChild(el('span', null, '0'));
+  axis.appendChild(el('span', null, axisNum(total / 2)));
+  axis.appendChild(el('span', null, axisNum(total)));
+  wrap.appendChild(axis);
   return wrap;
 }
 
@@ -1098,7 +1468,7 @@ function renderPhys() {
   if (!st) { p.appendChild(el('div', 'hint', '该时刻没有物理内存快照。')); return; }
   if (!st.phys_ok) {
     p.appendChild(el('div', 'err-box',
-      '物理内存归属无法重建：' + (st.phys_reason || '未知原因')));
+      '物理内存不可用 · ' + shortText(st.phys_reason || '未知原因', 110)));
   }
 
   const base = run.meta.ram_base || 0x80000000;
@@ -1108,25 +1478,10 @@ function renderPhys() {
   const rows = Math.ceil(st.total / cols);
 
   p.appendChild(el('div', 'hint',
-    `每个小方格 = 一页 ${psz / 1024} KiB 物理内存，共 ${num(st.total)} 页 = ` +
-    `${(st.total * psz / 1048576).toFixed(0)} MiB。按物理地址从左到右、从上到下排列，` +
-    `一行正好是 ${rowBytes / 1048576} MiB，左边标注的就是每行起始的物理地址。` +
-    `点击任意一格可以查看那一页的归属、属于哪个进程、被几个页表引用。` +
-    // 页表根从哪来会改变这张图的含义：来自进程表 = 权威的"当前有哪些地址空间"；
-    // 来自外部嗅探的 satp = 只知道"这段时间里哪些地址空间上过 CPU"，进程归属未知。
-    // 不说清楚，看的人会把后者当成前者。
-    (st.pt_root_src === 'observed-satp'
-      ? '　本图的地址空间来自外部观测到的 satp 值（这段时间内上过 CPU 的页表），' +
-        '不是内核进程表，因此页的进程归属未知。'
-      : '') +
-    // 一个页表根都没有的时刻（例如分页还没打开），这张图上几乎全是"未知"。
-    // 不说明的话，看的人会以为是观测失败。只陈述事实，不替它猜原因 ——
-    // 没观测到根，可能是 satp 还是 0，也可能是这段窗口内没有采样点。
-    (!st.pt_root_src
-      ? '　这一时刻没有观测到任何页表根，因此没有任何页的归属来自页表遍历；' +
-        '图上仅有的归属来自内核镜像的静态地址范围，其余一律标为未知。'
-      : '') +
-    (st.phys_reason ? `　注意：${st.phys_reason}` : '')));
+    `每格 ${psz / 1024} KiB · ${num(st.total)} 页 · ${rowBytes / 1048576} MiB / 行 · 点击查看页详情` +
+    (st.pt_root_src === 'observed-satp' ? ' · 地址空间来自 satp 观测' : '') +
+    (!st.pt_root_src ? ' · 未观测到页表根' : '') +
+    (st.phys_reason ? ` · ${shortText(st.phys_reason, 120)}` : '')));
 
   // 图例：颜色 + 名字 + 这个名字到底指什么。术语解释是操作系统概念本身，
   // 和这次跑的是什么程序无关，所以放在这里是安全的。
@@ -1207,10 +1562,8 @@ function renderPhys() {
   const folded = lines.filter((l) => l.type === 'gap')
                       .reduce((a, l) => a + (l.to - l.from + 1), 0);
   p.appendChild(el('div', 'hint',
-    (prevSt ? `和上一个快照（指令 ${fmtInsn(prevSt.insn)}）相比，这一帧有 ${num(changed)} 页归属变了：` +
-              `刚被占用的页会提亮，刚被释放的页压成暗红色。` : '') +
-    (folded ? `　已折叠 ${folded} 行全空闲区域（${folded * rowBytes / 1048576} MiB），` +
-              `勾掉上面的选项可以看完整的 ${(st.total * psz / 1048576).toFixed(0)} MiB。` : '')));
+    (prevSt ? `变化页 ${num(changed)}` : '') +
+    (folded ? ` · 折叠空闲 ${folded} 行` : '')));
 
   // 卡片：每个绝对数都配一个参照系，否则"31,763"这种数字没法判断大小
   const g = el('div', 'cards');
@@ -1229,7 +1582,7 @@ function renderPhys() {
   };
   // 数值为 null 表示这一项本次拿不到（比如没有空闲链表就不知道空闲页数）。
   // 这时候连参照系一起换成说明，绝不能让 pct/mib 算出 NaN 冒充一个数。
-  const why = (reason) => reason || '本次运行无法确定';
+  const why = (reason) => shortText(reason || '未确定', 60);
   c2(num(st.used), '已用物理页',
      st.used === null ? why(st.phys_reason)
                       : `${pct(st.used)}　${mib(st.used)}` + deltaStr(prevSt, st, 'used'));
@@ -1237,8 +1590,8 @@ function renderPhys() {
      st.free === null ? why(st.phys_reason) : `${pct(st.free)}　${mib(st.free)}`);
   c2(num(st.shared), '多进程共享页',
      st.shared === null ? why(st.procs_reason)
-     : st.shared ? `${pct(st.shared)}　省下 ${mib(st.shared)}`
-                 : '当前没有被共享的页');
+     : st.shared ? `${pct(st.shared)}　${mib(st.shared)}`
+                 : '0 页共享');
   c2(num(st.total), '物理页总数', `${mib(st.total)}　每页 ${psz / 1024} KiB`);
   p.appendChild(g);
 }
@@ -1263,16 +1616,12 @@ function renderProcs() {
   p.appendChild(el('h3', null, '进程表'));
   p.appendChild(renderProcTable(run, st));
 
-  p.appendChild(el('h3', null, '各核当前运行的进程（由 swtch 的上下文指针在虚拟机外部重建）'));
+  p.appendChild(el('h3', null, '各核当前进程'));
   if (!st.cpus.length) {
     // 空表配一排 xv6 的表头（push_off 深度 / 中断使能）是在暗示"这些量存在，
     // 只是这一刻没有" —— 而 rCore 和 ArceOS 根本没有 xv6 那个 per-CPU 结构。
     // 一行都没有的时候就别画表。
-    p.appendChild(el('div', 'hint',
-      '这份录制没有重建出"每个核上跑着谁"。这一栏读的是 xv6 那种 per-CPU 结构'
-      + '（cpus[]，里面有 push_off 深度和中断使能）；别的内核即使有等价的东西，'
-      + '也还没有在 manifest 里声明成实体。'
-      + '事件表里的 pid 归属不受影响 —— 那是另一条路（按 swtch 的上下文指针跟的）。'));
+    p.appendChild(el('div', 'hint', '未重建 per-CPU 运行表。'));
   } else {
     const t = el('table');
     const hr = el('tr');
@@ -1303,11 +1652,7 @@ function renderProcs() {
   const hasSleepState = states.includes('SLEEPING');
   p.appendChild(el('h3', null, '等待与同步关系'));
   if (!hasSleepState && st.procs.length) {
-    p.appendChild(el('div', 'hint',
-      '这一栏按 xv6 的 sleep/wakeup 模型组织：进程睡在一个 chan（等待通道）上。'
-      + '当前内核这一刻的状态只有 ' + states.join('、') + '，里面没有 SLEEPING，'
-      + '也没有 chan 这个概念，所以这里排不出等待关系。'
-      + '这说的是词汇对不上，不是"没有任务在等待"。'));
+    p.appendChild(el('div', 'hint', `当前内核未提供 xv6 chan 字段（状态：${states.join('、')}）。`));
   } else if (!sleepers.length) {
     p.appendChild(el('div', 'hint', '当前没有进程处于睡眠状态。'));
   } else {
@@ -1358,12 +1703,10 @@ function renderVm() {
   if (!pr) { p.appendChild(el('div', 'hint', '选一个进程来查看它的用户地址空间与页表。')); return; }
 
   if (pr.vm_error) {
-    p.appendChild(el('div', 'err-box', '这棵页表没能完整遍历：' + pr.vm_error));
+    p.appendChild(el('div', 'err-box', '页表遍历不完整 · ' + shortText(pr.vm_error, 110)));
   }
   p.appendChild(el('div', 'hint',
-    `页表根 ${hex(pr.pagetable)}，进程大小 ${num(pr.sz)} 字节` +
-    `（约 ${Math.ceil(pr.sz / 4096)} 页），实际映射 ${pr.user_pages} 个用户页，` +
-    `其中 ${pr.cow_pages} 个带 COW 标记，页表自身占 ${pr.pt_pages} 页。`));
+    `根 ${hex(pr.pagetable)} · ${num(pr.sz)} B · 用户页 ${num(pr.user_pages)} · COW ${num(pr.cow_pages)} · 页表 ${num(pr.pt_pages)}`));
 
   const t = el('table');
   const hr = el('tr');
@@ -1405,10 +1748,10 @@ function renderFs() {
   const section = (title, res, cols, rowfn, emptyText) => {
     p.appendChild(el('h3', null, title));
     if (!res.ok) {
-      p.appendChild(el('div', 'err-box', '无法解读：' + res.reason));
+      p.appendChild(el('div', 'err-box', '资源不可用 · ' + shortText(res.reason, 110)));
       return;
     }
-    if (!res.rows.length) { p.appendChild(el('div', 'hint', emptyText)); return; }
+    if (!res.rows.length) { p.appendChild(el('div', 'hint', shortText(emptyText))); return; }
     const t = el('table'); const hr = el('tr');
     cols.forEach((c) => hr.appendChild(el('th', null, c)));
     t.appendChild(hr);
@@ -1441,7 +1784,7 @@ function renderFs() {
     // 空有两种成因，结论相反：内核确实没有资源表，还是我们压根没去看。
     // 后端把原因带上来了，照发。
     p.appendChild(el('div', 'hint',
-                     st.resources_reason || '该内核没有可显示的资源表。'));
+                     shortText(st.resources_reason || '该内核没有可显示的资源表。')));
   }
   for (const res of resources) {
     // show_when_any：默认只铺"在用"的行。这是**内核的判断**，写在 manifest
@@ -1456,7 +1799,7 @@ function renderFs() {
             res.empty || '当前没有内容。');
     // 少掉的可选列要说出来。默默少一列的话，读的人会以为这个内核就没这项。
     for (const n of res.notes || []) {
-      p.appendChild(el('div', 'hint', n));
+      p.appendChild(el('div', 'hint', shortText(n)));
     }
   }
 
@@ -1466,9 +1809,7 @@ function renderFs() {
   const anyFds = st.procs.some((pr) => pr.fds);
   p.appendChild(el('h3', null, '每进程文件描述符'));
   if (!anyFds) {
-    p.appendChild(el('div', 'hint',
-      '这份录制里没有解出每进程的打开文件表 —— 要么这个内核不用"进程持有 fd 数组"'
-      + '这种结构，要么 manifest 没有声明它。这跟"所有进程都没打开文件"不是一回事。'));
+    p.appendChild(el('div', 'hint', '未记录每进程 fd 表。'));
   } else {
     const t = el('table'); const hr = el('tr');
     ['进程', 'pid', '已打开的 fd'].forEach((h) => hr.appendChild(el('th', null, h)));
@@ -1498,15 +1839,23 @@ function applyFilters() {
   const n = run.events.insn.length;
   evFiltered = [];
   const txt = f.text.trim().toLowerCase();
+  const from = f.from === '' ? null : Number(f.from);
+  const to = f.to === '' ? null : Number(f.to);
   for (let i = 0; i < n; i++) {
+    const insn = Number(run.events.insn[i]);
+    if (from !== null && Number.isFinite(from) && insn < from) continue;
+    if (to !== null && Number.isFinite(to) && insn > to) continue;
     const kind = run.dict.kinds[run.events.kind[i]];
     if (f.kind && kind !== f.kind) continue;
+    if (f.group && eventGroup(kind) !== f.group) continue;
     if (f.res && run.dict.res[run.events.res[i]] !== f.res) continue;
     if (f.pid !== '' && String(run.events.pid[i]) !== f.pid) continue;
+    if (f.cpu !== '' && String(run.events.cpu[i]) !== f.cpu) continue;
     if (txt) {
       const fn = run.dict.funcs[run.events.func[i]] || '';
       const d = run.events.detail[i];
-      const hay = (kind + ' ' + fn + ' ' + (d ? JSON.stringify(d) : '')).toLowerCase();
+      const hay = (kind + ' ' + (run.dict.res[run.events.res[i]] || '') + ' ' + fn + ' ' +
+                   (d ? JSON.stringify(d) : '')).toLowerCase();
       if (hay.indexOf(txt) < 0) continue;
     }
     evFiltered.push(i);
@@ -1518,7 +1867,31 @@ function renderEvents() {
   const p = $('#panel-events');
   p.innerHTML = '';
 
-  const f = el('div', 'filters');
+  const heading = el('div', 'section-heading');
+  const title = el('div');
+  title.appendChild(el('h2', null, '事件浏览器'));
+  title.appendChild(el('div', 'section-subtitle', '筛选事件，点击行定位。'));
+  heading.appendChild(title);
+  const shortcut = el('span', 'shortcut-hint', '按 / 聚焦搜索');
+  heading.appendChild(shortcut);
+  p.appendChild(heading);
+
+  const f = el('div', 'filters event-filters');
+  const updateTextFilter = (key, input) => {
+    const start = input.selectionStart, end = input.selectionEnd;
+    NF.filters[key] = input.value;
+    clearTimeout(NF.filterTimer);
+    NF.filterTimer = setTimeout(() => {
+      renderEvents();
+      const replacement = document.getElementById(input.id);
+      if (replacement) {
+        replacement.focus();
+        if (start !== null && end !== null) replacement.setSelectionRange(start, end);
+      }
+    }, 180);
+  };
+  const searchWrap = el('label', 'filter-control filter-search');
+  searchWrap.appendChild(el('span', 'filter-label', '搜索'));
   const kinds = [...new Set(run.dict.kinds)].sort();
   const kSel = el('select');
   kSel.appendChild(new Option('全部事件类型', ''));
@@ -1532,28 +1905,137 @@ function renderEvents() {
   rSel.value = NF.filters.res;
   rSel.onchange = () => { NF.filters.res = rSel.value; renderEvents(); };
 
-  const pIn = el('input'); pIn.type = 'text'; pIn.placeholder = 'pid'; pIn.style.width = '60px';
+  const groupSel = el('select');
+  groupSel.appendChild(new Option('全部语义分组', ''));
+  const groups = [...new Set(run.dict.kinds.map(eventGroup))].sort();
+  for (const group of groups) groupSel.appendChild(new Option(group, group));
+  groupSel.value = NF.filters.group;
+  groupSel.onchange = () => { NF.filters.group = groupSel.value; renderEvents(); };
+
+  const pIn = el('input'); pIn.id = 'event-pid'; pIn.type = 'text'; pIn.placeholder = '例如 2';
   pIn.value = NF.filters.pid;
-  pIn.oninput = () => { NF.filters.pid = pIn.value; renderEvents(); };
+  pIn.oninput = () => updateTextFilter('pid', pIn);
 
-  const tIn = el('input'); tIn.type = 'text'; tIn.placeholder = '搜索函数名 / 参数 / 系统调用名…';
+  const tIn = el('input'); tIn.id = 'event-search'; tIn.type = 'search'; tIn.placeholder = '函数名、参数、系统调用…';
   tIn.value = NF.filters.text;
-  tIn.oninput = () => { NF.filters.text = tIn.value; renderEvents(); };
+  tIn.oninput = () => updateTextFilter('text', tIn);
+  searchWrap.appendChild(tIn);
 
-  const jump = el('button', null, '跳到当前时刻');
+  const pidWrap = el('label', 'filter-control');
+  pidWrap.appendChild(el('span', 'filter-label', 'PID'));
+  pidWrap.appendChild(pIn);
+  const cpuWrap = el('label', 'filter-control');
+  cpuWrap.appendChild(el('span', 'filter-label', 'CPU'));
+  const cpuSel = el('select');
+  cpuSel.appendChild(new Option('全部 CPU', ''));
+  for (const cpu of [...new Set(run.events.cpu)].sort((a, b) => a - b)) cpuSel.appendChild(new Option(`CPU ${cpu}`, String(cpu)));
+  cpuSel.value = NF.filters.cpu;
+  cpuSel.onchange = () => { NF.filters.cpu = cpuSel.value; renderEvents(); };
+  cpuWrap.appendChild(cpuSel);
+
+  const kindWrap = el('label', 'filter-control');
+  kindWrap.appendChild(el('span', 'filter-label', '事件类型'));
+  kindWrap.appendChild(kSel);
+  const resWrap = el('label', 'filter-control');
+  resWrap.appendChild(el('span', 'filter-label', '资源'));
+  resWrap.appendChild(rSel);
+
+  const fromWrap = el('label', 'filter-control range-control');
+  fromWrap.appendChild(el('span', 'filter-label', '指令起点'));
+  const fromIn = el('input'); fromIn.id = 'event-from'; fromIn.type = 'text'; fromIn.inputMode = 'numeric'; fromIn.placeholder = '0';
+  fromIn.value = NF.filters.from; fromIn.oninput = () => updateTextFilter('from', fromIn);
+  fromWrap.appendChild(fromIn);
+  const toWrap = el('label', 'filter-control range-control');
+  toWrap.appendChild(el('span', 'filter-label', '指令终点'));
+  const toIn = el('input'); toIn.id = 'event-to'; toIn.type = 'text'; toIn.inputMode = 'numeric'; toIn.placeholder = num(run.meta.total_insns);
+  toIn.value = NF.filters.to; toIn.oninput = () => updateTextFilter('to', toIn);
+  toWrap.appendChild(toIn);
+
+  const jump = el('button', 'secondary-control', '跳到当前时刻');
   jump.onclick = () => { scrollToCurrent(); };
+  const clear = el('button', 'ghost-control', '清除筛选');
+  clear.onclick = () => { clearTimeout(NF.filterTimer); NF.filters = { text: '', kind: '', res: '', pid: '', cpu: '', group: '', from: '', to: '' }; renderEvents(); };
 
-  f.appendChild(kSel); f.appendChild(rSel); f.appendChild(pIn); f.appendChild(tIn); f.appendChild(jump);
+  const groupWrap = el('label', 'filter-control');
+  groupWrap.appendChild(el('span', 'filter-label', '语义分组'));
+  groupWrap.appendChild(groupSel);
+  f.appendChild(searchWrap); f.appendChild(groupWrap); f.appendChild(kindWrap); f.appendChild(resWrap); f.appendChild(pidWrap); f.appendChild(cpuWrap);
+  f.appendChild(fromWrap); f.appendChild(toWrap); f.appendChild(jump); f.appendChild(clear);
   p.appendChild(f);
 
+  const presets = el('div', 'range-presets');
+  presets.appendChild(el('span', null, '时间范围'));
+  const preset = (label, from, to) => {
+    const b = el('button', 'range-preset' + (NF.filters.from === from && NF.filters.to === to ? ' selected' : ''), label);
+    b.type = 'button';
+    b.onclick = () => { NF.filters.from = from; NF.filters.to = to; renderEvents(); };
+    presets.appendChild(b);
+  };
+  preset('全部', '', '');
+  const si = stateIndexAt(run, NF.cur);
+  if (si >= 0) preset('当前快照', String(si ? run.states[si - 1].insn : 0), String(run.states[si].insn));
+  if (run.meta.program_start_insn) preset('目标程序', String(run.meta.program_start_insn), '');
+  p.appendChild(presets);
+
   applyFilters();
-  const info = el('div', 'hint',
-    `共 ${num(evFiltered.length)} 条事件（总计 ${num(run.events.insn.length)} 条）。` +
-    `点击任意一行会把时间轴定位到该事件，并在右侧展示它前后的系统变化。`);
+  const info = el('div', 'result-bar');
+  info.appendChild(el('strong', null, `${num(evFiltered.length)} 条结果`));
+  info.appendChild(el('span', null, ` / ${num(run.events.insn.length)} 条事件`));
+  if (NF.filters.kind || NF.filters.group || NF.filters.res || NF.filters.pid || NF.filters.cpu || NF.filters.text || NF.filters.from || NF.filters.to) {
+    info.appendChild(el('span', 'result-active', '已应用筛选'));
+  }
   p.appendChild(info);
+  if (!evFiltered.length) {
+    const empty = el('div', 'event-empty');
+    empty.appendChild(el('strong', null, '没有匹配的事件'));
+    empty.appendChild(el('p', null, '清除筛选或调整范围。'));
+    p.appendChild(empty);
+    return;
+  }
+
+  const facet = el('div', 'event-facets');
+  const counts = new Map();
+  for (let i = 0; i < run.events.insn.length; i++) {
+    const k = run.dict.kinds[run.events.kind[i]];
+    counts.set(k, (counts.get(k) || 0) + 1);
+  }
+  [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).forEach(([kind, count]) => {
+    const b = el('button', 'facet' + (NF.filters.kind === kind ? ' selected' : ''));
+    b.type = 'button'; b.title = `筛选 ${kind}`;
+    b.appendChild(el('span', null, kind)); b.appendChild(el('b', null, num(count)));
+    b.onclick = () => { NF.filters.kind = NF.filters.kind === kind ? '' : kind; renderEvents(); };
+    facet.appendChild(b);
+  });
+  if (facet.childElementCount) p.appendChild(facet);
+
+  const density = el('div', 'event-density');
+  const densityHead = el('div', 'density-head');
+  densityHead.appendChild(el('div', 'density-label', '事件分布'));
+  const bars = el('div', 'density-bars');
+  const bins = 48; const totalInsn = Number(run.meta.total_insns) || 1; const binCounts = Array(bins).fill(0);
+  for (const i of evFiltered) {
+    const at = Math.min(bins - 1, Math.floor(Number(run.events.insn[i]) / totalInsn * bins));
+    binCounts[at]++;
+  }
+  const peak = Math.max(1, ...binCounts);
+  densityHead.appendChild(el('span', 'density-meta', `每段 ${axisNum(totalInsn / bins)} 指令 · 峰值 ${num(peak)}`));
+  density.appendChild(densityHead);
+  binCounts.forEach((count, bin) => {
+    const b = el('button', 'density-bar'); b.type = 'button'; b.title = `${num(count)} 条事件`;
+    b.setAttribute('aria-label', `第 ${bin + 1} 个时间段，${num(count)} 条事件`);
+    b.style.height = `${Math.max(4, Math.round(count / peak * 100))}%`;
+    b.onclick = () => { NF.filters.from = String(Math.floor(bin / bins * totalInsn)); NF.filters.to = String(Math.ceil((bin + 1) / bins * totalInsn)); renderEvents(); };
+    bars.appendChild(b);
+  });
+  density.appendChild(bars);
+  const densityAxis = el('div', 'density-axis');
+  densityAxis.appendChild(el('span', null, '0'));
+  densityAxis.appendChild(el('span', null, axisNum(totalInsn / 2)));
+  densityAxis.appendChild(el('span', null, axisNum(totalInsn)));
+  density.appendChild(densityAxis); p.appendChild(density);
 
   const scroll = el('div'); scroll.id = 'evscroll';
-  const table = el('table');
+  const table = el('table'); table.className = 'event-table';
   const hr = el('tr');
   ['指令号', 'tick', 'CPU', 'pid', '事件', '资源', '函数', '要点'].forEach((h) => hr.appendChild(el('th', null, h)));
   table.appendChild(hr);
@@ -1562,7 +2044,7 @@ function renderEvents() {
   p.appendChild(scroll);
 
   // 简易虚拟滚动：只渲染视口附近的行
-  const ROW = 21;
+  const ROW = 34;
   const spacerTop = el('tr'); const tdT = el('td'); tdT.colSpan = 8; spacerTop.appendChild(tdT);
   const spacerBot = el('tr'); const tdB = el('td'); tdB.colSpan = 8; spacerBot.appendChild(tdB);
 
@@ -1579,16 +2061,21 @@ function renderEvents() {
       const i = evFiltered[k];
       const e = evGet(run, i);
       const tr = el('tr', 'clickable');
+      tr.tabIndex = 0;
+      tr.setAttribute('aria-label', `${e.kind}，指令 ${fmtInsn(e.insn)}，${summarize(e)}`);
       if (NF.selEvent === i) tr.className += ' sel';
       tr.appendChild(el('td', 'mono', fmtInsn(e.insn)));
       tr.appendChild(el('td', 'mono', e.tick === null ? '—' : String(e.tick)));
       tr.appendChild(el('td', 'mono', String(e.cpu)));
       tr.appendChild(el('td', 'mono', e.pid === null ? '—' : String(e.pid)));
-      tr.appendChild(el('td', null, e.kind));
+      const kindCell = el('td'); kindCell.appendChild(el('span', 'event-kind', e.kind)); tr.appendChild(kindCell);
       tr.appendChild(el('td', null, e.res));
       tr.appendChild(el('td', 'mono', e.func || '—'));
       tr.appendChild(el('td', 'mono', summarize(e)));
       tr.onclick = () => { selectEvent(i); };
+      tr.onkeydown = (key) => {
+        if (key.key === 'Enter' || key.key === ' ') { key.preventDefault(); selectEvent(i); }
+      };
       body.appendChild(tr);
     }
     body.appendChild(spacerBot);
@@ -1653,10 +2140,157 @@ function scrollToCurrent() {
 }
 
 function selectEvent(i) {
+  const previousScroll = $('#evscroll')?.scrollTop;
   NF.selEvent = i;
   NF.cur = NF.runs[0].events.insn[i];
   render();
+  const scroll = $('#evscroll');
+  if (scroll && previousScroll !== undefined) { scroll.scrollTop = previousScroll; scroll._paint(); }
   showEventDetail(NF.runs[0], i);
+}
+
+function renderFunctions() {
+  const run = NF.runs[0];
+  const p = $('#panel-functions');
+  p.innerHTML = '';
+  const heading = el('div', 'section-heading');
+  const title = el('div');
+  title.appendChild(el('h2', null, '函数轨迹'));
+  const entryCounts = run.meta.function_entries;
+  const scope = entryCounts && entryCounts.raw > entryCounts.retained
+    ? ` · 显示 ${num(entryCounts.retained)} / ${num(entryCounts.raw)} 条`
+    : '';
+  title.appendChild(el('div', 'section-subtitle', `函数入口${scope} · 返回地址可定位直接调用方；无返回事件。`));
+  heading.appendChild(title);
+  p.appendChild(heading);
+
+  const entries = [];
+  for (let i = 0; i < run.events.insn.length; i++) {
+    const kind = run.dict.kinds[run.events.kind[i]];
+    if (run.events.entry ? run.events.entry[i] !== 1 : !kind.startsWith('func.')) continue;
+    const entryName = run.events.entry_name?.[i] ?? -1;
+    const callerId = run.events.caller?.[i] ?? -1;
+    const fn = (entryName >= 0 ? run.dict.funcs[entryName] : '')
+      || run.dict.funcs[run.events.func[i]] || kind.slice(5);
+    const caller = callerId >= 0 ? run.dict.funcs[callerId] : '';
+    entries.push({ i, fn, caller, insn: run.events.insn[i], cpu: run.events.cpu[i], pid: run.events.pid[i] });
+  }
+  if (!entries.length) {
+    const empty = el('div', 'event-empty');
+    empty.appendChild(el('strong', null, '无函数入口事件'));
+    empty.appendChild(el('p', null, '前往事件浏览器。'));
+    p.appendChild(empty);
+    return;
+  }
+
+  const controls = el('div', 'trace-controls');
+  const search = el('input'); search.type = 'search'; search.placeholder = '筛选函数名'; search.id = 'function-search';
+  const cpu = el('select'); cpu.id = 'function-cpu'; cpu.appendChild(new Option('全部 CPU', ''));
+  for (const c of [...new Set(entries.map((e) => e.cpu))].sort((a, b) => a - b)) cpu.appendChild(new Option(`CPU ${c}`, String(c)));
+  const limit = el('select'); limit.id = 'function-limit';
+  for (const n of [40, 80, 160]) limit.appendChild(new Option(`最近 ${n} 条`, String(n)));
+  limit.value = '80';
+  const grouping = el('select'); grouping.id = 'function-grouping';
+  grouping.appendChild(new Option('调用关系', 'caller'));
+  grouping.appendChild(new Option('名称层级', 'namespace'));
+  if (!entries.some((e) => e.caller)) grouping.value = 'namespace';
+  controls.appendChild(search); controls.appendChild(cpu); controls.appendChild(grouping);
+  controls.appendChild(limit); p.appendChild(controls);
+
+  const grid = el('div', 'trace-grid');
+  const treePanel = el('section', 'trace-panel');
+  const treeTitle = el('div', 'trace-panel-title', '调用关系');
+  const treeNote = el('div', 'trace-panel-note', '由入口时的返回地址定位直接调用方。');
+  treePanel.appendChild(treeTitle);
+  treePanel.appendChild(treeNote);
+  const sequencePanel = el('section', 'trace-panel');
+  sequencePanel.appendChild(el('div', 'trace-panel-title', '入口顺序'));
+  sequencePanel.appendChild(el('div', 'trace-panel-note', '按记录顺序排列。'));
+  const tree = el('div', 'function-tree'); const sequence = el('div', 'function-sequence');
+  treePanel.appendChild(tree); sequencePanel.appendChild(sequence);
+  grid.appendChild(treePanel); grid.appendChild(sequencePanel); p.appendChild(grid);
+
+  function paint() {
+    const q = search.value.trim().toLowerCase();
+    const selectedCpu = cpu.value;
+    const filtered = entries.filter((e) => (!q || e.fn.toLowerCase().includes(q) || e.caller.toLowerCase().includes(q)) && (selectedCpu === '' || String(e.cpu) === selectedCpu));
+    const counts = new Map();
+    for (const e of filtered) counts.set(e.fn, (counts.get(e.fn) || 0) + 1);
+    tree.innerHTML = '';
+    if (grouping.value === 'caller') {
+      treeTitle.textContent = '调用关系';
+      treeNote.textContent = '由入口时的返回地址定位直接调用方。';
+      const edges = new Map();
+      for (const e of filtered) {
+        if (!e.caller) continue;
+        const key = `${e.caller}\0${e.fn}`;
+        if (!edges.has(key)) edges.set(key, { caller: e.caller, fn: e.fn, count: 0, index: e.i });
+        edges.get(key).count++;
+      }
+      [...edges.values()].sort((a, b) => b.count - a.count || a.fn.localeCompare(b.fn))
+        .slice(0, 120).forEach((edge) => {
+          const row = el('button', 'function-row'); row.type = 'button';
+          row.style.setProperty('--bar', `${Math.round(edge.count / Math.max(1, filtered.length) * 100)}%`);
+          row.title = '定位到一条入口事件';
+          row.appendChild(el('span', 'function-name', `${edge.caller} → ${edge.fn}`));
+          row.appendChild(el('span', 'function-count', num(edge.count)));
+          row.onclick = () => { setTab('events'); selectEvent(edge.index); };
+          tree.appendChild(row);
+        });
+      if (!edges.size) tree.appendChild(el('div', 'trace-muted', '这些入口的返回地址无法定位调用方。'));
+    } else {
+    treeTitle.textContent = '名称层级';
+    treeNote.textContent = '按命名空间聚合，数字为次数。';
+    const root = { label: '', count: 0, children: new Map(), fn: null };
+    const partsOf = (fn) => fn.split(/::|[\\/]/).filter(Boolean).slice(0, 8);
+    for (const [fn, count] of counts) {
+      let node = root; node.count += count;
+      for (const part of partsOf(fn)) {
+        if (!node.children.has(part)) node.children.set(part, { label: part, count: 0, children: new Map(), fn: null });
+        node = node.children.get(part); node.count += count;
+      }
+      node.fn = fn;
+    }
+    const paintNode = (node, depth, parent) => {
+      [...node.children.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)).forEach((child) => {
+        const row = el('button', 'function-row'); row.type = 'button';
+        row.style.paddingLeft = `${8 + depth * 16}px`;
+        row.style.setProperty('--bar', `${Math.round(child.count / Math.max(1, root.count) * 100)}%`);
+        row.title = child.fn ? `在事件浏览器中筛选 ${child.fn}` : `展开 ${child.label}`;
+        const marker = child.children.size ? '› ' : '  ';
+        row.appendChild(el('span', 'function-name', marker + child.label));
+        row.appendChild(el('span', 'function-count', num(child.count)));
+        parent.appendChild(row);
+        if (child.children.size && depth < 2) {
+          const children = el('div', 'function-children');
+          children.hidden = depth > 0;
+          row.onclick = () => { children.hidden = !children.hidden; row.firstChild.textContent = `${children.hidden ? '› ' : '⌄ '}${child.label}`; };
+          parent.appendChild(children);
+          paintNode(child, depth + 1, children);
+        } else if (child.fn) {
+          row.onclick = () => { NF.filters.text = child.fn; setTab('events'); };
+        }
+      });
+    };
+    paintNode(root, 0, tree);
+    if (!counts.size) tree.appendChild(el('div', 'trace-muted', '没有匹配的函数。'));
+    }
+
+    sequence.innerHTML = '';
+    const cap = Number(limit.value) || 80;
+    filtered.slice(-cap).forEach((e, index, arr) => {
+      if (index) sequence.appendChild(el('div', 'sequence-link'));
+      const node = el('button', 'sequence-node'); node.type = 'button'; node.title = '定位到这条入口事件';
+      node.appendChild(el('span', 'sequence-index', String(index + 1).padStart(2, '0')));
+      node.appendChild(el('span', 'sequence-function', e.fn));
+      node.appendChild(el('span', 'sequence-meta', `${fmtInsn(e.insn)} · CPU ${e.cpu}${e.caller ? ` · ${e.caller} →` : ''}`));
+      node.onclick = () => selectEvent(e.i);
+      sequence.appendChild(node);
+    });
+    if (!filtered.length) sequence.appendChild(el('div', 'trace-muted', '没有匹配的入口事件。'));
+  }
+  search.oninput = paint; cpu.onchange = paint; grouping.onchange = paint;
+  limit.onchange = paint; paint();
 }
 
 /* ---------------------------------------------------------------- 指标图 */
@@ -1666,11 +2300,21 @@ function renderMetrics() {
   const m = run.metrics;
   const p = $('#panel-metrics');
   p.innerHTML = '';
-  p.appendChild(el('div', 'hint',
-    '横轴是指令号（主时间轴）。所有曲线都直接来自这次真实运行的记录，没有插值或平滑。'));
+  p.appendChild(el('div', 'hint', '横轴：指令号。曲线来自运行记录。'));
 
   const mk = (title, series) => {
     p.appendChild(el('h3', null, title));
+    const named = series.filter((s) => s.name);
+    if (named.length > 1) {
+      const legend = el('div', 'chart-legend');
+      named.forEach((s) => {
+        const item = el('span');
+        const swatch = el('i'); swatch.style.background = s.color;
+        item.appendChild(swatch); item.appendChild(document.createTextNode(s.name));
+        legend.appendChild(item);
+      });
+      p.appendChild(legend);
+    }
     const cv = el('canvas', 'chart');
     p.appendChild(cv);
     setTimeout(() => drawChart(cv, series, { title }), 0);
@@ -1684,13 +2328,12 @@ function renderMetrics() {
   const anyVal = (pts) => pts.some((p) => p[1] !== null && p[1] !== undefined);
   if (anyVal(usedPts) || anyVal(sharedPts)) {
     mk('物理内存占用（每次快照）', [
-      { color: '#4aa3ff', points: usedPts },
-      { color: '#3fb950', points: sharedPts },
+      { color: '#4aa3ff', name: '已用', points: usedPts },
+      { color: '#3fb950', name: '共享', points: sharedPts },
     ]);
   } else {
     p.appendChild(el('h3', null, '物理内存占用（每次快照）'));
-    p.appendChild(el('div', 'hint',
-      '这个内核里解不出空闲页链表与进程表，已用/共享页数每个快照都是未知，无法绘制。'));
+    p.appendChild(el('div', 'hint', '无可用快照数据。'));
   }
 
   // 累计计数曲线
@@ -1709,20 +2352,20 @@ function renderMetrics() {
   const mkWatched = (title, metric, series) => {
     if (m[metric] === null || m[metric] === undefined) {
       p.appendChild(el('h3', null, title));
-      p.appendChild(el('div', 'hint', '没有观测点，这条曲线无法绘制（画成 0 会让人误以为没发生过）。'));
+      p.appendChild(el('div', 'hint', '无观测点'));
       return;
     }
     mk(title, series);
   };
-  mk('累计系统调用', [{ color: '#a371f7', points: cum((k) => k === 'syscall.enter') }]);
-  mk('累计缺页异常', [{ color: '#d29922', points: cum((k) => k === 'trap.page_fault') }]);
+  mk('累计系统调用', [{ color: '#a371f7', name: '系统调用', points: cum((k) => k === 'syscall.enter') }]);
+  mk('累计缺页异常', [{ color: '#d29922', name: '缺页', points: cum((k) => k === 'trap.page_fault') }]);
   mkWatched('累计上下文切换', 'context_switches',
-    [{ color: '#4aa3ff', points: cum((k) => k === 'sched.switch') }]);
+    [{ color: '#4aa3ff', name: '切换', points: cum((k) => k === 'sched.switch') }]);
   mkWatched('累计磁盘 I/O', 'disk_io',
-    [{ color: '#f85149', points: cum((k) => k === 'disk.io') }]);
+    [{ color: '#f85149', name: '磁盘 I/O', points: cum((k) => k === 'disk.io') }]);
   mkWatched('累计 kalloc / kfree', 'kalloc', [
-    { color: '#3fb950', points: cum((k) => k === 'phys.alloc') },
-    { color: '#f85149', points: cum((k) => k === 'phys.free') },
+    { color: '#3fb950', name: 'kalloc', points: cum((k) => k === 'phys.alloc') },
+    { color: '#f85149', name: 'kfree', points: cum((k) => k === 'phys.free') },
   ]);
 
   p.appendChild(el('h3', null, '全部事件类型统计'));
@@ -1735,28 +2378,79 @@ function renderMetrics() {
   // 少掉中间那一档的话，"这趟没发生"会跟"没人映射它"一样只是表里少一行，
   // 而这两句该让人做的事正好相反。老 run 的 HTML 里没有这两个字段，所以
   // 下面都带兜底 —— 拿旧数据打开新界面，退化成只有第一档，不该炸。
-  p.appendChild(el('div', 'hint',
-    '「0 次」是挂了观察点、这趟没触发 —— 量出来的 0，换个负载可能就有。'
-    + '「没有」是 manifest 声明过本内核没有这件事，鼠标悬停看依据。'
-    + '两者都跟「表里没这一行」（没人映射，说不好）不是一回事。'));
+  p.appendChild(el('div', 'hint', '0 次 = 已观测；— = 未观测。抽样项显示区间。'));
+  // 全趟被限流丢掉的命中数。插件那边留这个计数器的原话是"没有这个数，抽稀过
+  // 的事件流和本来就稀疏的事件流在报告里分不出来"。null = 这趟没记（旧轨迹）,
+  // 跟 0（一条没丢）不是一回事，所以只在有数的时候说。
+  const drops = (run.metrics.sampling || {}).drops;
+  if (drops) {
+    const kept = run.events.insn.length;
+    const hit = kept + drops;
+    p.appendChild(el('div', 'hint',
+      `抽样：记录 ${num(kept)} / 命中 ${num(hit)} · 丢弃 ${num(drops)}（${(100 * drops / hit).toFixed(1)}%）`));
+  }
   const t = el('table'); const hr = el('tr');
   ['事件类型', '次数', ''].forEach((h) => hr.appendChild(el('th', null, h)));
   t.appendChild(hr);
 
-  const row = (k, count, cls, tag) => {
+  // 末位收可变个数的标记：抽样的类别要挂两个（"1/N 抽样" + 实际区间）。
+  const row = (k, count, cls, ...tags) => {
     const tr = el('tr', cls);
     tr.appendChild(el('td', null, k));
     tr.appendChild(el('td', 'mono', count));
     const td = el('td');
-    if (tag) td.appendChild(tag);
+    for (const tag of tags) if (tag) td.appendChild(tag);
     tr.appendChild(td);
     t.appendChild(tr);
     return tr;
   };
 
+  // 抽样过的类别（#154）。插件的 `@rN:` 是"每 N 次命中才写一条"，所以这一行
+  // 的次数不是真实次数 —— 而它长得跟真计数一模一样。不打标的话，`phys.alloc
+  // 57` 会被读成"这趟分配了 57 页"，真实值可以高到 14592。
+  //
+  // **给区间，不给点值**。14592 = 57×256 是**上界**，站得住；把它当成"分配了
+  // 14592 页"就站不住了 —— 末尾不足 N 次的余数会被丢，一类还可能挂着好几个
+  // 观察点各记各的。所以写成 `57` 加一句"实际 57～14592"：两端都是算出来的，
+  // 中间那个最像答案的数反倒是唯一不能说的。
+  const sampled = (run.metrics.sampling || {}).kinds || {};
+  const sampleTag = (k) => {
+    const rates = sampled[k];
+    if (!rates || !rates.length) return null;
+    const hi = rates.filter((r) => r > 1);
+    const mixed = rates.some((r) => r <= 1);
+    const tag = el('span', 'tag why-empty',
+      mixed ? `部分 1/${hi.join('、1/')} 抽样` : `1/${hi.join('、1/')} 抽样`);
+    tag.title = mixed
+      ? '这一类挂了好几个观察点，限流不一样：一部分每次都记，一部分每 N 次记'
+      + '一条。所以这个数既不是全量，也不是干净的 1/N —— 别拿它跟别的数比。'
+      : `每 ${hi[0]} 次命中才写一条。`
+      + `记下 n 条，真实次数就在 n 和 n×${hi[0]} 之间 —— 这是个界，不是估算。`;
+    return tag;
+  };
+  // 抽样类别的真实次数区间。**上界是算出来的，不是估的**：插件那边
+  // `__atomic_fetch_add` 返回的是**旧值**，所以第一次命中 n=0、`0 % rate == 0`，
+  // 一定记；此后每 N 次记一条。于是记下 k 条 ⟹ 真实命中在 [k, k×N] 之间。
+  //
+  // 两个推论，都跟界面上的说法有关：
+  //   * **0 条就是真的没发生**。第一次命中必记，所以"挂了没响"那一栏
+  //     即使被抽样过，说"这趟没发生"仍然是对的 —— 不用改。
+  //   * 不写点值。区间是量出来的，`k×N` 那个点值不是（末尾不足 N 次的余数
+  //     会被丢，而且一类可能挂着好几个观察点，各有各的计数器）。
+  const sampleRange = (k, v) => {
+    const r = sampled[k];
+    if (!r || !r.length) return null;
+    const hi = Math.max(...r);
+    if (hi <= 1) return null;
+    const s = el('span', 'dim', ` 实际 ${num(v)}～${num(v * hi)}`);
+    s.title = '区间的两端都是算出来的：每条记录对应至少一次真实命中（下界），'
+      + `每 ${hi} 次命中至多记一条（上界）。`;
+    return s;
+  };
+
   const ent = Object.entries(run.metrics.by_kind).sort((a, b) => b[1] - a[1]);
   for (const [k, v] of ent) {
-    const tr = row(k, num(v), 'clickable', null);
+    const tr = row(k, num(v), 'clickable', sampleTag(k), sampleRange(k, v));
     tr.onclick = () => { NF.filters.kind = k; setTab('events'); };
   }
   for (const k of (run.metrics.armed_silent || [])) {
@@ -1782,7 +2476,7 @@ function renderConsole() {
   const p = $('#panel-console');
   p.innerHTML = '';
   p.appendChild(el('div', 'hint',
-    'guest 串口输出的原样记录。程序崩溃或内核 panic 时，这里是第一现场。'));
+    'guest 串口输出。'));
   const pre = el('pre', 'console', run.meta.console || '(没有控制台输出)');
   p.appendChild(pre);
 }
@@ -1797,11 +2491,11 @@ function showEventDetail(run, i) {
   box.appendChild(sec('选中的事件', [
     ['事件类型', e.kind], ['资源', e.res], ['指令号', fmtInsn(e.insn)],
     ['tick', e.tick === null ? '—' : String(e.tick)], ['CPU', String(e.cpu)],
-    ['进程', e.pid === null ? '未知（该时刻没有上下文切换记录可依据）' : `pid ${e.pid}`],
+    ['进程', e.pid === null ? '—' : `pid ${e.pid}`],
     ['PC', hex(e.pc)],
     // 用户态地址在内核符号表里当然查不到 —— 这不是"解析失败"，要说清楚，
     // 否则会被误读成工具出了问题。
-    ['函数', e.func || (e.pc && e.pc < 0x80000000 ? '用户态地址（不在内核符号表里）' : '—')],
+    ['函数', e.func || (e.pc && e.pc < 0x80000000 ? '用户态' : '—')],
   ]));
 
   if (e.detail && Object.keys(e.detail).length) {
@@ -1815,17 +2509,17 @@ function showEventDetail(run, i) {
       }
       return [k, String(v)];
     });
-    box.appendChild(sec('事件参数（全部来自异常发生瞬间的真实寄存器 / 函数入参）', rows));
+    box.appendChild(sec('事件参数', rows));
   }
 
   if (e.unknown && e.unknown.length) {
     const d = el('div', 'dsec');
-    d.appendChild(el('div', 't', '外部观测无法确定的信息'));
+    d.appendChild(el('div', 't', '未知字段'));
     const ul = el('ul');
     for (const u of e.unknown) {
       ul.appendChild(el('li', 'unknown', {
-        allocated_pa: 'kalloc 返回的物理页：函数入口看不到返回值，需要内核侧 nftrace 语义才能确定',
-        csr: '部分 CSR 在这次回调里读不到',
+        allocated_pa: 'kalloc 返回页：未记录',
+        csr: 'CSR：未记录',
       }[u] || u));
     }
     d.appendChild(ul);
@@ -1852,11 +2546,9 @@ function showEventDetail(run, i) {
     cmp('多进程共享页', a.shared, b.shared);
     cmp('活动进程数', plen(a), plen(b));
     box.appendChild(sec(
-      `前后对比（快照 ${si} @ 指令 ${fmtInsn(a.insn)} → 快照 ${si + 1} @ 指令 ${fmtInsn(b.insn)}）`,
+      `快照 ${si} → ${si + 1}`,
       rows));
-    box.appendChild(el('div', 'hint',
-      '这一栏比较的是该事件所处的两次内存快照之间的变化，' +
-      '不是这一条事件单独造成的变化 —— 两次快照之间还发生了别的事情。'));
+    box.appendChild(el('div', 'hint', '事件所在快照之间的变化。'));
   }
 
   // 邻近事件
@@ -1865,7 +2557,7 @@ function showEventDetail(run, i) {
     const x = evGet(run, k);
     near.push([fmtInsn(x.insn), (k === i ? '▶ ' : '') + x.kind + ' ' + summarize(x)]);
   }
-  box.appendChild(sec('前后相邻的事件', near));
+  box.appendChild(sec('相邻事件', near));
 }
 
 function showPageDetail(run, st, idx) {
@@ -2068,13 +2760,11 @@ function renderCompare() {
   const p = $('#panel-compare');
   p.innerHTML = '';
   if (NF.runs.length < 2) {
-    p.appendChild(el('div', 'hint', '这份报告只包含一次运行，没有可对比的对象。'));
+    p.appendChild(el('div', 'hint', '仅包含一次运行。'));
     return;
   }
   const [A, B] = NF.runs;
-  p.appendChild(el('div', 'hint',
-    '两次运行使用同一个工作负载、同一套观测配置，只有内核实现/算法不同。' +
-    '下面所有数字都来自各自的真实运行记录，按指令号对齐到当前时刻。'));
+  p.appendChild(el('div', 'hint', '同一工作负载，按指令号对齐。'));
 
   const wrap = el('div', 'cmp');
   for (const run of NF.runs) {
@@ -2145,16 +2835,18 @@ function renderCompare() {
   }
   p.appendChild(t);
 
-  p.appendChild(el('h3', null, '物理内存占用随时间的对比（只画目标程序执行期间）'));
-  p.appendChild(el('div', 'hint',
-    '横轴是指令号。启动阶段被排除在外 —— 那一段两次运行完全一样，' +
-    '而且 kinit 释放物理页的过程会产生一个与实验无关的巨大峰值。'));
+  p.appendChild(el('h3', null, '目标程序阶段：物理内存'));
+  p.appendChild(el('div', 'hint', '横轴：指令号。'));
   const cv = el('canvas', 'chart'); cv.style.height = '180px';
   p.appendChild(cv);
   setTimeout(() => drawChart(cv, [
-    { color: '#4aa3ff', points: progStates(A).map((s) => [s.insn, s.used]) },
-    { color: '#f85149', points: progStates(B).map((s) => [s.insn, s.used]) },
-  ], { title: `蓝=${A.meta.run}　红=${B.meta.run}（纵轴：已用物理页）` }), 0);
+    { color: '#4aa3ff', name: A.meta.run, points: progStates(A).map((s) => [s.insn, s.used]) },
+    { color: '#f85149', name: B.meta.run, points: progStates(B).map((s) => [s.insn, s.used]) },
+  ], {
+    title: '已用物理页',
+    xMin: Math.min(A.meta.program_start_insn || 0, B.meta.program_start_insn || 0),
+    xMax: Math.max(A.meta.total_insns || 0, B.meta.total_insns || 0),
+  }), 0);
 }
 
 /* ------------------------------------------------------------------ 主控 */
@@ -2163,6 +2855,7 @@ function setTab(t) {
   NF.tab = t;
   for (const b of document.querySelectorAll('nav.tabs button')) {
     b.classList.toggle('on', b.dataset.tab === t);
+    b.setAttribute('aria-current', b.dataset.tab === t ? 'page' : 'false');
   }
   for (const p of document.querySelectorAll('.panel')) {
     p.classList.toggle('on', p.id === 'panel-' + t);
@@ -2212,10 +2905,21 @@ function render() {
   renderDelta();
   const r = {
     overview: renderOverview, phys: renderPhys, procs: renderProcs,
-    vm: renderVm, fs: renderFs, events: renderEvents,
+    vm: renderVm, fs: renderFs, events: renderEvents, functions: renderFunctions,
     metrics: renderMetrics, console: renderConsole, compare: renderCompare,
   }[NF.tab];
   if (r) r();
+}
+
+function toggleDetail() {
+  NF.detailOpen = !NF.detailOpen;
+  const main = $('.main');
+  if (main) main.classList.toggle('detail-collapsed', !NF.detailOpen);
+  const button = $('#toggle-detail');
+  if (button) {
+    button.textContent = NF.detailOpen ? '收起详情' : '展开详情';
+    button.setAttribute('aria-expanded', String(NF.detailOpen));
+  }
 }
 
 function step(dir) {
@@ -2286,6 +2990,12 @@ const nfExport = {
     return {
       runs: NF.runs.map((x) => x.meta.run),
       program: r.meta.program,
+      kernel_kind: r.meta.kernel_kind,
+      kernel_elf: r.meta.kernel_elf,
+      kernel_elf_sha256: r.meta.kernel_elf_sha256,
+      observed_fields: r.meta.observed_fields || {},
+      event_selection: r.meta.event_selection || {},
+      absent_declared: (r.meta.capability && r.meta.capability.absent_declared) || {},
       total_insns: r.meta.total_insns,
       program_start_insn: r.meta.program_start_insn || 0,
       states: r.states.length,
@@ -2448,6 +3158,8 @@ async function boot() {
     $('#play').onclick = play;
     $('#prev').onclick = () => step(-1);
     $('#next').onclick = () => step(1);
+    $('#quick-events').onclick = () => setTab('events');
+    $('#toggle-detail').onclick = toggleDetail;
     $('#minimap').onclick = (e) => {
       const r = e.target.getBoundingClientRect();
       NF.cur = Math.round(((e.clientX - r.left) / r.width) * (NF.runs[0].meta.total_insns || 1));
@@ -2455,6 +3167,10 @@ async function boot() {
     };
     window.addEventListener('keydown', (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+      if (e.key === '/' && NF.tab === 'events') {
+        const search = $('#event-search');
+        if (search) { search.focus(); e.preventDefault(); }
+      }
       if (e.key === 'ArrowRight') { step(1); e.preventDefault(); }
       if (e.key === 'ArrowLeft') { step(-1); e.preventDefault(); }
       if (e.key === ' ') { play(); e.preventDefault(); }
@@ -2465,7 +3181,7 @@ async function boot() {
     setTab(NF.tab);
   } catch (err) {
     $('#loading').innerHTML = '';
-    const box = el('div', 'err-box', '加载失败：' + err.message);
+    const box = el('div', 'err-box', '加载失败 · ' + shortText(err.message, 120));
     $('#loading').appendChild(box);
     console.error(err);
   }

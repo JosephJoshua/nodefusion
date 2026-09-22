@@ -1,37 +1,128 @@
 {
-  "schema": "nodefusion.ucore-chapter-coverage/1",
-  "generated_utc": "2026-09-15",
-  "manifest": "nodefusion/manifests/ucore.toml",
-  "strict_invariants": {
-    "blockers": 0,
-    "semantic_dropped_from_interactive": 0,
-    "snapshot_failures": 0,
-    "manifest_unresolved": 0
+  "schema": "nodefusion.artifact-evidence/1",
+  "run": "ucore-ch4-probe",
+  "kernel_kind": "ucore",
+  "source_sha256": {
+    "trace.nfb": "df9868cbdbc4e192d4c6b626d7798ce7741daa47bb8b91e707a11e1b8dc5bf3a",
+    "manifest.json": "c230e1b9862ba8f441158bda97b1d00fab5087cbde7fda4c52c17044d90034b4",
+    "watchlist.json": "ddb4ebe127ead09fce62614fb186d79ab86406221c22dc4a4ccb2f5f8ac37121",
+    "kernel_layout.json": "40fa75291368b3e4a9136d92164cc0f2b46af0ddd0fd02340fd83eb377684eae"
   },
-  "chapter": {
-    "chapter": 4,
-    "run": "ucore-ch4-probe",
+  "kernel_elf_sha256": "f6892f7ca79150cff21b7182b3a797e7fa5024fd802c1e4c4677c7acdc518739",
+  "archive_bytes": {"trace.nfb": 18207848, "kernel_elf": 231576},
+  "html_sha256": "12be107252752a196d98a7697bf5a20fbae930d75bab35dcb49c83e13c639c8f",
+  "html_bytes": 1245082,
+  "function_trace": {
+    "kind": "function-entry sequence (no return events)",
+    "raw": 97449,
+    "retained": 97449
+  },
+  "coverage": {
     "status": "complete",
     "percent": 100.0,
-    "semantic_events": 74278,
-    "semantic_unknown": 0,
-    "snapshots": 84,
-    "manifest_cells": 16128,
-    "metrics_applicable": 12,
-    "metrics_not_applicable": [
-      "bcache_hit_rate",
-      "bcache_hits",
-      "bcache_reads",
-      "disk_io",
-      "execs",
-      "forks",
-      "log_commits"
+    "passed": 90592,
+    "total": 90592,
+    "metrics": {
+      "covered": 12,
+      "applicable": 12,
+      "not_applicable": [
+        "bcache_hit_rate",
+        "bcache_hits",
+        "bcache_reads",
+        "disk_io",
+        "execs",
+        "forks",
+        "log_commits"
+      ],
+      "missing": [],
+      "sampled": []
+    },
+    "semantic_events": {
+      "raw": 74278,
+      "unknown": 0,
+      "unknown_fields": {},
+      "dropped_from_interactive": 0
+    },
+    "snapshots": {
+      "checked": 84,
+      "incomplete": 0,
+      "physical_memory": 0,
+      "physical_counters": 0,
+      "processes": 0,
+      "resources": 0
+    },
+    "snapshot_not_applicable": [
+      "resources"
     ],
-    "trace_bytes": 18207848,
-    "trace_sha256": "df9868cbdbc4e192d4c6b626d7798ce7741daa47bb8b91e707a11e1b8dc5bf3a",
-    "html_bytes": 1210502,
-    "html_sha256": "bef3c56de8c1d98edbb055373652a9defe74c9419d2c859e4fb617a6530fd40f",
-    "kernel_elf_bytes": 231576,
-    "kernel_elf_sha256": "f6892f7ca79150cff21b7182b3a797e7fa5024fd802c1e4c4677c7acdc518739"
+    "manifest_fields": {
+      "cells": 16128,
+      "states": {
+        "absent": 8064,
+        "empty": 1985,
+        "present": 6079
+      },
+      "not_applicable": 8064,
+      "unresolved": 0
+    },
+    "full_watch_scope": true,
+    "blockers": []
+  },
+  "event_selection": {
+    "applied": false,
+    "policy": "kind-preserving/systematic-v3",
+    "raw": 107034,
+    "retained": 107034,
+    "dropped": 0,
+    "target_limit": 150000,
+    "minimum_spare": 25000,
+    "always_keep": "all events when the raw stream fits",
+    "priority_raw": 74278,
+    "spare_raw": 32756,
+    "spare_budget": 0,
+    "stride": 1,
+    "retained_kinds": {
+      "firmware.trap": 19,
+      "func.allocpid": 17,
+      "func.console_putchar": 187,
+      "func.finished": 1,
+      "func.freerange": 1,
+      "func.kinit": 1,
+      "func.kvmmap": 3,
+      "func.loader_init": 1,
+      "func.nftrace_allocator_state": 1,
+      "func.nftrace_page_alloc": 169,
+      "func.run_all_app": 1,
+      "func.set_next_timer": 3,
+      "func.timer_init": 1,
+      "func.uvmcreate": 17,
+      "func.walk": 32353,
+      "interrupt.clock": 3,
+      "interrupt.timer": 2,
+      "pagetable.map": 32342,
+      "phys.alloc": 169,
+      "phys.free": 32149,
+      "proc.alloc": 17,
+      "proc.exit": 1,
+      "proc.initproc": 1,
+      "sbi.call": 190,
+      "sched.enter": 1,
+      "sched.switch": 7,
+      "sched.yield": 2,
+      "sched.yield_to_scheduler": 3,
+      "syscall.dispatch": 13,
+      "syscall.enter": 13,
+      "syscall.write": 11,
+      "trap.init": 1,
+      "trap.page_fault": 9192,
+      "trap.userret": 15,
+      "trap.usertrap": 15,
+      "vm.from_elf": 17,
+      "vm.init": 1,
+      "vm.kernel_init": 1,
+      "vm.map": 71,
+      "vm.translate_buffer": 11,
+      "vm.translate_str": 11
+    },
+    "dropped_kinds": {}
   }
 }
