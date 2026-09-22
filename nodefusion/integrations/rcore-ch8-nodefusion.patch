@@ -1,8 +1,8 @@
 diff --git a/os/src/mm/frame_allocator.rs b/os/src/mm/frame_allocator.rs
-index 01079d7..06d63af 100644
+index a942274..f87d595 100644
 --- a/os/src/mm/frame_allocator.rs
 +++ b/os/src/mm/frame_allocator.rs
-@@ -5,6 +5,60 @@ use alloc::vec::Vec;
+@@ -7,6 +7,50 @@ use alloc::vec::Vec;
  use core::fmt::{self, Debug, Formatter};
  use lazy_static::*;
  
@@ -18,44 +18,34 @@ index 01079d7..06d63af 100644
 +    a: [u64; 4],
 +}
 +
-+/// Stable observation point for NodeFusion's optional semantic channel.
-+///
-+/// The QEMU plugin reads the five-u64 record through the pointer in `a0` at
-+/// function entry. The volatile read keeps both the record and call present.
 +#[no_mangle]
 +#[inline(never)]
 +pub extern "C" fn nftrace_commit_point(record: *const u64) {
 +    if !record.is_null() {
-+        // SAFETY: the sole caller passes a live stack record for this call.
++        // SAFETY: the caller passes a live stack record.
 +        core::hint::black_box(unsafe { core::ptr::read_volatile(record) });
 +    }
 +}
 +
-+#[inline(always)]
-+fn nodefusion_trace_page_alloc(paddr: usize, free_pages: usize, used_pages: usize) {
++fn nodefusion_trace_page(kind: u64, paddr: usize, free_pages: usize, used_pages: usize) {
 +    let record = NfTraceRecord {
-+        type_: NFT_KALLOC,
++        type_: kind,
 +        a: [paddr as u64, 1, free_pages as u64, used_pages as u64],
 +    };
 +    nftrace_commit_point(&record as *const NfTraceRecord as *const u64);
 +}
 +
-+#[inline(always)]
-+fn nodefusion_trace_page_free(paddr: usize, free_pages: usize, used_pages: usize) {
-+    let record = NfTraceRecord {
-+        type_: NFT_KFREE,
-+        a: [paddr as u64, 1, free_pages as u64, used_pages as u64],
-+    };
-+    nftrace_commit_point(&record as *const NfTraceRecord as *const u64);
-+}
-+
-+pub(crate) fn nodefusion_trace_sched_switch(from_pid: Option<usize>, to_pid: Option<usize>) {
-+    let from = from_pid.map_or(NFT_NO_TASK, |pid| pid as u64);
-+    let to = to_pid.map_or(NFT_NO_TASK, |pid| pid as u64);
++pub(crate) fn nodefusion_trace_sched_switch(
++    from: Option<(usize, usize)>,
++    to: Option<(usize, usize)>,
++) {
++    let (from_task, from_pid) = from.map_or((NFT_NO_TASK, NFT_NO_TASK),
++        |(task, pid)| (task as u64, pid as u64));
++    let (to_task, to_pid) = to.map_or((NFT_NO_TASK, NFT_NO_TASK),
++        |(task, pid)| (task as u64, pid as u64));
 +    let record = NfTraceRecord {
 +        type_: NFT_SCHED_SWITCH,
-+        // rCore's scheduling identity is its PID in this chapter.
-+        a: [from, to, from, to],
++        a: [from_task, to_task, from_pid, to_pid],
 +    };
 +    nftrace_commit_point(&record as *const NfTraceRecord as *const u64);
 +}
@@ -63,7 +53,7 @@ index 01079d7..06d63af 100644
  /// tracker for physical page frame allocation and deallocation
  pub struct FrameTracker {
      /// physical page number
-@@ -45,6 +99,7 @@ pub struct StackFrameAllocator {
+@@ -47,6 +91,7 @@ pub struct StackFrameAllocator {
      current: usize,
      end: usize,
      recycled: Vec<usize>,
@@ -71,7 +61,7 @@ index 01079d7..06d63af 100644
  }
  
  impl StackFrameAllocator {
-@@ -60,17 +115,22 @@ impl FrameAllocator for StackFrameAllocator {
+@@ -62,17 +107,22 @@ impl FrameAllocator for StackFrameAllocator {
              current: 0,
              end: 0,
              recycled: Vec::new(),
@@ -95,7 +85,7 @@ index 01079d7..06d63af 100644
      }
      fn dealloc(&mut self, ppn: PhysPageNum) {
          let ppn = ppn.0;
-@@ -80,6 +140,16 @@ impl FrameAllocator for StackFrameAllocator {
+@@ -82,6 +132,13 @@ impl FrameAllocator for StackFrameAllocator {
          }
          // recycle
          self.recycled.push(ppn);
@@ -105,14 +95,11 @@ index 01079d7..06d63af 100644
 +
 +impl StackFrameAllocator {
 +    fn page_counts(&self) -> (usize, usize) {
-+        (
-+            self.end - self.current + self.recycled.len(),
-+            self.allocated,
-+        )
++        (self.end - self.current + self.recycled.len(), self.allocated)
      }
  }
  
-@@ -103,15 +173,26 @@ pub fn init_frame_allocator() {
+@@ -104,15 +161,26 @@ pub fn init_frame_allocator() {
  
  /// Allocate a physical page frame in FrameTracker style
  pub fn frame_alloc() -> Option<FrameTracker> {
@@ -128,7 +115,7 @@ index 01079d7..06d63af 100644
 +    };
 +    let frame = ppn.map(FrameTracker::new);
 +    let paddr = frame.as_ref().map_or(0, |f| PhysAddr::from(f.ppn).0);
-+    nodefusion_trace_page_alloc(paddr, free_pages, used_pages);
++    nodefusion_trace_page(NFT_KALLOC, paddr, free_pages, used_pages);
 +    frame
  }
  
@@ -140,24 +127,18 @@ index 01079d7..06d63af 100644
 +        allocator.dealloc(ppn);
 +        allocator.page_counts()
 +    };
-+    nodefusion_trace_page_free(PhysAddr::from(ppn).0, free_pages, used_pages);
++    nodefusion_trace_page(NFT_KFREE, PhysAddr::from(ppn).0, free_pages, used_pages);
  }
  
  #[allow(unused)]
 diff --git a/os/src/mm/memory_set.rs b/os/src/mm/memory_set.rs
-index 8f88afa..77fcf45 100644
+index 6dc14aa..8b44bb2 100644
 --- a/os/src/mm/memory_set.rs
 +++ b/os/src/mm/memory_set.rs
-@@ -41,6 +41,17 @@ pub struct MemorySet {
-     areas: Vec<MapArea>,
+@@ -45,6 +45,11 @@ pub struct MemorySet {
+     pub areas: Vec<MapArea>,
  }
  
-+/// Stable, per-region observation point for NodeFusion.
-+///
-+/// rCore normally destroys process regions with `areas.clear()`, so neither
-+/// `MapArea::unmap` nor a per-region function appears on that path.  This hook
-+/// deliberately changes no VM state; it only materializes one function entry
-+/// for each logical region immediately before the region is removed.
 +#[inline(never)]
 +pub fn nodefusion_vm_unmap_region(start_vpn: usize, end_vpn: usize) {
 +    core::hint::black_box((start_vpn, end_vpn));
@@ -166,7 +147,7 @@ index 8f88afa..77fcf45 100644
  impl MemorySet {
      /// Create a new empty `MemorySet`.
      pub fn new_bare() -> Self {
-@@ -73,6 +84,10 @@ impl MemorySet {
+@@ -77,6 +82,10 @@ impl MemorySet {
              .enumerate()
              .find(|(_, area)| area.vpn_range.get_start() == start_vpn)
          {
@@ -176,8 +157,8 @@ index 8f88afa..77fcf45 100644
 +            );
              area.unmap(&mut self.page_table);
              self.areas.remove(idx);
-         }
-@@ -285,6 +300,12 @@ impl MemorySet {
+             unsafe {
+@@ -261,6 +270,12 @@ impl MemorySet {
  
      ///Remove all `MapArea`
      pub fn recycle_data_pages(&mut self) {
@@ -191,85 +172,103 @@ index 8f88afa..77fcf45 100644
      }
  
 diff --git a/os/src/mm/mod.rs b/os/src/mm/mod.rs
-index d75c373..3cb6d46 100644
+index d75c373..6933fe9 100644
 --- a/os/src/mm/mod.rs
 +++ b/os/src/mm/mod.rs
-@@ -15,6 +15,7 @@ mod page_table;
- use address::VPNRange;
- pub use address::{PhysAddr, PhysPageNum, StepByOne, VirtAddr, VirtPageNum};
- pub use frame_allocator::{frame_alloc, frame_dealloc, FrameTracker};
+@@ -29,3 +29,4 @@ pub fn init() {
+     frame_allocator::init_frame_allocator();
+     KERNEL_SPACE.exclusive_access().activate();
+ }
 +pub(crate) use frame_allocator::nodefusion_trace_sched_switch;
- pub use memory_set::remap_test;
- pub use memory_set::{kernel_token, MapPermission, MemorySet, KERNEL_SPACE};
- use page_table::PTEFlags;
 diff --git a/os/src/task/mod.rs b/os/src/task/mod.rs
-index f82e5e3..a249a64 100644
+index 81a25be..4a2a94d 100644
 --- a/os/src/task/mod.rs
 +++ b/os/src/task/mod.rs
-@@ -42,6 +42,7 @@ pub fn suspend_current_and_run_next() {
+@@ -43,6 +43,7 @@ pub use task::{TaskControlBlock, TaskStatus};
+ pub fn suspend_current_and_run_next() {
+     // There must be an application running.
      let task = take_current_task().unwrap();
++    let switched = (Arc::as_ptr(&task) as usize, task.process.upgrade().unwrap().getpid());
  
      // ---- access current TCB exclusively
-+    let pid = task.getpid();
      let mut task_inner = task.inner_exclusive_access();
-     let task_cx_ptr = &mut task_inner.task_cx as *mut TaskContext;
-     // Change status to Ready
-@@ -52,7 +53,7 @@ pub fn suspend_current_and_run_next() {
+@@ -55,17 +56,18 @@ pub fn suspend_current_and_run_next() {
      // push back to ready queue.
      add_task(task);
      // jump to scheduling cycle
 -    schedule(task_cx_ptr);
-+    schedule(task_cx_ptr, pid);
++    schedule(task_cx_ptr, switched);
  }
  
- /// pid of usertests app in make run TEST=1
-@@ -103,7 +104,7 @@ pub fn exit_current_and_run_next(exit_code: i32) {
-     drop(task);
+ /// Make current task blocked and switch to the next task.
+ pub fn block_current_and_run_next() {
+     let task = take_current_task().unwrap();
++    let switched = (Arc::as_ptr(&task) as usize, task.process.upgrade().unwrap().getpid());
+     let mut task_inner = task.inner_exclusive_access();
+     let task_cx_ptr = &mut task_inner.task_cx as *mut TaskContext;
+     task_inner.task_status = TaskStatus::Blocked;
+     drop(task_inner);
+-    schedule(task_cx_ptr);
++    schedule(task_cx_ptr, switched);
+ }
+ 
+ use crate::board::QEMUExit;
+@@ -78,6 +80,7 @@ pub fn exit_current_and_run_next(exit_code: i32) {
+     );
+     // take from Processor
+     let task = take_current_task().unwrap();
++    let switched = (Arc::as_ptr(&task) as usize, task.process.upgrade().unwrap().getpid());
+     let mut task_inner = task.inner_exclusive_access();
+     let process = task.process.upgrade().unwrap();
+     let tid = task_inner.res.as_ref().unwrap().tid;
+@@ -164,7 +167,7 @@ pub fn exit_current_and_run_next(exit_code: i32) {
+     drop(process);
      // we do not have to save task context
      let mut _unused = TaskContext::zero_init();
 -    schedule(&mut _unused as *mut _);
-+    schedule(&mut _unused as *mut _, pid);
++    schedule(&mut _unused as *mut _, switched);
  }
  
  lazy_static! {
 diff --git a/os/src/task/processor.rs b/os/src/task/processor.rs
-index 83a6250..31d4349 100644
+index b54f9c2..b59545a 100644
 --- a/os/src/task/processor.rs
 +++ b/os/src/task/processor.rs
 @@ -8,6 +8,7 @@ use super::__switch;
  use super::{fetch_task, TaskStatus};
- use super::{TaskContext, TaskControlBlock};
+ use super::{ProcessControlBlock, TaskContext, TaskControlBlock};
  use crate::sync::UPSafeCell;
 +use crate::mm::nodefusion_trace_sched_switch;
  use crate::trap::TrapContext;
  use alloc::sync::Arc;
  use lazy_static::*;
-@@ -56,6 +57,7 @@ pub fn run_tasks() {
+@@ -54,6 +55,8 @@ pub fn run_tasks() {
      loop {
          let mut processor = PROCESSOR.exclusive_access();
          if let Some(task) = fetch_task() {
-+            let next_pid = task.getpid();
++            let next = (Arc::as_ptr(&task) as usize,
++                        task.process.upgrade().unwrap().getpid());
              let idle_task_cx_ptr = processor.get_idle_task_cx_ptr();
              // access coming task TCB exclusively
              let mut task_inner = task.inner_exclusive_access();
-@@ -67,6 +69,7 @@ pub fn run_tasks() {
+@@ -65,6 +68,7 @@ pub fn run_tasks() {
              processor.current = Some(task);
              // release processor manually
              drop(processor);
-+            nodefusion_trace_sched_switch(None, Some(next_pid));
++            nodefusion_trace_sched_switch(None, Some(next));
              unsafe {
                  __switch(idle_task_cx_ptr, next_task_cx_ptr);
              }
-@@ -101,10 +104,11 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
+@@ -120,10 +124,11 @@ pub fn current_kstack_top() -> usize {
  }
  
  /// Return to idle control flow for new scheduling
 -pub fn schedule(switched_task_cx_ptr: *mut TaskContext) {
-+pub fn schedule(switched_task_cx_ptr: *mut TaskContext, switched_pid: usize) {
++pub fn schedule(switched_task_cx_ptr: *mut TaskContext, switched: (usize, usize)) {
      let mut processor = PROCESSOR.exclusive_access();
      let idle_task_cx_ptr = processor.get_idle_task_cx_ptr();
      drop(processor);
-+    nodefusion_trace_sched_switch(Some(switched_pid), None);
++    nodefusion_trace_sched_switch(Some(switched), None);
      unsafe {
          __switch(switched_task_cx_ptr, idle_task_cx_ptr);
      }

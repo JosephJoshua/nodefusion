@@ -5,7 +5,8 @@
   "frames": 464,
   "fps": 12,
   "seconds": 38.666666666666664,
-  "bytes": 1103246,
+  "bytes": 564362,
+  "mp4_sha256": "aab87ad1fe34b15073f0ea86b596691e1a305e1c395a390cee421be86d1bf103",
   "width": 1280,
   "height": 720,
   "evidence_scope": "all",
@@ -19,8 +20,8 @@
     ],
     "program": "(boot-to-exit)",
     "kernel_kind": "rcore",
-    "kernel_elf": "rcore-ee39fba1.elf",
-    "kernel_elf_sha256": "ee39fba12a6d548a4ba0a94a9b48a425832958d431515b72d5658c439e2255e3",
+    "kernel_elf": "rcore-45586068.elf",
+    "kernel_elf_sha256": "4558606875e5d0caf73163847b4c82c4ac91a16feb6ea19bec30634a85ebcb50",
     "observed_fields": {
       "process": [
         "status",
@@ -108,158 +109,303 @@
         ]
       }
     },
-    "total_insns": 29757921,
-    "program_start_insn": 0,
-    "states": 33,
-    "events": 2348,
+    "event_selection": {
+      "applied": false,
+      "policy": "kind-preserving/systematic-v3",
+      "raw": 3280,
+      "retained": 3280,
+      "dropped": 0,
+      "target_limit": 150000,
+      "minimum_spare": 25000,
+      "always_keep": "all events when the raw stream fits",
+      "priority_raw": 2499,
+      "spare_raw": 781,
+      "spare_budget": 0,
+      "stride": 1,
+      "retained_kinds": {
+        "firmware.trap": 22,
+        "func._ZN17compiler_builtins3mem6memcpy17ha62f30a1264ab51cE": 11,
+        "func._ZN17compiler_builtins3mem6memset17hb3cc3e7988f20252E": 50,
+        "func._ZN22buddy_system_allocator4Heap4init17h7209035138d54fd6E": 1,
+        "func._ZN2os10heap_alloc9init_heap17h1e00c014483200f7E": 1,
+        "func._ZN2os15kernel_log_info17h7bb04f577009c6c5E": 1,
+        "func._ZN2os3sbi8shutdown17hb04ef98fc65f19eeE": 1,
+        "func._ZN2os4sync2up19UPSafeCell$LT$T$GT$16exclusive_access17h0403fa1adb420d6eE": 1,
+        "func._ZN2os6loader9load_apps17h5fac401a12739324E": 1,
+        "func._ZN2os7console5print17h68c595618d66b1b0E": 86,
+        "func._ZN3log10set_logger17h3308edfb8c5f0fe6E": 1,
+        "func._ZN42_$LT$str$u20$as$u20$core..fmt..Display$GT$3fmt17hb8c43d55b60732c2E": 83,
+        "func._ZN44_$LT$$RF$T$u20$as$u20$core..fmt..Display$GT$3fmt17ha463bef777cea832E": 83,
+        "func._ZN44_$LT$$RF$T$u20$as$u20$core..fmt..Display$GT$3fmt17he93be4cd5f1be1dfE": 1,
+        "func._ZN4core3fmt3num3imp52_$LT$impl$u20$core..fmt..Display$u20$for$u20$u32$GT$3fmt17h4e8d7a453206e77eE": 1,
+        "func._ZN4core3fmt3num3imp7fmt_u6417h5142f3088252957cE": 1,
+        "func._ZN4core3fmt3num55_$LT$impl$u20$core..fmt..LowerHex$u20$for$u20$usize$GT$3fmt17hc86b5565edb93905E": 2,
+        "func._ZN4core3fmt5write17h49a560cace6c89d2E": 87,
+        "func._ZN4core3fmt9Formatter12pad_integral12write_prefix17h155331fd35b09c53E": 3,
+        "func._ZN4core3fmt9Formatter12pad_integral17h8b1ffde32503eca3E": 3,
+        "func._ZN4core3fmt9Formatter3pad17heef45ae07d2799a9E": 83,
+        "func._ZN4core3str8converts9from_utf817hd70ee2e837c58dd3E": 82,
+        "func._ZN4core9panicking9panic_fmt17h11ec9af140fca503E": 1,
+        "func._ZN4spin4once17Once$LT$T$C$R$GT$18try_call_once_slow17h69cf75f8325f57b4E.llvm.12764375152871647885": 1,
+        "func._ZN56_$LT$os..console..Stdout$u20$as$u20$core..fmt..Write$GT$9write_str17h5e803ce8ac23f6e6E": 98,
+        "func._ZN59_$LT$core..fmt..Arguments$u20$as$u20$core..fmt..Display$GT$3fmt17hb9ea72e8555fec20E": 1,
+        "func.deref": 1,
+        "func.memcpy": 11,
+        "func.memset": 50,
+        "func.run_first_task": 1,
+        "func.run_next_task": 33,
+        "func.rust_main": 1,
+        "interrupt.timer": 8,
+        "kernel.panic": 1,
+        "proc.exit": 7,
+        "sbi.call": 2000,
+        "sched.enter": 1,
+        "sched.switch": 33,
+        "syscall.dispatch": 104,
+        "syscall.enter": 104,
+        "syscall.exit": 7,
+        "syscall.write": 82,
+        "syscall.yield": 15,
+        "trap.enter": 115
+      },
+      "dropped_kinds": {}
+    },
+    "absent_declared": {
+      "bcache.read": {
+        "why": "feature",
+        "evidence": "rCore ch1–ch5 源码尚无 easy-fs；ch6 起引入 easy-fs/src/block_cache.rs。按当前 ELF 的 DWARF 核对 BlockCacheManager 类型，只有缺席的构建适用。"
+      },
+      "disk.io": {
+        "why": "feature",
+        "evidence": "rCore ch1–ch5 尚无 easy-fs 和块设备驱动；ch6 起的 os/src/drivers/block/virtio_blk.rs 实现块 I/O。按当前 ELF 的 BlockCacheManager 类型区分阶段。"
+      },
+      "log.commit": {
+        "why": "feature",
+        "evidence": "easy-fs/src 整个 crate grep 不到 log / journal / transaction。最像的 block_cache_sync_all()（Inode::write_at 末尾调一次）只把缓存里的脏块逐个写回，没有日志块、没有原子性、没有崩溃恢复；xv6 的 commit 图的正是崩溃原子性。"
+      },
+      "pagetable.map": {
+        "why": "feature",
+        "evidence": "rCore ch1–ch3 不使用页表映射；ch4 起的 os/src/mm/page_table.rs 与 MemorySet 配合建表。按当前 ELF 的 MemorySet 类型核对阶段。"
+      },
+      "phys.alloc": {
+        "why": "feature",
+        "evidence": "rCore ch1–ch3 尚无页帧分配器；ch4 起的 os/src/mm/frame_allocator.rs 定义 StackFrameAllocator。按当前 ELF 的该类型核对阶段。"
+      },
+      "phys.free": {
+        "why": "feature",
+        "evidence": "rCore ch1–ch3 尚无页帧分配器及逐页归还；ch4 起的 os/src/mm/frame_allocator.rs 实现分配与回收。按当前 ELF 的类型核对阶段。"
+      },
+      "proc.exec": {
+        "why": "feature",
+        "evidence": "rCore ch1–ch4 静态装入应用，os/src/syscall 无 exec；ch5 起引入进程管理和 exec。按当前 ELF 的 Processor 类型核对阶段。"
+      },
+      "proc.fork": {
+        "why": "feature",
+        "evidence": "rCore ch1–ch4 的 os/src/task 尚无 fork 路径；ch5 起有 Processor 与 TaskControlBlock::fork。按当前 ELF 的 Processor 类型核对阶段。"
+      },
+      "vm.map": {
+        "why": "feature",
+        "evidence": "rCore ch1–ch3 还没有分页地址空间；ch4 起的 os/src/mm/memory_set.rs 定义 MemorySet 并建立区域映射。按当前 ELF 的类型核对阶段。"
+      },
+      "vm.unmap": {
+        "why": "feature",
+        "evidence": "rCore ch4 的 os/src/syscall/process.rs 中 sys_munmap 明确为 NOT IMPLEMENTED YET；ch5 起有进程内存回收。按当前 ELF 的 Processor 类型区分阶段。"
+      }
+    },
+    "total_insns": 29757907,
+    "program_start_insn": 16176697,
+    "states": 95,
+    "events": 3280,
     "kinds": [
       "firmware.trap",
+      "func.rust_main",
+      "func.memset",
+      "func._ZN17compiler_builtins3mem6memset17hb3cc3e7988f20252E",
+      "func._ZN2os15kernel_log_info17h7bb04f577009c6c5E",
+      "func._ZN3log10set_logger17h3308edfb8c5f0fe6E",
       "sbi.call",
-      "func.task::run_first_task",
+      "func._ZN2os10heap_alloc9init_heap17h1e00c014483200f7E",
+      "func._ZN22buddy_system_allocator4Heap4init17h7209035138d54fd6E",
+      "func._ZN2os6loader9load_apps17h5fac401a12739324E",
+      "func.memcpy",
+      "func._ZN17compiler_builtins3mem6memcpy17ha62f30a1264ab51cE",
+      "sched.enter",
       "func.deref",
+      "func._ZN4spin4once17Once$LT$T$C$R$GT$18try_call_once_slow17h69cf75f8325f57b4E.llvm.12764375152871647885",
       "func.run_first_task",
+      "func._ZN2os4sync2up19UPSafeCell$LT$T$GT$16exclusive_access17h0403fa1adb420d6eE",
       "sched.switch",
       "trap.enter",
+      "func._ZN2os7console5print17h68c595618d66b1b0E",
+      "func._ZN4core3fmt5write17h49a560cace6c89d2E",
+      "func._ZN56_$LT$os..console..Stdout$u20$as$u20$core..fmt..Write$GT$9write_str17h5e803ce8ac23f6e6E",
+      "func._ZN4core3fmt3num55_$LT$impl$u20$core..fmt..LowerHex$u20$for$u20$usize$GT$3fmt17hc86b5565edb93905E",
+      "func._ZN4core3fmt9Formatter12pad_integral17h8b1ffde32503eca3E",
+      "func._ZN4core3fmt9Formatter12pad_integral12write_prefix17h155331fd35b09c53E",
       "func.run_next_task",
       "syscall.enter",
+      "syscall.dispatch",
+      "syscall.write",
+      "func._ZN4core3str8converts9from_utf817hd70ee2e837c58dd3E",
+      "func._ZN44_$LT$$RF$T$u20$as$u20$core..fmt..Display$GT$3fmt17ha463bef777cea832E",
+      "func._ZN42_$LT$str$u20$as$u20$core..fmt..Display$GT$3fmt17hb8c43d55b60732c2E",
+      "func._ZN4core3fmt9Formatter3pad17heef45ae07d2799a9E",
       "syscall.exit",
       "proc.exit",
       "interrupt.timer",
-      "func.sys_yield",
-      "kernel.panic"
+      "syscall.yield",
+      "func._ZN4core9panicking9panic_fmt17h11ec9af140fca503E",
+      "kernel.panic",
+      "func._ZN4core3fmt3num3imp52_$LT$impl$u20$core..fmt..Display$u20$for$u20$u32$GT$3fmt17h4e8d7a453206e77eE",
+      "func._ZN4core3fmt3num3imp7fmt_u6417h5142f3088252957cE",
+      "func._ZN44_$LT$$RF$T$u20$as$u20$core..fmt..Display$GT$3fmt17he93be4cd5f1be1dfE",
+      "func._ZN59_$LT$core..fmt..Arguments$u20$as$u20$core..fmt..Display$GT$3fmt17hb9ea72e8555fec20E",
+      "func._ZN2os3sbi8shutdown17hb04ef98fc65f19eeE"
     ],
     "outcome": "completed",
     "compare": false
   },
-  "mp4_sha256": "73eac4931d32513e23caf09cfdfcb2555b4d06b05120407d8059203be6e6bbcf",
   "report": {
     "schema": "nodefusion.artifact-evidence/1",
     "run": "rcore-ch3-sched",
     "kernel_kind": "rcore",
     "source_sha256": {
-      "trace.nfb": "ae5ed9ce9130e56b6067aca363e8fbce457b517836ef79c060c43a4db157a69a",
-      "manifest.json": "053c6e87fbbd085c863389ca14129f423ade39ebe743aafa2e27106e02341049",
-      "watchlist.json": "2ead075d856a070bb98145520fce095144d19049fbc81fb166c8ed89be3b4895",
-      "kernel_layout.json": "7d456ff23f52f09edd3ebca61dfb3b6cb5628e410f913e09302f3c12343f452f"
+      "trace.nfb": "772bf721c97ef143976ee44d3a40da34c20e34cc5920b4ec613767e23720b5f6",
+      "manifest.json": "cff0caf91af0a5fbee2a8983bc459c77b6aa5ffd2494e6e5c1691b6c0d7f9526",
+      "watchlist.json": "4db6dec57a2335628911d5cb6e357827813cd1b4f6624594b945bb91bac85903",
+      "kernel_layout.json": "79d301fc9915a19bd1e515cf3474f64041ff8cb7ea7c7e606e49549c498f78b1"
     },
-    "kernel_elf_sha256": "ee39fba12a6d548a4ba0a94a9b48a425832958d431515b72d5658c439e2255e3",
-    "html_sha256": "39dbfee87ca1c56a32f3fcd5517b42a3c34150c8de58a359be505e27cefd1b42",
-    "html_bytes": 208950,
+    "kernel_elf_sha256": "4558606875e5d0caf73163847b4c82c4ac91a16feb6ea19bec30634a85ebcb50",
+    "html_sha256": "01e9253e3961c48db267775cc7a1a23546a70921d6007a3bd17415799b44f496",
+    "html_bytes": 283991,
     "function_trace": {
-      "kind": "function-entry sequence (no return events)",
-      "raw": 214,
-      "retained": 214
+      "kind": "return-matched observed frames",
+      "raw": 1146,
+      "retained": 1146,
+      "returns": 171065,
+      "matched_returns": 245,
+      "nested_entries": 26
+    },
+    "event_selection": {
+      "applied": false,
+      "policy": "kind-preserving/systematic-v3",
+      "raw": 3280,
+      "retained": 3280,
+      "dropped": 0,
+      "target_limit": 150000,
+      "minimum_spare": 25000,
+      "always_keep": "all events when the raw stream fits",
+      "priority_raw": 2499,
+      "spare_raw": 781,
+      "spare_budget": 0,
+      "stride": 1,
+      "retained_kinds": {
+        "firmware.trap": 22,
+        "func._ZN17compiler_builtins3mem6memcpy17ha62f30a1264ab51cE": 11,
+        "func._ZN17compiler_builtins3mem6memset17hb3cc3e7988f20252E": 50,
+        "func._ZN22buddy_system_allocator4Heap4init17h7209035138d54fd6E": 1,
+        "func._ZN2os10heap_alloc9init_heap17h1e00c014483200f7E": 1,
+        "func._ZN2os15kernel_log_info17h7bb04f577009c6c5E": 1,
+        "func._ZN2os3sbi8shutdown17hb04ef98fc65f19eeE": 1,
+        "func._ZN2os4sync2up19UPSafeCell$LT$T$GT$16exclusive_access17h0403fa1adb420d6eE": 1,
+        "func._ZN2os6loader9load_apps17h5fac401a12739324E": 1,
+        "func._ZN2os7console5print17h68c595618d66b1b0E": 86,
+        "func._ZN3log10set_logger17h3308edfb8c5f0fe6E": 1,
+        "func._ZN42_$LT$str$u20$as$u20$core..fmt..Display$GT$3fmt17hb8c43d55b60732c2E": 83,
+        "func._ZN44_$LT$$RF$T$u20$as$u20$core..fmt..Display$GT$3fmt17ha463bef777cea832E": 83,
+        "func._ZN44_$LT$$RF$T$u20$as$u20$core..fmt..Display$GT$3fmt17he93be4cd5f1be1dfE": 1,
+        "func._ZN4core3fmt3num3imp52_$LT$impl$u20$core..fmt..Display$u20$for$u20$u32$GT$3fmt17h4e8d7a453206e77eE": 1,
+        "func._ZN4core3fmt3num3imp7fmt_u6417h5142f3088252957cE": 1,
+        "func._ZN4core3fmt3num55_$LT$impl$u20$core..fmt..LowerHex$u20$for$u20$usize$GT$3fmt17hc86b5565edb93905E": 2,
+        "func._ZN4core3fmt5write17h49a560cace6c89d2E": 87,
+        "func._ZN4core3fmt9Formatter12pad_integral12write_prefix17h155331fd35b09c53E": 3,
+        "func._ZN4core3fmt9Formatter12pad_integral17h8b1ffde32503eca3E": 3,
+        "func._ZN4core3fmt9Formatter3pad17heef45ae07d2799a9E": 83,
+        "func._ZN4core3str8converts9from_utf817hd70ee2e837c58dd3E": 82,
+        "func._ZN4core9panicking9panic_fmt17h11ec9af140fca503E": 1,
+        "func._ZN4spin4once17Once$LT$T$C$R$GT$18try_call_once_slow17h69cf75f8325f57b4E.llvm.12764375152871647885": 1,
+        "func._ZN56_$LT$os..console..Stdout$u20$as$u20$core..fmt..Write$GT$9write_str17h5e803ce8ac23f6e6E": 98,
+        "func._ZN59_$LT$core..fmt..Arguments$u20$as$u20$core..fmt..Display$GT$3fmt17hb9ea72e8555fec20E": 1,
+        "func.deref": 1,
+        "func.memcpy": 11,
+        "func.memset": 50,
+        "func.run_first_task": 1,
+        "func.run_next_task": 33,
+        "func.rust_main": 1,
+        "interrupt.timer": 8,
+        "kernel.panic": 1,
+        "proc.exit": 7,
+        "sbi.call": 2000,
+        "sched.enter": 1,
+        "sched.switch": 33,
+        "syscall.dispatch": 104,
+        "syscall.enter": 104,
+        "syscall.exit": 7,
+        "syscall.write": 82,
+        "syscall.yield": 15,
+        "trap.enter": 115
+      },
+      "dropped_kinds": {}
     },
     "coverage": {
-      "status": "incomplete",
-      "percent": 98.84,
-      "passed": 5110,
-      "total": 5170,
+      "status": "complete",
+      "percent": 100.0,
+      "passed": 14245,
+      "total": 14245,
       "metrics": {
         "covered": 7,
-        "applicable": 18,
+        "applicable": 7,
         "not_applicable": [
-          "log_commits"
-        ],
-        "missing": [
-          "bcache_reads",
-          "bcache_hits",
           "bcache_hit_rate",
+          "bcache_hits",
+          "bcache_reads",
+          "disk_io",
+          "execs",
+          "forks",
           "kalloc",
           "kfree",
-          "disk_io",
-          "forks",
-          "execs",
+          "log_commits",
+          "page_table_maps",
           "vm_maps",
-          "vm_unmaps",
-          "page_table_maps"
+          "vm_unmaps"
         ],
+        "missing": [],
         "sampled": []
       },
       "semantic_events": {
-        "raw": 2297,
+        "raw": 2499,
         "unknown": 0,
         "unknown_fields": {},
         "dropped_from_interactive": 0
       },
       "snapshots": {
-        "checked": 33,
+        "checked": 72,
         "incomplete": 0,
         "physical_memory": 0,
-        "physical_counters": 33,
-        "processes": 16,
+        "physical_counters": 0,
+        "processes": 0,
         "resources": 0
       },
-      "snapshot_not_applicable": [],
+      "snapshot_not_applicable": [
+        "physical_counters"
+      ],
       "manifest_fields": {
-        "cells": 2720,
+        "cells": 11520,
         "states": {
-          "absent": 2176,
-          "present": 544
+          "absent": 9216,
+          "present": 2304
         },
-        "not_applicable": 2176,
+        "not_applicable": 9216,
         "unresolved": 0
       },
       "full_watch_scope": true,
-      "blockers": [
-        {
-          "check": "metrics",
-          "items": [
-            "bcache_reads",
-            "bcache_hits",
-            "bcache_hit_rate",
-            "kalloc",
-            "kfree",
-            "disk_io",
-            "forks",
-            "execs",
-            "vm_maps",
-            "vm_unmaps",
-            "page_table_maps"
-          ]
-        },
-        {
-          "check": "snapshots",
-          "items": {
-            "incomplete": 0,
-            "physical_memory": 0,
-            "physical_counters": 33,
-            "processes": 16,
-            "resources": 0
-          }
-        }
-      ]
+      "blockers": []
     },
-    "event_selection": {
-      "applied": false,
-      "policy": "kind-preserving/systematic-v3",
-      "raw": 2348,
-      "retained": 2348,
-      "dropped": 0,
-      "target_limit": 150000,
-      "minimum_spare": 25000,
-      "always_keep": "all events when the raw stream fits",
-      "priority_raw": 2297,
-      "spare_raw": 51,
-      "spare_budget": 0,
-      "stride": 1,
-      "retained_kinds": {
-        "firmware.trap": 22,
-        "func.deref": 1,
-        "func.run_first_task": 1,
-        "func.run_next_task": 33,
-        "func.sys_yield": 15,
-        "func.task::run_first_task": 1,
-        "interrupt.timer": 8,
-        "kernel.panic": 1,
-        "proc.exit": 7,
-        "sbi.call": 2000,
-        "sched.switch": 33,
-        "syscall.enter": 104,
-        "syscall.exit": 7,
-        "trap.enter": 115
-      },
-      "dropped_kinds": {}
+    "archive_bytes": {
+      "trace.nfb": 12738394,
+      "manifest.json": 20883,
+      "watchlist.json": 46833,
+      "kernel_layout.json": 9079
     }
   }
 }

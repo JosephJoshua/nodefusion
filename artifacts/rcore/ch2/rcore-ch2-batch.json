@@ -5,7 +5,8 @@
   "frames": 344,
   "fps": 12,
   "seconds": 28.666666666666668,
-  "bytes": 1038717,
+  "bytes": 479368,
+  "mp4_sha256": "e194a3850106dfa7f98d27530c4e403b57957662e53694d102015b6ce05582cf",
   "width": 1280,
   "height": 720,
   "evidence_scope": "all",
@@ -20,8 +21,8 @@
     ],
     "program": "(boot-to-exit)",
     "kernel_kind": "rcore",
-    "kernel_elf": "rcore-a2d992fd.elf",
-    "kernel_elf_sha256": "a2d992fdcad9390155a11fd19efe6fc6f73e241a8517b769ec83f9f5757f348a",
+    "kernel_elf": "rcore-73bb6230.elf",
+    "kernel_elf_sha256": "73bb62300e1c1825a3b9210bb27417a0abf4342863f772f209a98a95c3273919",
     "observed_fields": {
       "process": [],
       "resources": [],
@@ -39,6 +40,7 @@
           "stval",
           "to_pc"
         ],
+        "func": [],
         "sbi": [
           "args",
           "cause_code",
@@ -79,69 +81,245 @@
         ]
       }
     },
-    "total_insns": 24569389,
+    "event_selection": {
+      "applied": false,
+      "policy": "kind-preserving/systematic-v3",
+      "raw": 3011,
+      "retained": 3011,
+      "dropped": 0,
+      "target_limit": 150000,
+      "minimum_spare": 25000,
+      "always_keep": "all events when the raw stream fits",
+      "priority_raw": 2344,
+      "spare_raw": 667,
+      "spare_budget": 0,
+      "stride": 1,
+      "retained_kinds": {
+        "firmware.trap": 22,
+        "func._ZN17compiler_builtins3mem6memcpy17ha62f30a1264ab51cE": 10,
+        "func._ZN17compiler_builtins3mem6memset17hb3cc3e7988f20252E": 16,
+        "func._ZN2os4sync2up19UPSafeCell$LT$T$GT$16exclusive_access17ha733ed67e86e54ebE.llvm.15000211775725314419": 8,
+        "func._ZN2os5batch10AppManager8load_app17h2aeda5f2da89876dE.llvm.15000211775725314419": 8,
+        "func._ZN2os5batch12run_next_app17h368a749c51990a2fE": 8,
+        "func._ZN2os5batch4init17hbe1ded97c264f4cfE": 1,
+        "func._ZN2os7console5print17hd09847a9ae366fdeE": 3,
+        "func._ZN3log10set_logger17h3308edfb8c5f0fe6E": 1,
+        "func._ZN42_$LT$str$u20$as$u20$core..fmt..Display$GT$3fmt17hb8c43d55b60732c2E": 61,
+        "func._ZN44_$LT$$RF$T$u20$as$u20$core..fmt..Display$GT$3fmt17h66c57148236b86b4E": 61,
+        "func._ZN4core3fmt3num3imp54_$LT$impl$u20$core..fmt..Display$u20$for$u20$usize$GT$3fmt17h83de4ff3c495723bE": 15,
+        "func._ZN4core3fmt3num3imp7fmt_u6417h5142f3088252957cE": 15,
+        "func._ZN4core3fmt3num55_$LT$impl$u20$core..fmt..LowerHex$u20$for$u20$usize$GT$3fmt17hc86b5565edb93905E": 14,
+        "func._ZN4core3fmt5write17h49a560cace6c89d2E": 79,
+        "func._ZN4core3fmt9Formatter12pad_integral12write_prefix17h155331fd35b09c53E": 29,
+        "func._ZN4core3fmt9Formatter12pad_integral17h8b1ffde32503eca3E": 29,
+        "func._ZN4core3fmt9Formatter3pad17heef45ae07d2799a9E": 61,
+        "func._ZN4core3str8converts9from_utf817hd70ee2e837c58dd3E": 61,
+        "func._ZN4spin4once17Once$LT$T$C$R$GT$18try_call_once_slow17h37fe62813d5fb3dbE.llvm.15870311150661683472": 1,
+        "func._ZN56_$LT$os..console..Stdout$u20$as$u20$core..fmt..Write$GT$9write_str17h229620bb6f98f861E.llvm.15000211775725314419": 151,
+        "func._ZN66_$LT$os..batch..APP_MANAGER$u20$as$u20$core..ops..deref..Deref$GT$5deref17hb1671aa8838f01fbE.llvm.15000211775725314419": 8,
+        "func.memcpy": 10,
+        "func.memset": 16,
+        "func.rust_main": 1,
+        "sbi.call": 2059,
+        "syscall.dispatch": 65,
+        "syscall.enter": 65,
+        "syscall.exit": 4,
+        "syscall.write": 61,
+        "trap.enter": 68
+      },
+      "dropped_kinds": {}
+    },
+    "absent_declared": {
+      "bcache.read": {
+        "why": "feature",
+        "evidence": "rCore ch1–ch5 源码尚无 easy-fs；ch6 起引入 easy-fs/src/block_cache.rs。按当前 ELF 的 DWARF 核对 BlockCacheManager 类型，只有缺席的构建适用。"
+      },
+      "disk.io": {
+        "why": "feature",
+        "evidence": "rCore ch1–ch5 尚无 easy-fs 和块设备驱动；ch6 起的 os/src/drivers/block/virtio_blk.rs 实现块 I/O。按当前 ELF 的 BlockCacheManager 类型区分阶段。"
+      },
+      "log.commit": {
+        "why": "feature",
+        "evidence": "easy-fs/src 整个 crate grep 不到 log / journal / transaction。最像的 block_cache_sync_all()（Inode::write_at 末尾调一次）只把缓存里的脏块逐个写回，没有日志块、没有原子性、没有崩溃恢复；xv6 的 commit 图的正是崩溃原子性。"
+      },
+      "pagetable.map": {
+        "why": "feature",
+        "evidence": "rCore ch1–ch3 不使用页表映射；ch4 起的 os/src/mm/page_table.rs 与 MemorySet 配合建表。按当前 ELF 的 MemorySet 类型核对阶段。"
+      },
+      "phys.alloc": {
+        "why": "feature",
+        "evidence": "rCore ch1–ch3 尚无页帧分配器；ch4 起的 os/src/mm/frame_allocator.rs 定义 StackFrameAllocator。按当前 ELF 的该类型核对阶段。"
+      },
+      "phys.free": {
+        "why": "feature",
+        "evidence": "rCore ch1–ch3 尚无页帧分配器及逐页归还；ch4 起的 os/src/mm/frame_allocator.rs 实现分配与回收。按当前 ELF 的类型核对阶段。"
+      },
+      "proc.alloc": {
+        "why": "feature",
+        "evidence": "ch1、ch2 无任务分配路径；ch2 的 loader.c 复用同一应用内存区依次装入二进制，ch3 起引入 TaskControlBlock。"
+      },
+      "proc.exec": {
+        "why": "feature",
+        "evidence": "rCore ch1–ch4 静态装入应用，os/src/syscall 无 exec；ch5 起引入进程管理和 exec。按当前 ELF 的 Processor 类型核对阶段。"
+      },
+      "proc.fork": {
+        "why": "feature",
+        "evidence": "rCore ch1–ch4 的 os/src/task 尚无 fork 路径；ch5 起有 Processor 与 TaskControlBlock::fork。按当前 ELF 的 Processor 类型核对阶段。"
+      },
+      "proc.initproc": {
+        "why": "feature",
+        "evidence": "ch1 不运行用户应用，ch2 在 loader.c 中逐个装入应用，尚无内核进程对象或初始进程表。ch3 起定义 TaskControlBlock。"
+      },
+      "sched.switch": {
+        "why": "feature",
+        "evidence": "ch1 仅运行内核，ch2 的 loader.c 按序装入应用；两者均无任务控制块和任务上下文切换。ch3 起定义 TaskControlBlock 与 __switch。"
+      },
+      "vm.map": {
+        "why": "feature",
+        "evidence": "rCore ch1–ch3 还没有分页地址空间；ch4 起的 os/src/mm/memory_set.rs 定义 MemorySet 并建立区域映射。按当前 ELF 的类型核对阶段。"
+      },
+      "vm.unmap": {
+        "why": "feature",
+        "evidence": "rCore ch4 的 os/src/syscall/process.rs 中 sys_munmap 明确为 NOT IMPLEMENTED YET；ch5 起有进程内存回收。按当前 ELF 的 Processor 类型区分阶段。"
+      }
+    },
+    "total_insns": 24569381,
     "program_start_insn": 0,
     "states": 28,
-    "events": 2283,
+    "events": 3011,
     "kinds": [
       "firmware.trap",
+      "func.rust_main",
+      "func.memset",
+      "func._ZN17compiler_builtins3mem6memset17hb3cc3e7988f20252E",
+      "func._ZN3log10set_logger17h3308edfb8c5f0fe6E",
       "sbi.call",
+      "func._ZN2os5batch4init17hbe1ded97c264f4cfE",
+      "func._ZN4spin4once17Once$LT$T$C$R$GT$18try_call_once_slow17h37fe62813d5fb3dbE.llvm.15870311150661683472",
+      "func.memcpy",
+      "func._ZN17compiler_builtins3mem6memcpy17ha62f30a1264ab51cE",
+      "func._ZN4core3fmt5write17h49a560cace6c89d2E",
+      "func._ZN56_$LT$os..console..Stdout$u20$as$u20$core..fmt..Write$GT$9write_str17h229620bb6f98f861E.llvm.15000211775725314419",
+      "func._ZN4core3fmt3num3imp54_$LT$impl$u20$core..fmt..Display$u20$for$u20$usize$GT$3fmt17h83de4ff3c495723bE",
+      "func._ZN4core3fmt3num3imp7fmt_u6417h5142f3088252957cE",
+      "func._ZN4core3fmt9Formatter12pad_integral17h8b1ffde32503eca3E",
+      "func._ZN4core3fmt9Formatter12pad_integral12write_prefix17h155331fd35b09c53E",
+      "func._ZN4core3fmt3num55_$LT$impl$u20$core..fmt..LowerHex$u20$for$u20$usize$GT$3fmt17hc86b5565edb93905E",
+      "func._ZN2os5batch12run_next_app17h368a749c51990a2fE",
+      "func._ZN66_$LT$os..batch..APP_MANAGER$u20$as$u20$core..ops..deref..Deref$GT$5deref17hb1671aa8838f01fbE.llvm.15000211775725314419",
+      "func._ZN2os4sync2up19UPSafeCell$LT$T$GT$16exclusive_access17ha733ed67e86e54ebE.llvm.15000211775725314419",
+      "func._ZN2os5batch10AppManager8load_app17h2aeda5f2da89876dE.llvm.15000211775725314419",
       "trap.enter",
+      "func._ZN2os7console5print17hd09847a9ae366fdeE",
       "syscall.enter",
       "syscall.dispatch",
+      "syscall.write",
+      "func._ZN4core3str8converts9from_utf817hd70ee2e837c58dd3E",
+      "func._ZN44_$LT$$RF$T$u20$as$u20$core..fmt..Display$GT$3fmt17h66c57148236b86b4E",
+      "func._ZN42_$LT$str$u20$as$u20$core..fmt..Display$GT$3fmt17hb8c43d55b60732c2E",
+      "func._ZN4core3fmt9Formatter3pad17heef45ae07d2799a9E",
       "syscall.exit"
     ],
     "outcome": "completed",
     "compare": false
   },
-  "mp4_sha256": "a1703f05c74835c732db5dc4702fb7551ee32c2e1ce5ceefe029e411f7cecd47",
   "report": {
     "schema": "nodefusion.artifact-evidence/1",
     "run": "rcore-ch2-batch",
     "kernel_kind": "rcore",
     "source_sha256": {
-      "trace.nfb": "02bd843cd1cdd8a8a8c4c32c9be9f1ff9c5c266254c8d2ddc7ce34e4d1d80f2f",
-      "manifest.json": "f6c03b0c2d81e3fffc464f4a2da04a9de2be716fbb54f7eb1bb7b831fc0def37",
-      "watchlist.json": "7009986ac1df0926faa414f13bc7d52cae16d2a3f29c9b6e3193052853a0694c",
-      "kernel_layout.json": "10a17f56bd82916e76eb1b61e61750ff0d7f3f89b50f23cae6870b84eee944c8"
+      "trace.nfb": "752a28cf8cc3eeb077dd76e3c4a72332b44ae03a3931173aea38abcb44f1a7cc",
+      "manifest.json": "fa462a661f8b2ec8445beef192795d97dc39bb0a9c5763d768525f5af915aaa0",
+      "watchlist.json": "d67fe4908423c5eb5f91ac7283ea418a38f8a35ad6e64f415f8a464015559fec",
+      "kernel_layout.json": "63c1c6b865a12687fe3556311cf2c32e800720c255c0967219e1f8c2b2392010"
     },
-    "kernel_elf_sha256": "a2d992fdcad9390155a11fd19efe6fc6f73e241a8517b769ec83f9f5757f348a",
-    "html_sha256": "4d6f2c9b462f724465509007fed02ffbc4e763ebda20d5121659aa12e4ae97f4",
-    "html_bytes": 181170,
+    "kernel_elf_sha256": "73bb62300e1c1825a3b9210bb27417a0abf4342863f772f209a98a95c3273919",
+    "html_sha256": "2b8feb9152804f782d1c1fb1233105dd37b44ae3cda517ac1e29939cbbe78d71",
+    "html_bytes": 191291,
     "function_trace": {
-      "kind": "function-entry sequence (no return events)",
-      "raw": 137,
-      "retained": 137
+      "kind": "return-matched observed frames",
+      "raw": 865,
+      "retained": 865,
+      "returns": 171197,
+      "matched_returns": 270,
+      "nested_entries": 5
+    },
+    "event_selection": {
+      "applied": false,
+      "policy": "kind-preserving/systematic-v3",
+      "raw": 3011,
+      "retained": 3011,
+      "dropped": 0,
+      "target_limit": 150000,
+      "minimum_spare": 25000,
+      "always_keep": "all events when the raw stream fits",
+      "priority_raw": 2344,
+      "spare_raw": 667,
+      "spare_budget": 0,
+      "stride": 1,
+      "retained_kinds": {
+        "firmware.trap": 22,
+        "func._ZN17compiler_builtins3mem6memcpy17ha62f30a1264ab51cE": 10,
+        "func._ZN17compiler_builtins3mem6memset17hb3cc3e7988f20252E": 16,
+        "func._ZN2os4sync2up19UPSafeCell$LT$T$GT$16exclusive_access17ha733ed67e86e54ebE.llvm.15000211775725314419": 8,
+        "func._ZN2os5batch10AppManager8load_app17h2aeda5f2da89876dE.llvm.15000211775725314419": 8,
+        "func._ZN2os5batch12run_next_app17h368a749c51990a2fE": 8,
+        "func._ZN2os5batch4init17hbe1ded97c264f4cfE": 1,
+        "func._ZN2os7console5print17hd09847a9ae366fdeE": 3,
+        "func._ZN3log10set_logger17h3308edfb8c5f0fe6E": 1,
+        "func._ZN42_$LT$str$u20$as$u20$core..fmt..Display$GT$3fmt17hb8c43d55b60732c2E": 61,
+        "func._ZN44_$LT$$RF$T$u20$as$u20$core..fmt..Display$GT$3fmt17h66c57148236b86b4E": 61,
+        "func._ZN4core3fmt3num3imp54_$LT$impl$u20$core..fmt..Display$u20$for$u20$usize$GT$3fmt17h83de4ff3c495723bE": 15,
+        "func._ZN4core3fmt3num3imp7fmt_u6417h5142f3088252957cE": 15,
+        "func._ZN4core3fmt3num55_$LT$impl$u20$core..fmt..LowerHex$u20$for$u20$usize$GT$3fmt17hc86b5565edb93905E": 14,
+        "func._ZN4core3fmt5write17h49a560cace6c89d2E": 79,
+        "func._ZN4core3fmt9Formatter12pad_integral12write_prefix17h155331fd35b09c53E": 29,
+        "func._ZN4core3fmt9Formatter12pad_integral17h8b1ffde32503eca3E": 29,
+        "func._ZN4core3fmt9Formatter3pad17heef45ae07d2799a9E": 61,
+        "func._ZN4core3str8converts9from_utf817hd70ee2e837c58dd3E": 61,
+        "func._ZN4spin4once17Once$LT$T$C$R$GT$18try_call_once_slow17h37fe62813d5fb3dbE.llvm.15870311150661683472": 1,
+        "func._ZN56_$LT$os..console..Stdout$u20$as$u20$core..fmt..Write$GT$9write_str17h229620bb6f98f861E.llvm.15000211775725314419": 151,
+        "func._ZN66_$LT$os..batch..APP_MANAGER$u20$as$u20$core..ops..deref..Deref$GT$5deref17hb1671aa8838f01fbE.llvm.15000211775725314419": 8,
+        "func.memcpy": 10,
+        "func.memset": 16,
+        "func.rust_main": 1,
+        "sbi.call": 2059,
+        "syscall.dispatch": 65,
+        "syscall.enter": 65,
+        "syscall.exit": 4,
+        "syscall.write": 61,
+        "trap.enter": 68
+      },
+      "dropped_kinds": {}
     },
     "coverage": {
-      "status": "incomplete",
-      "percent": 97.93,
-      "passed": 2366,
-      "total": 2416,
+      "status": "complete",
+      "percent": 100.0,
+      "passed": 2409,
+      "total": 2409,
       "metrics": {
         "covered": 6,
-        "applicable": 18,
+        "applicable": 6,
         "not_applicable": [
-          "log_commits"
-        ],
-        "missing": [
-          "bcache_reads",
-          "bcache_hits",
           "bcache_hit_rate",
+          "bcache_hits",
+          "bcache_reads",
           "context_switches",
+          "disk_io",
+          "execs",
+          "forks",
           "kalloc",
           "kfree",
-          "disk_io",
-          "forks",
-          "execs",
+          "log_commits",
+          "page_table_maps",
           "vm_maps",
-          "vm_unmaps",
-          "page_table_maps"
+          "vm_unmaps"
         ],
+        "missing": [],
         "sampled": []
       },
       "semantic_events": {
-        "raw": 2283,
+        "raw": 2344,
         "unknown": 0,
         "unknown_fields": {},
         "dropped_from_interactive": 0
@@ -150,11 +328,14 @@
         "checked": 28,
         "incomplete": 0,
         "physical_memory": 0,
-        "physical_counters": 28,
-        "processes": 10,
+        "physical_counters": 0,
+        "processes": 0,
         "resources": 0
       },
-      "snapshot_not_applicable": [],
+      "snapshot_not_applicable": [
+        "physical_counters",
+        "processes"
+      ],
       "manifest_fields": {
         "cells": 0,
         "states": {},
@@ -162,58 +343,13 @@
         "unresolved": 0
       },
       "full_watch_scope": true,
-      "blockers": [
-        {
-          "check": "metrics",
-          "items": [
-            "bcache_reads",
-            "bcache_hits",
-            "bcache_hit_rate",
-            "context_switches",
-            "kalloc",
-            "kfree",
-            "disk_io",
-            "forks",
-            "execs",
-            "vm_maps",
-            "vm_unmaps",
-            "page_table_maps"
-          ]
-        },
-        {
-          "check": "snapshots",
-          "items": {
-            "incomplete": 0,
-            "physical_memory": 0,
-            "physical_counters": 28,
-            "processes": 10,
-            "resources": 0
-          }
-        }
-      ]
+      "blockers": []
     },
-    "event_selection": {
-      "applied": false,
-      "policy": "kind-preserving/systematic-v3",
-      "raw": 2283,
-      "retained": 2283,
-      "dropped": 0,
-      "target_limit": 150000,
-      "minimum_spare": 25000,
-      "always_keep": "all events when the raw stream fits",
-      "priority_raw": 2283,
-      "spare_raw": 0,
-      "spare_budget": 0,
-      "stride": 1,
-      "retained_kinds": {
-        "firmware.trap": 22,
-        "sbi.call": 2059,
-        "syscall.dispatch": 65,
-        "syscall.enter": 65,
-        "syscall.exit": 4,
-        "trap.enter": 68
-      },
-      "dropped_kinds": {}
+    "archive_bytes": {
+      "trace.nfb": 12495867,
+      "manifest.json": 21590,
+      "watchlist.json": 45906,
+      "kernel_layout.json": 5444
     }
   }
 }

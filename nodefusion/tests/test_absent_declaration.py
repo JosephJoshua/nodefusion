@@ -88,6 +88,14 @@ def test_declaring_a_kind_that_is_also_mapped_is_rejected(tmp_path):
     assert "log_write" in msg, f"该指出是谁映的，不然人得自己翻：{msg}"
 
 
+def test_conditional_feature_absence_can_share_a_later_event_mapping(tmp_path):
+    m = _load(tmp_path, f'[event]\nread_cache = "bcache.read"\n\n'
+                        f'[absent]\n"bcache.read" = '
+                        f'{{ why = "feature", when = {{ type_missing = "cache::Manager" }}, '
+                        f'evidence = "{OK_EV}" }}\n')
+    assert m.absent["bcache.read"].when == {"type_missing": "cache::Manager"}
+
+
 def test_an_unknown_key_is_rejected(tmp_path):
     with pytest.raises(M.ManifestError):
         _load(tmp_path, f'[absent]\n"log.commit" = '
@@ -113,13 +121,16 @@ def test_every_shipped_manifest_loads():
     assert M.load_dir(MANIFESTS)
 
 
-def test_the_declaration_we_ship_is_the_real_rcore_feature_limit():
+def test_shipped_absence_has_only_one_unconditional_rcore_limit():
     mans = M.load_dir(MANIFESTS)
-    declared = {k: sorted(m.absent) for k, m in mans.items() if m.absent}
+    declared = {k: sorted(kind for kind, spec in m.absent.items()
+                          if not spec.when) for k, m in mans.items() if m.absent}
     assert declared == {"rcore": ["log.commit"],
                         "ucore": ["log.commit"]}, declared
     a = mans["rcore"].absent
     assert a["log.commit"].why == "feature"
+    assert all(spec.when and set(spec.when) == {"type_missing"}
+               for kind, spec in a.items() if kind != "log.commit")
 
 
 def test_the_shipped_evidence_points_at_something_checkable():
@@ -127,7 +138,7 @@ def test_the_shipped_evidence_points_at_something_checkable():
     for kern, m in M.load_dir(MANIFESTS).items():
         for kind, spec in m.absent.items():
             ev = spec.evidence
-            assert any(t in ev for t in ("::", ".rs", "/src", "()", "grep")), (
+            assert any(t in ev for t in ("::", ".rs", ".c", "/src", "()", "grep")), (
                 f"{kern} 的 {kind} 依据里没有可查的抓手：{ev}")
             checked += 1
     assert checked, "一条声明都没查到 —— 多半是 absent 没加载进来"

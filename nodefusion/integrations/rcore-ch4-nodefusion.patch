@@ -1,0 +1,165 @@
+diff --git a/os/src/mm/frame_allocator.rs b/os/src/mm/frame_allocator.rs
+index 01e62fd..63c6ad8 100644
+--- a/os/src/mm/frame_allocator.rs
++++ b/os/src/mm/frame_allocator.rs
+@@ -8,6 +8,45 @@ use alloc::vec::Vec;
+ use core::fmt::{self, Debug, Formatter};
+ use lazy_static::*;
+ 
++const NFT_KALLOC: u64 = 1;
++const NFT_SCHED_SWITCH: u64 = 4;
++const NFT_KFREE: u64 = 5;
++const NFT_NO_TASK: u64 = u64::MAX;
++
++#[repr(C)]
++#[derive(Clone, Copy)]
++struct NfTraceRecord {
++    type_: u64,
++    a: [u64; 4],
++}
++
++#[no_mangle]
++#[inline(never)]
++pub extern "C" fn nftrace_commit_point(record: *const u64) {
++    if !record.is_null() {
++        // SAFETY: the caller passes a live stack record.
++        core::hint::black_box(unsafe { core::ptr::read_volatile(record) });
++    }
++}
++
++fn nodefusion_trace_page(kind: u64, paddr: usize, free_pages: usize, used_pages: usize) {
++    let record = NfTraceRecord {
++        type_: kind,
++        a: [paddr as u64, 1, free_pages as u64, used_pages as u64],
++    };
++    nftrace_commit_point(&record as *const NfTraceRecord as *const u64);
++}
++
++pub(crate) fn nodefusion_trace_sched_switch(from_task: Option<usize>, to_task: Option<usize>) {
++    let from = from_task.map_or(NFT_NO_TASK, |id| id as u64);
++    let to = to_task.map_or(NFT_NO_TASK, |id| id as u64);
++    let record = NfTraceRecord {
++        type_: NFT_SCHED_SWITCH,
++        a: [from, to, NFT_NO_TASK, NFT_NO_TASK],
++    };
++    nftrace_commit_point(&record as *const NfTraceRecord as *const u64);
++}
++
+ /// tracker for physical page frame allocation and deallocation
+ pub struct FrameTracker {
+     /// physical page number
+@@ -48,6 +87,7 @@ pub struct StackFrameAllocator {
+     current: usize,
+     end: usize,
+     recycled: Vec<usize>,
++    allocated: usize,
+ }
+ 
+ impl StackFrameAllocator {
+@@ -63,17 +103,22 @@ impl FrameAllocator for StackFrameAllocator {
+             current: 0,
+             end: 0,
+             recycled: Vec::new(),
++            allocated: 0,
+         }
+     }
+     fn alloc(&mut self) -> Option<PhysPageNum> {
+-        if let Some(ppn) = self.recycled.pop() {
++        let result = if let Some(ppn) = self.recycled.pop() {
+             Some(ppn.into())
+         } else if self.current == self.end {
+             None
+         } else {
+             self.current += 1;
+             Some((self.current - 1).into())
++        };
++        if result.is_some() {
++            self.allocated += 1;
+         }
++        result
+     }
+     fn dealloc(&mut self, ppn: PhysPageNum) {
+         let ppn = ppn.0;
+@@ -83,6 +128,13 @@ impl FrameAllocator for StackFrameAllocator {
+         }
+         // recycle
+         self.recycled.push(ppn);
++        self.allocated -= 1;
++    }
++}
++
++impl StackFrameAllocator {
++    fn page_counts(&self) -> (usize, usize) {
++        (self.end - self.current + self.recycled.len(), self.allocated)
+     }
+ }
+ 
+@@ -106,15 +158,26 @@ pub fn init_frame_allocator() {
+ 
+ /// Allocate a physical page frame in FrameTracker style
+ pub fn frame_alloc() -> Option<FrameTracker> {
+-    FRAME_ALLOCATOR
+-        .exclusive_access()
+-        .alloc()
+-        .map(FrameTracker::new)
++    let (ppn, free_pages, used_pages) = {
++        let mut allocator = FRAME_ALLOCATOR.exclusive_access();
++        let ppn = allocator.alloc();
++        let (free_pages, used_pages) = allocator.page_counts();
++        (ppn, free_pages, used_pages)
++    };
++    let frame = ppn.map(FrameTracker::new);
++    let paddr = frame.as_ref().map_or(0, |f| PhysAddr::from(f.ppn).0);
++    nodefusion_trace_page(NFT_KALLOC, paddr, free_pages, used_pages);
++    frame
+ }
+ 
+ /// Deallocate a physical page frame with a given ppn
+ pub fn frame_dealloc(ppn: PhysPageNum) {
+-    FRAME_ALLOCATOR.exclusive_access().dealloc(ppn);
++    let (free_pages, used_pages) = {
++        let mut allocator = FRAME_ALLOCATOR.exclusive_access();
++        allocator.dealloc(ppn);
++        allocator.page_counts()
++    };
++    nodefusion_trace_page(NFT_KFREE, PhysAddr::from(ppn).0, free_pages, used_pages);
+ }
+ 
+ #[allow(unused)]
+diff --git a/os/src/mm/mod.rs b/os/src/mm/mod.rs
+index 8563fbd..b555494 100644
+--- a/os/src/mm/mod.rs
++++ b/os/src/mm/mod.rs
+@@ -26,3 +26,4 @@ pub fn init() {
+     frame_allocator::init_frame_allocator();
+     KERNEL_SPACE.exclusive_access().activate();
+ }
++pub(crate) use frame_allocator::nodefusion_trace_sched_switch;
+diff --git a/os/src/task/mod.rs b/os/src/task/mod.rs
+index a745df8..669641d 100644
+--- a/os/src/task/mod.rs
++++ b/os/src/task/mod.rs
+@@ -15,6 +15,7 @@ mod switch;
+ mod task;
+ 
+ use crate::loader::{get_app_data, get_num_app};
++use crate::mm::nodefusion_trace_sched_switch;
+ use crate::sync::UPSafeCell;
+ use crate::trap::TrapContext;
+ use alloc::vec::Vec;
+@@ -82,6 +83,7 @@ impl TaskManager {
+         let next_task_cx_ptr = &next_task.task_cx as *const TaskContext;
+         drop(inner);
+         let mut _unused = TaskContext::zero_init();
++        nodefusion_trace_sched_switch(None, Some(0));
+         // before this, we should drop local variables that must be dropped manually
+         unsafe {
+             __switch(&mut _unused as *mut _, next_task_cx_ptr);
+@@ -144,6 +146,7 @@ impl TaskManager {
+             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
+             let next_task_cx_ptr = &inner.tasks[next].task_cx as *const TaskContext;
+             drop(inner);
++            nodefusion_trace_sched_switch(Some(current), Some(next));
+             // before this, we should drop local variables that must be dropped manually
+             unsafe {
+                 __switch(current_task_cx_ptr, next_task_cx_ptr);

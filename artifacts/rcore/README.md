@@ -7,7 +7,14 @@
 [ch7](ch7/rcore-ch7-100pct-final.html)、
 [ch8](ch8/rcore-ch8-exact-filetest.html)。ch7 的证据在同名 `.evidence.json`；
 其他章的报告与视频来自同一次录制，证据在视频 JSON 的 `report` 字段。
-ch7 严格覆盖检查通过，其他章见各自的 `coverage.blockers`。
+ch1–ch8 的严格覆盖检查均通过。
+ch7 报告由同一内核构建在远程重录，包含返回指令观测：
+490,422 条返回记录中有 100,078 条与观察点函数帧匹配。
+原始轨迹保存在录制归档；HTML 中的调用链只展示能够核对的观测帧。
+ch1–ch6、ch8 也已带返回指令重录。ch4 使用
+[`rcore-ch4-nodefusion.patch`](../../nodefusion/integrations/rcore-ch4-nodefusion.patch)，ch5/ch6 共用
+[`rcore-ch6-nodefusion.patch`](../../nodefusion/integrations/rcore-ch6-nodefusion.patch)，
+ch8 使用 [`rcore-ch8-nodefusion.patch`](../../nodefusion/integrations/rcore-ch8-nodefusion.patch)。
 
 以下是更早的 ch6 文件系统与 panic 样例：
 

@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from nodefusion.host.analyze import Analysis
 from nodefusion.model.manifest import load
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,7 +43,8 @@ def test_rcore_patch_and_manifest_agree_on_the_per_region_hook():
     manifest = load(ROOT / "manifests" / "rcore.toml")
     assert manifest.events[symbol].kind == "vm.unmap"
     assert manifest.events[symbol].args == ["start_vpn", "end_vpn"]
-    assert "vm.unmap" not in manifest.absent
+    assert manifest.absent["vm.unmap"].when == {
+        "type_missing": "os::task::processor::Processor"}
 
 
 def test_rcore_patch_exports_exact_physical_allocation_results():
@@ -57,12 +59,88 @@ def test_rcore_patch_exports_exact_physical_allocation_results():
     assert "nodefusion_trace_sched_switch" in patch
 
 
+def test_rcore_chapter_patches_preserve_per_region_and_scheduler_identity():
+    for chapter in (6, 8):
+        patch = (INTEGRATIONS / f"rcore-ch{chapter}-nodefusion.patch").read_text(
+            encoding="utf-8")
+        assert "nodefusion_vm_unmap_region" in patch
+        assert "self.areas.clear();" in patch
+        assert "nftrace_commit_point" in patch
+        assert "nodefusion_trace_page(NFT_KALLOC" in patch
+        assert "nodefusion_trace_sched_switch" in patch
+    ch8 = (INTEGRATIONS / "rcore-ch8-nodefusion.patch").read_text()
+    assert "Arc::as_ptr(&task) as usize" in ch8
+    assert "a: [from_task, to_task, from_pid, to_pid]" in ch8
+    assert "block_current_and_run_next" in ch8
+
+
+def test_rcore_ch4_sched_probe_uses_task_ids_without_inventing_pids():
+    patch = (INTEGRATIONS / "rcore-ch4-nodefusion.patch").read_text()
+    assert "nodefusion_trace_sched_switch(Some(current), Some(next))" in patch
+    assert "a: [from, to, NFT_NO_TASK, NFT_NO_TASK]" in patch
+    assert "nodefusion_trace_page(NFT_KALLOC" in patch
+
+
 def test_rcore_log_commit_remains_an_evidence_backed_feature_absence():
     manifest = load(ROOT / "manifests" / "rcore.toml")
     absent = manifest.absent["log.commit"]
     assert absent.why == "feature"
     assert "easy-fs/src" in absent.evidence
     assert "journal" in absent.evidence
+
+
+def test_rcore_filesystem_absence_depends_on_the_resolved_build(monkeypatch):
+    manifest = load(ROOT / "manifests" / "rcore.toml")
+    monkeypatch.setattr("nodefusion.model.manifest.load_dir",
+                        lambda: {"rcore": manifest})
+
+    class Dwarf:
+        def __init__(self, present):
+            self.present = present
+
+        def find(self, name):
+            assert name in {
+                "easy_fs::block_cache::BlockCacheManager",
+                "os::task::task::TaskControlBlock",
+                "os::task::processor::Processor",
+                "os::mm::frame_allocator::StackFrameAllocator",
+                "os::mm::memory_set::MemorySet"}
+            return object() if name in self.present else None
+
+    for present in (
+        set(),
+        {"os::mm::frame_allocator::StackFrameAllocator",
+         "os::mm::memory_set::MemorySet"},
+        {"os::task::processor::Processor",
+         "os::mm::frame_allocator::StackFrameAllocator",
+         "os::mm::memory_set::MemorySet"},
+        {"easy_fs::block_cache::BlockCacheManager",
+         "os::task::processor::Processor",
+         "os::mm::frame_allocator::StackFrameAllocator",
+         "os::mm::memory_set::MemorySet"},
+    ):
+        analysis = object.__new__(Analysis)
+        analysis.kernel_kind = "rcore"
+        analysis._manifest_dw = Dwarf(present)
+        analysis.kevents = None
+        analysis.notes = []
+        absent = analysis._absent_kinds()
+        for kind, typ in (
+            ("bcache.read", "easy_fs::block_cache::BlockCacheManager"),
+            ("disk.io", "easy_fs::block_cache::BlockCacheManager"),
+            ("sched.switch", "os::task::task::TaskControlBlock"),
+            ("proc.initproc", "os::task::task::TaskControlBlock"),
+            ("proc.alloc", "os::task::task::TaskControlBlock"),
+            ("proc.fork", "os::task::processor::Processor"),
+            ("proc.exec", "os::task::processor::Processor"),
+            ("vm.unmap", "os::task::processor::Processor"),
+            ("phys.alloc", "os::mm::frame_allocator::StackFrameAllocator"),
+            ("phys.free", "os::mm::frame_allocator::StackFrameAllocator"),
+            ("vm.map", "os::mm::memory_set::MemorySet"),
+            ("pagetable.map", "os::mm::memory_set::MemorySet"),
+        ):
+            assert (kind in absent) == (typ not in present)
+        assert "log.commit" in absent
 
 
 def test_ucore_patch_and_manifest_supply_exact_semantics():
