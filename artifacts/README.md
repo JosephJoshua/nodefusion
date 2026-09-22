@@ -10,13 +10,14 @@ HTML 可以直接在浏览器打开。原始 trace 和 ELF 体积较大，保留
 | 内核 | 报告 | 覆盖情况 |
 |---|---|---|
 | uCoreOS | [ch1–ch8](ucoreos/) | 八章严格检查均通过 |
-| StarryOS | [showcase](starryos/showcase/starry-100pct-final.html)、[应用](starryos/apps/) | showcase 通过；较早录制的应用仍有缺项 |
-| rCore | [ch1–ch8](rcore/) | ch7 通过；其余章有缺项 |
+| StarryOS | [showcase](starryos/showcase/starry-100pct-final.html)、[应用](starryos/apps/) | showcase 和两个应用均通过严格检查 |
+| rCore | [ch1–ch8](rcore/) | 八章严格检查均通过 |
 | ArceOS | [应用](arceos/apps/) | 当前录制有缺项 |
 | xv6 | [lab3-cow](xv6/lab3-cow/lab3-cowtest-mac.html) | 当前录制有缺项；其他旧样例未重新录制 |
 
-报告的「函数轨迹」展示观察点命中的入口顺序和返回地址定位的直接调用方。
-没有返回事件，因此它不是完整的动态调用栈。交互报告最多保留 150,000 条事件，
+报告的「函数轨迹」展示观察点命中的入口顺序和直接调用方。用
+`nodefusion record --function-returns` 新录制的轨迹还能显示经返回指令核对的
+观测调用链；旧轨迹没有返回事件。交互报告最多保留 150,000 条事件，
 按 kind 保留代表样本；统计与覆盖检查使用完整原始记录。抽样数量见 HTML 和证据 JSON。
 
 从归档重建一份报告：

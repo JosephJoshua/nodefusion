@@ -7,6 +7,7 @@
 [userprivilege](apps/arceos-userprivilege/arceos-userprivilege.html)。
 
 tracecomplete 的 `manifest.json` 和 `console.log` 与报告放在同一目录。
-提交的 manifest 隐去了本机路径；证据中的 manifest 哈希对应归档原件。
-这次运行观察了 20 个点，记录到 13 次命中和 49 次限流丢弃；
-报告保留 13 个函数入口。各应用当前覆盖缺项见证据 JSON 的 `coverage.blockers`。
+提交的 manifest 隐去了录制机路径；证据中的 manifest 哈希对应归档原件。
+tracecomplete 已用完整观察范围和返回指令重新录制，报告保留 149,980 个函数入口；
+严格覆盖率为 86.10%，剩余缺项见证据 JSON 的 `coverage.blockers`。
+其他三个应用尚未替换，仍以各自证据中的缺项为准。

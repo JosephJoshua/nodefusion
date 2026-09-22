@@ -33,7 +33,7 @@ QEMU + TCG plugin -> trace.nfb -> Python analysis -> self-contained HTML
 | 内核 | Manifest | 已提交的材料 | 当前状态 |
 | --- | --- | --- | --- |
 | xv6-riscv | [`xv6.toml`](nodefusion/manifests/xv6.toml) | [`artifacts/xv6`](artifacts/xv6) | 启动、lazy allocation、COW 对比样例；样例来自较早的录制 |
-| rCore | [`rcore.toml`](nodefusion/manifests/rcore.toml) | [`artifacts/rcore`](artifacts/rcore) | ch1--ch8 的章节证据；ch7 有严格 100% 适用项审计 |
+| rCore | [`rcore.toml`](nodefusion/manifests/rcore.toml) | [`artifacts/rcore`](artifacts/rcore) | ch1--ch8 均通过严格适用项审计 |
 | ArceOS | [`arceos.toml`](nodefusion/manifests/arceos.toml) | [`artifacts/arceos`](artifacts/arceos) | 四个应用的报告；当前录制存在覆盖缺项 |
 | StarryOS | [`starry.toml`](nodefusion/manifests/starry.toml) | [`artifacts/starryos`](artifacts/starryos) | 子系统和应用证据；严格审计达到 100% 适用项覆盖 |
 | uCoreOS | [`ucore.toml`](nodefusion/manifests/ucore.toml) | [`artifacts/ucoreos`](artifacts/ucoreos) | Tutorial ch1--ch8 每章均有 100% 适用项覆盖记录 |
@@ -49,6 +49,9 @@ QEMU + TCG plugin -> trace.nfb -> Python analysis -> self-contained HTML
 StarryOS 的 showcase 原始流包含 6,659,153 条事件；交互式报告按文档化策略保留
 150,000 条用于浏览，覆盖率和统计使用完整原始流。原始 `trace.nfb` 保存在归档中，
 仓库中的 JSON sidecar、MP4 和覆盖索引用于复核产物范围与校验和。
+
+rCore ch1--ch8、StarryOS 的两个应用及 ArceOS tracecomplete 的报告
+包含返回指令核对的观测调用链；其他旧报告仍只有入口和直接调用方。
 
 ## 快速开始
 

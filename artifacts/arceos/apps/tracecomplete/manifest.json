@@ -3,44 +3,47 @@
   "run_name": "arceos-tracecomplete",
   "program": "(boot-to-exit)",
   "outcome": "completed",
+  "program_exit_code": null,
+  "outcome_ambiguous": null,
   "trace_complete": true,
   "trace_incomplete_reason": null,
-  "started_utc": "2026-09-02T07:15:44.996116+00:00",
-  "wall_seconds": 1.21,
-  "kernel_dir": "$HOME/Desktop/Code/tsinghua/tg-arceos-tutorial/app-childtask",
+  "started_utc": "2026-09-22T10:51:30.835869+00:00",
+  "wall_seconds": 4.57,
+  "kernel_dir": "$REMOTE_WORK/starry-kernel/tmp/nf-arce-source/app-childtask",
   "kernel_kind": "arceos",
-  "kernel_elf": "$HOME/Desktop/Code/tsinghua/nodefusion/nodefusion/kernels/arceos-55f7257f.elf",
+  "kernel_elf": "$REMOTE_WORK/nodefusion/kernels/builds/arceos-a64f7735.elf",
+  "kernel_elf_build_path": "$REMOTE_WORK/starry-kernel/tmp/nf-arce-source/app-childtask/target/riscv64gc-unknown-none-elf/release/arceos-childtask",
   "kernel_elf_identity": {
-    "sha256": "55f7257faa274677ce1a18c13253b98fc7dbfb5a22161481cf4164b3b4ec2e33",
-    "size_bytes": 6526896,
+    "sha256": "a64f773534ccb448d38d7015d7f3360d765ebb091f21729a6b2d4fd72b518354",
+    "size_bytes": 6523936,
     "root_symbols_note": "arceos-childtask 里一个都没找到：proc/cpus/TASK_MANAGER/PID2PCB/PROCESSOR"
   },
+  "kernel_elf_archived": "$REMOTE_WORK/nodefusion/kernels/builds/arceos-a64f7735.elf",
   "lab_stage": null,
   "lab_stage_source": "Makefile 默认值",
   "make_vars": {},
   "cpus": 1,
   "icount_shift": 3,
   "sample_insns": 200000,
-  "snap_insns": 1000000,
-  "boot_snap_insns": 0,
-  "snap_start_insn": 0,
-  "program_start_insn": 0,
-  "calibrated_total_insns": 67517557,
+  "snap_insns": 200000,
+  "boot_snap_insns": 2812455,
+  "snap_start_insn": 67498926,
+  "program_start_insn": 67498926,
+  "calibrated_total_insns": 67517339,
   "max_ram_bytes": 1073741824,
+  "function_returns": true,
   "wsl_env": {
-    "qemu-system-riscv64": "/opt/homebrew/bin/qemu-system-riscv64",
-    "cargo": "$HOME/.cargo/bin/cargo",
-    "rust-objcopy": "$HOME/.cargo/bin/rust-objcopy",
+    "qemu-system-riscv64": "$QEMU_PREFIX/bin/qemu-system-riscv64",
     "QEMUVER": "QEMU emulator version 10.2.2",
     "shell": {
       "kind": "local",
-      "platform": "Darwin",
-      "machine": "arm64",
-      "qemu_prefix": "/opt/homebrew"
+      "platform": "Linux",
+      "machine": "x86_64",
+      "qemu_prefix": "$QEMU_PREFIX"
     }
   },
   "record_warnings": [
-    "--no-build：这次没有编译，直接用了现成的 $HOME/Desktop/Code/tsinghua/tg-arceos-tutorial/app-childtask/target/riscv64gc-unknown-none-elf/release/arceos-childtask（修改时间 2026-08-31 11:15 UTC）。也就是说**没人验证过这份二进制是当前源码编出来的**；它可能是任何时候留下的。ELF 指纹见 kernel_elf_identity。"
+    "--no-build：这次没有编译，直接用了现成的 $REMOTE_WORK/starry-kernel/tmp/nf-arce-source/app-childtask/target/riscv64gc-unknown-none-elf/release/arceos-childtask（修改时间 2026-09-22 10:50 UTC）。也就是说**没人验证过这份二进制是当前源码编出来的**；它可能是任何时候留下的。ELF 指纹见 kernel_elf_identity。"
   ],
   "watchlist_missing": [
     "[nftrace] fn='nftrace_commit_point'"
@@ -48,21 +51,20 @@
   "watch_source": "manifest:arceos",
   "watch_detect": [
     "alien: 不匹配（any_type 命中 无）",
-    "arceos: 匹配（any_type 命中 ['axtask::task::TaskInner']）",
+    "arceos: 匹配（any_type 命中 ['axtask::task::TaskInner', 'axcpu::riscv::context::TrapFrame']）",
     "axvisor: 不匹配（any_type 命中 无）",
     "rcore: 不匹配（any_type 命中 无）",
     "rel4: 不匹配（any_symbol 命中 无）",
     "starry: 不匹配（any_type 命中 无）",
+    "ucore: 不匹配（all_symbol 命中 无，缺 ['digits', 'SBI_SHUTDOWN']）",
     "xv6: 不匹配（any_type 命中 无；any_symbol 命中 无）"
   ],
   "kernel_layout_kind": "arceos",
   "kernel_layout_missing": [],
   "kernel_layout_notes": {
-    "_manifest_layout": "arceos 的结构体偏移不在这份文件里，也没有探测失败。它们由 manifest（docs/manifests/draft/arceos.toml）加内核 ELF 的 DWARF 在分析阶段解出来，见 model/probe.py。这一步的 asm-offsets 探针只适用于 C 内核（要编 include 内核头文件的代码），对这个内核不成立，所以没有跑。"
+    "_manifest_layout": "arceos 的结构体偏移不在这份文件里，也没有探测失败。它们由 manifest（nodefusion/manifests/arceos.toml）加内核 ELF 的 DWARF 在分析阶段解出来，见 model/probe.py。这一步的 asm-offsets 探针只适用于 C 内核（要编 include 内核头文件的代码），对这个内核不成立，所以没有跑。"
   },
   "build_log_tail": "(--no-build：跳过构建)",
-  "qemu_cmd": "cd \"$HOME/Desktop/Code/tsinghua/tg-arceos-tutorial/app-childtask\" && exec qemu-system-riscv64 -machine virt -bios default -kernel target/riscv64gc-unknown-none-elf/release/arceos-childtask.bin -m 128M -drive if=pflash,format=raw,unit=1,file=pflash.img,readonly=on -smp 1 -nographic -icount shift=3 -qmp tcp:127.0.0.1:54950,server=on,wait=off -plugin $HOME/Desktop/Code/tsinghua/nodefusion/nodefusion/plugin/libnf.dylib,out=$HOME/Desktop/Code/tsinghua/nodefusion/nodefusion/runs/arceos-tracecomplete/trace.nfb,sample=200000,snap=1000000,maxram=1073741824,snapstart=0,bootsnap=0,evsnapmin=2000,watch=$HOME/Desktop/Code/tsinghua/nodefusion/nodefusion/runs/arceos-tracecomplete/watchlist.txt",
-  "qemu_stderr_tail": "[nodefusion-plugin] 已挂载：out=$HOME/Desktop/Code/tsinghua/nodefusion/nodefusion/runs/arceos-tracecomplete/trace.nfb sample=200000 snap=1000000 watches=20\n[nodefusion-plugin] 结束：指令 67517556，快照 70 次，异常/中断 20 次，采样 337 次，watch 命中 13 次，watch 限流丢弃 49 次，内存快照 2.1 MiB，guest 语义 0 条（读失败 0）\n",
-  "kernel_elf_archived_from": "$HOME/Desktop/Code/tsinghua/tg-arceos-tutorial/app-childtask/target/riscv64gc-unknown-none-elf/release/arceos-childtask",
-  "path_redaction": "发布用副本：把录制机器的home路径（11 处）换成了 $HOME。其余字段与 runs/ 里的原始 manifest 逐字一致；原件不改。"
+  "qemu_cmd": "cd \"$REMOTE_WORK/starry-kernel/tmp/nf-arce-source/app-childtask\" && exec qemu-system-riscv64 -machine virt -bios default -kernel target/riscv64gc-unknown-none-elf/release/arceos-childtask.bin -m 128M -smp 1 -nographic -qmp tcp:127.0.0.1:34297,server=on,wait=off -plugin $REMOTE_WORK/nodefusion/plugin/libnf.so,out=$REMOTE_WORK/runs-arce-calibrated/arceos-tracecomplete/trace.nfb,sample=200000,snap=200000,maxram=1073741824,returns=1,snapstart=67498926,bootsnap=2812455,ramsize=134217728,evsnapmin=500,watch=$REMOTE_WORK/runs-arce-calibrated/arceos-tracecomplete/watchlist.txt -icount shift=3",
+  "qemu_stderr_tail": "[nodefusion-plugin] 已挂载：out=$REMOTE_WORK/runs-arce-calibrated/arceos-tracecomplete/trace.nfb sample=200000 snap=200000 watches=413\n[nodefusion-plugin] 结束：指令 67517340，快照 30 次，异常/中断 20 次，采样 337 次，watch 命中 2651950 次，watch 限流丢弃 827 次，内存快照 2.0 MiB，guest 语义 0 条（读失败 0）\n"
 }
