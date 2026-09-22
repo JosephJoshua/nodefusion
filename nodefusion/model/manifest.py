@@ -104,6 +104,7 @@ class AbsentSpec:
     kind: str
     why: str
     evidence: str
+    when: dict | None = None
 
 
 @dataclass(frozen=True)
@@ -470,7 +471,7 @@ def _syscalls(raw, p: Path) -> SyscallSpec | None:
 
 
 _ABSENT_WHY = frozenset({"feature", "granularity"})
-_ABSENT_KEYS = frozenset({"why", "evidence"})
+_ABSENT_KEYS = frozenset({"why", "evidence", "when"})
 _ABSENT_MIN_EVIDENCE = 24
 
 
@@ -580,7 +581,14 @@ def _absent(raw, events: dict[str, EventSpec], p: Path) -> dict[str, AbsentSpec]
                 f"要能指到源码位置或者量出来的数；写不出来就别声明这一条 —— "
                 f"「没映射」本来就是个诚实的说法，「查过了，没有」不是。")
 
-        if kind in mapped:
+        when = spec.get("when")
+        if when is not None and (not isinstance(when, dict) or
+                                 set(when) != {"type_missing"} or
+                                 not isinstance(when["type_missing"], str) or
+                                 not when["type_missing"].strip()):
+            raise ManifestError(
+                f"{where} 的 when 只能是非空的 {{ type_missing = \"...\" }}。")
+        if kind in mapped and when is None:
             raise ManifestError(
                 f"{where}：这个类别同时出现在 [event] 里，映射它的是 "
                 f"{'、'.join(sorted(mapped[kind]))}。"
@@ -588,7 +596,8 @@ def _absent(raw, events: dict[str, EventSpec], p: Path) -> dict[str, AbsentSpec]
                 f"两句话互相取消，不猜哪句是真的。"
                 f"补映射的时候多半是忘了删掉当初写的 [absent]。")
 
-        out[str(kind)] = AbsentSpec(kind=str(kind), why=why, evidence=evidence)
+        out[str(kind)] = AbsentSpec(kind=str(kind), why=why, evidence=evidence,
+                                   when=when)
     return out
 
 

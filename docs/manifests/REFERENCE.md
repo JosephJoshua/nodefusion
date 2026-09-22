@@ -591,14 +591,23 @@ inlined = false
 "log.commit" = { why = "feature", evidence = "文件系统直接写回缓存块；源码中没有 journal、transaction、recovery 路径，ELF 中也没有提交入口。" }
 ```
 
-每个键是已登记事件类别。值只接受 `why` 和 `evidence`：
+每个键是已登记事件类别。值接受 `why`、`evidence`，以及可选的 `when`：
 
 | `why` | 含义 |
 | --- | --- |
 | `feature` | 目标内核没有该机制 |
 | `granularity` | 内核有相关行为，当前可寻址入口达不到统一事件粒度 |
 
-`evidence` 去除首尾空白后至少 24 个字符。内容应当能指向源码位置、调用路径、符号检查或实际测量。一个类别不能同时出现在 `[event]` 和 `[absent]`。
+`evidence` 去除首尾空白后至少 24 个字符。内容应当能指向源码位置、调用路径、符号检查或实际测量。无条件的 absent 类别不能同时出现在 `[event]` 中。
+
+跨构建的 manifest 可用 `when = { type_missing = "完整 DWARF 类型名" }` 声明某个构建缺少该机制。例如早期章节尚无块缓存：
+
+```toml
+[absent]
+"bcache.read" = { why = "feature", when = { type_missing = "mykernel::block_cache::BlockCacheManager" }, evidence = "早期构建没有块缓存管理器，文件系统章节才引入该类型及读取路径。" }
+```
+
+分析器成功读取本次 ELF 的 DWARF，且找不到指定类型时，这条 absent 才生效。同一类别可在 `[event]` 中为后续构建保留映射。没有可用的 DWARF 时，条件 absent 不会生效。
 
 `[absent]` 描述内核或观测边界。某次 workload 没有触发一个已支持事件时，保留事件映射，并为该事件增加测试 workload。
 

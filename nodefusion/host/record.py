@@ -2,14 +2,16 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import socket
 import subprocess
+import sys
 import tempfile
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -25,6 +27,48 @@ END_MARKER = "__NF_RUN_END__"
 PROMPT = "$ "
 
 NO_PROGRAM = "(boot-to-exit)"
+
+
+def _program_start_from_trace(trace, watchlist: dict, *, interactive: bool) -> int:
+    exec_ids = {e["index"] for e in watchlist["entries"]
+                if e.get("kind") == "proc.exec" or e.get("name") == "exec"}
+    for hit in reversed(trace.watch_hits):
+        if hit.watch_id in exec_ids:
+            return hit.insn
+    # Headless chapter kernels can run their first app without an exec path.
+    # The scheduler's first idle-to-task commit marks that boundary exactly.
+    if not interactive:
+        no_task = (1 << 64) - 1
+        first_switch = next((r.insn for r in trace.nftrace
+                             if r.type == 4 and r.a[0] == no_task and
+                             r.a[1] != no_task), 0)
+        if first_switch:
+            return first_switch
+        switch_ids = {e["index"] for e in watchlist["entries"]
+                      if e.get("kind") == "sched.switch"}
+        first_watch_switch = next((hit.insn for hit in trace.watch_hits
+                                   if hit.watch_id in switch_ids), 0)
+        if first_watch_switch:
+            return first_watch_switch
+        first_task_ids = {e["index"] for e in watchlist["entries"]
+                          if (e.get("symbol") or e.get("name") or "")
+                          .split("::")[-1] == "run_first_task"}
+        return next((hit.insn for hit in trace.watch_hits
+                     if hit.watch_id in first_task_ids), 0)
+    return 0
+
+
+def _calibration_watchlist(wl: watchlist_mod.WatchList) -> watchlist_mod.WatchList:
+    """Keep only program-boundary and semantic probes during calibration."""
+    entries = [e for e in wl.entries
+               if e.name == watchlist_mod.NFTRACE_COMMIT
+               or e.kind in {"proc.exec", "sched.switch"}
+               or e.name == "exec"
+               or (e.symbol or e.name).split("::")[-1] == "run_first_task"]
+    kept = [replace(e, index=i) for i, e in enumerate(entries)]
+    nft = next((e.index for e in kept
+                if e.name == watchlist_mod.NFTRACE_COMMIT), None)
+    return watchlist_mod.WatchList(kept, [], nft)
 
 
 def _exit_code(hit: "re.Match") -> int | None:
@@ -65,6 +109,7 @@ class RunConfig:
     watch_all: bool = False
     watch_subsystems: tuple[str, ...] = ()
     watch_from_table: bool = False
+    function_returns: bool = False
     no_build: bool = False
     distro: str | None = None
     kernel_kind: str | None = None
@@ -232,17 +277,53 @@ class ArtifactGuard:
         self._paths = [Path(p) for p in dict.fromkeys(paths)]
         self._dir: Path | None = None
         self._saved: dict[Path, Path] = {}
+        self._restored = False
+
+    @staticmethod
+    def _backup(src: Path, dst: Path) -> None:
+        if sys.platform == "darwin":
+            result = subprocess.run(["cp", "-c", str(src), str(dst)],
+                                    stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL, check=False)
+            if result.returncode == 0:
+                shutil.copystat(src, dst)
+                return
+            dst.unlink(missing_ok=True)
+        shutil.copy2(src, dst)
+
+    @staticmethod
+    def _same_bytes(a: Path, b: Path) -> bool:
+        if not a.is_file() or a.stat().st_size != b.stat().st_size:
+            return False
+        with a.open("rb") as left, b.open("rb") as right:
+            while True:
+                x, y = left.read(1024 * 1024), right.read(1024 * 1024)
+                if x != y:
+                    return False
+                if not x:
+                    return True
 
     def __enter__(self) -> ArtifactGuard:
         self._dir = Path(tempfile.mkdtemp(prefix="nf-artifacts-"))
-        for i, p in enumerate(self._paths):
-            if p.is_file():
-                dst = self._dir / f"{i}-{p.name}"
-                shutil.copy2(p, dst)
-                self._saved[p] = dst
+        try:
+            for i, p in enumerate(self._paths):
+                if p.is_file():
+                    dst = self._dir / f"{i}-{p.name}"
+                    self._backup(p, dst)
+                    self._saved[p] = dst
+        except Exception:
+            shutil.rmtree(self._dir, ignore_errors=True)
+            self._dir = None
+            raise
         return self
 
     def __exit__(self, *exc) -> None:
+        if not self._restored:
+            try:
+                self.restore()
+            except OSError as error:
+                raise RecordError(
+                    f"受保护的文件未能恢复：{error}；备份保留在 {self._dir}") from error
         if self._dir:
             shutil.rmtree(self._dir, ignore_errors=True)
             self._dir = None
@@ -250,15 +331,27 @@ class ArtifactGuard:
     def had(self, path: Path) -> bool:
         return Path(path) in self._saved
 
+    def commit(self) -> None:
+        """Keep verified new build outputs and discard their backups on exit."""
+        self._restored = True
+
     def restore(self) -> list[Path]:
         back: list[Path] = []
         for orig, copy in self._saved.items():
+            if self._same_bytes(orig, copy):
+                continue
+            orig.parent.mkdir(parents=True, exist_ok=True)
+            fd, name = tempfile.mkstemp(prefix=f".{orig.name}.nf-restore-",
+                                         dir=orig.parent)
+            os.close(fd)
+            staged = Path(name)
             try:
-                orig.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(copy, orig)
+                shutil.copy2(copy, staged)
+                os.replace(staged, orig)
                 back.append(orig)
-            except OSError:
-                pass
+            finally:
+                staged.unlink(missing_ok=True)
+        self._restored = True
         return back
 
 
@@ -397,6 +490,7 @@ class Recorder:
                     f"失败的是内核之外的目标（如 fs-img）。"
                     f"若该内核需要文件系统镜像，本次运行的行为可能与预期不同。"
                     f"构建输出末尾：{r.stdout.strip()[-600:]}")
+            guard.commit()
             return r.stdout
 
 
@@ -409,6 +503,7 @@ class Recorder:
             f"sample={c.sample_insns}",
             f"snap={snap_insns}",
             f"maxram={c.max_ram_bytes}",
+            f"returns={1 if c.function_returns and not getattr(self, '_calibrating', False) else 0}",
             f"snapstart={getattr(self, '_snap_start', 0)}",
             f"bootsnap={getattr(self, '_boot_snap', 0)}",
         ]
@@ -607,12 +702,16 @@ class Recorder:
     def _calibrate(self, watch_path: Path | None,
                    wl_json: dict) -> tuple[int, int]:
         tmp_trace = self.run_dir / "calibration.nfb"
-        with ArtifactGuard(self.profile.protected(self.cfg.kernel_dir)) as disks:
-            outcome, console, _ = self._drive(
-                tmp_trace, watch_path, snap_insns=0,
-                console_log=self.run_dir / "calibration.console.log",
-                stderr_log=self.run_dir / "calibration.qemu.log")
-            disks.restore()
+        self._calibrating = True
+        try:
+            with ArtifactGuard(self.profile.protected(self.cfg.kernel_dir)) as disks:
+                outcome, console, _ = self._drive(
+                    tmp_trace, watch_path, snap_insns=0,
+                    console_log=self.run_dir / "calibration.console.log",
+                    stderr_log=self.run_dir / "calibration.qemu.log")
+                disks.restore()
+        finally:
+            self._calibrating = False
 
         from . import nftrace as nftrace_mod
         total = 0
@@ -625,15 +724,8 @@ class Recorder:
             # in ``kind``.  The old table watchlist happened to call the entry
             # simply ``exec``; keying calibration only on that legacy label
             # silently left program_start_insn at zero for StarryOS.
-            exec_ids = {
-                e["index"] for e in wl_json["entries"]
-                if e.get("kind") == "proc.exec" or e.get("name") == "exec"
-            }
-            if exec_ids:
-                for w in reversed(tr.watch_hits):
-                    if w.watch_id in exec_ids:
-                        prog_start = w.insn
-                        break
+            prog_start = _program_start_from_trace(
+                tr, wl_json, interactive=self.profile.interactive)
             tmp_trace.unlink(missing_ok=True)
         if total <= 0:
             raise RecordError(
@@ -684,7 +776,9 @@ class Recorder:
         c = self.cfg
         self.run_dir.mkdir(parents=True, exist_ok=True)
 
-        env_info = self.sh.check_env(required=self.profile.required_tools)
+        required = (("qemu-system-riscv64",) if c.no_build
+                    else self.profile.required_tools)
+        env_info = self.sh.check_env(required=required)
         env_info["shell"] = self.sh.describe()
         self.build_plugin()
         build_log = self.build_kernel()
@@ -720,7 +814,12 @@ class Recorder:
                       or c.snap_start is None
                       or (c.boot_snap_insns is None and c.boot_snapshots is not None))
         if need_calib:
-            calibrated_total, prog_start = self._calibrate(watch_path, wl.to_json())
+            calibration_wl = _calibration_watchlist(wl)
+            calibration_path = self.run_dir / "calibration-watchlist.txt"
+            calibration_path.write_text(
+                calibration_wl.to_file_text(), encoding="utf-8", newline="\n")
+            calibrated_total, prog_start = self._calibrate(
+                calibration_path, calibration_wl.to_json())
 
         if c.snap_insns is not None:
             snap_insns = c.snap_insns
@@ -795,6 +894,7 @@ class Recorder:
             "program_start_insn": prog_start,
             "calibrated_total_insns": calibrated_total,
             "max_ram_bytes": c.max_ram_bytes,
+            "function_returns": c.function_returns,
             "wsl_env": env_info,
             "record_warnings": self.warnings,
             "watchlist_missing": wl.missing,

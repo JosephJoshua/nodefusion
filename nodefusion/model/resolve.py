@@ -133,6 +133,11 @@ def eval_when(dw: DwarfSource, pred: dict | None) -> tuple[bool, str]:
         hit = dw.find(want) is not None
         return hit, f"类型 {want} {'在' if hit else '不在'}"
 
+    if "type_missing" in pred:
+        want = pred["type_missing"]
+        missing = dw.find(want) is None
+        return missing, f"类型 {want} {'不在' if missing else '在'}"
+
     if "field_exists" in pred:
         spec = pred["field_exists"]
         s = dw.find(spec["type"])

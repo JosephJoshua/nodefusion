@@ -113,6 +113,7 @@ struct nf_rec_hdr {
 | 9 | `WARN` | UTF-8 文本，观测器自身的显式告警 |
 | 10 | `END` | `total_insns, snapshots, discons, samples, watch_hits, ram_bytes:u64 ×6, truncated:u32, pad:u32` |
 | 11 | `NFTRACE` | 见下。guest 自己写的语义记录，只有内核里带 nftrace 时才会出现 —— 按约束 3，它只能做增强，不能做前提 |
+| 12 | `RETURN` | `pc:u64, target:u64, sp:u64, satp:u64, priv:u32, pad:u32`；开启 `returns=1` 后记录 RISC-V `ret` / `c.jr ra` 执行前的寄存器值 |
 
 **`DISCON`（异常 / 中断 / hostcall）负载**：
 
@@ -201,10 +202,15 @@ xv6 启动能占掉整次运行 95% 以上的指令，均匀撒快照会把分�
 -plugin libnf.so,out=<路径>[,sample=N][,snap=N][,bootsnap=N][,snapstart=N]
                         [,evsnapmin=N][,evsnapmax=N]
                         [,watch=<文件>][,rambase=N][,ramsize=N][,maxram=N]
+                        [,returns=0|1]
 ```
 
 `evsnapmin` / `evsnapmax` 限流事件触发的快照：两次之间至少隔 `evsnapmin` 条指令，
 整次运行最多 `evsnapmax` 张。只管 `@esnap:`，不管 `@snap:`。
+
+`returns=1` 是可选的 RISC-V 返回指令通道。主机端只连接返回地址、栈指针、
+地址空间和直接调用方均匹配的已观察函数帧；任务切换与陷入会截断链。
+默认关闭，旧轨迹继续显示入口顺序与直接调用方。
 
 `watch` 文件每行 `<十六进制地址> <名字>`，名字上可以带一个前缀：
 

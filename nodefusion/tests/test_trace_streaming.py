@@ -69,3 +69,26 @@ def test_packed_watch_hits_preserve_iteration_indexing_and_order(tmp_path):
     assert list(packed) == eager
     assert packed[-1] == eager[-1]
     assert packed[:1] == eager[:1]
+
+
+def test_function_returns_decode_without_materializing_objects(tmp_path):
+    payload = nf._RETURN.pack(0x80001234, 0x80005678, 0x81000000,
+                              0x8000000000000000, 1, 0)
+    path = tmp_path / "returns.nfb"
+    path.write_bytes(_trace(_record(nf.REC_RETURN, payload, insn=12),
+                            _record(nf.REC_RETURN, payload, insn=25)))
+    returns = nf.load(path).function_returns
+    assert len(returns) == 2
+    assert returns[0] == nf.FunctionReturn(12, 0, 0, 0x80001234,
+                                           0x80005678, 0x81000000,
+                                           0x8000000000000000, 1)
+    assert returns[-1].insn == 25
+    assert nf.load(path).total_insns == 25
+    assert [row[0] for row in nf.iter_records(path)] == ["return", "return"]
+
+
+def test_short_function_return_fails_closed(tmp_path):
+    path = tmp_path / "short.nfb"
+    path.write_bytes(_trace(_record(nf.REC_RETURN, b"short")))
+    with pytest.raises(nf.TraceError, match="too short"):
+        nf.load(path)

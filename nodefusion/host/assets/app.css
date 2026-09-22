@@ -426,6 +426,7 @@ tr.sel td { background: color-mix(in oklch, var(--accent) 12%, var(--bg)); }
 .function-row { position: relative; display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 32px; padding: 6px 8px; border: 0; border-bottom: 1px solid var(--line); background: linear-gradient(90deg, color-mix(in oklch, var(--accent) 10%, transparent) var(--bar), transparent var(--bar)); color: var(--fg); text-align: left; cursor: pointer; }
 .function-row:hover { background-color: var(--bg3); }
 .function-name, .sequence-function { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 11px; }
+.stack-chain .function-name { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
 .function-count, .sequence-meta { flex: none; margin-left: 10px; color: var(--fg2); font-family: var(--mono); font-size: 11px; }
 .sequence-link { width: 1px; height: 10px; margin-left: 18px; background: var(--line); }
 .sequence-node { display: grid; grid-template-columns: 25px minmax(0, 1fr); gap: 4px 8px; width: 100%; padding: 7px 8px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--fg); text-align: left; cursor: pointer; }

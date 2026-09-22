@@ -320,7 +320,8 @@ def _coverage(a: Analysis, metrics: dict, states: list[dict], selection: dict) -
               + (0 if plugin_ok else 1))
     passed = max(0, total - failed)
     complete = not blockers
-    percent = 100.0 if complete else round(100.0 * passed / max(1, total), 2)
+    percent = 100.0 if complete else min(99.99, round(
+        100.0 * passed / max(1, total), 2))
     return {
         "status": "complete" if complete else "incomplete",
         "percent": percent,
@@ -369,18 +370,24 @@ def coverage(a: Analysis) -> dict:
 
 
 def build(a: Analysis) -> dict:
+    from .callstack import observed_stacks
+
     fn = Interner()
     kind_i = Interner()
     res_i = Interner()
     name_i = Interner()
 
     events, drop_info = _select_events(a.events)
+    stack_paths, return_counts = observed_stacks(
+        a.events, getattr(a.trace, "function_returns", ()), a.elf,
+        retained_ids={id(e) for e in events})
     metrics = a.metrics()
     caller_cache: dict[str, str] = {}
 
     ev = {
         "insn": [], "cpu": [], "kind": [], "res": [], "pid": [],
         "pc": [], "func": [], "entry": [], "entry_name": [], "caller": [],
+        "stack": [],
         "tick": [], "detail": [], "unknown": [],
     }
     for e in events:
@@ -404,6 +411,8 @@ def build(a: Analysis) -> dict:
                               or raw)
                     caller_cache[raw] = caller
         ev["caller"].append(fn(caller) if caller else -1)
+        path = stack_paths.get(id(e))
+        ev["stack"].append([fn(label) for label in path] if path else None)
         ev["tick"].append(e.tick if e.tick is not None else -1)
         ev["detail"].append(e.detail or None)
         ev["unknown"].append(e.unknown or None)
@@ -521,6 +530,7 @@ def build(a: Analysis) -> dict:
                 "raw": sum(e.function_entry for e in a.events),
                 "retained": sum(e.function_entry for e in events),
             },
+            "function_returns": return_counts,
             "capability": capability,
             "kind_names": {k: v for k, v in guest_mod.KIND_NAMES.items()},
         },

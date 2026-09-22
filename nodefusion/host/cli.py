@@ -89,6 +89,7 @@ def cmd_record(args) -> int:
         watch_all=args.watch_all,
         watch_subsystems=tuple(args.watch_subsystem),
         watch_from_table=args.watch_from_table,
+        function_returns=args.function_returns,
         no_build=args.no_build,
     )
     if args.watch_from_manifest:
@@ -402,6 +403,8 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--icount-shift", type=int, default=3)
     r.add_argument("--watch-all", action="store_true",
                    help="盯住内核里全部函数（轨迹会显著变大）")
+    r.add_argument("--function-returns", action="store_true",
+                   help="录制 RISC-V 返回指令以核对观测到的调用链；轨迹会变大")
     r.add_argument("--watch-from-table", action="store_true",
                    help="观察点退回按内核写死的名单选。默认走 manifest 规则，"
                         "规则是名单的超集（xv6 141 对 72、rCore 92 对 59）。"

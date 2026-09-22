@@ -115,6 +115,17 @@ class DwarfSource:
             self._rangelists = None
         for cu in dw.iter_CUs():
             self._parse_cu(cu, self._file_table(dw, cu))
+            # The vendored DWARF reader caches every DIE and line program.
+            # Our extracted layouts contain only scalars, so retaining those
+            # parse objects across all CUs makes large kernel ELFs grow by GBs.
+            cu._dielist.clear()
+            cu._diemap.clear()
+            dw._linetable_cache.clear()
+        for cu in dw._cu_cache:
+            cu._dielist.clear()
+            cu._diemap.clear()
+        self._dw = None
+        self._rangelists = None
 
     def _file_table(self, dw, cu) -> list[str]:
         try:

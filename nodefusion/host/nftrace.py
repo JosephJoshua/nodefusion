@@ -21,12 +21,14 @@ REC_VCPU = 8
 REC_WARN = 9
 REC_END = 10
 REC_NFTRACE = 11
+REC_RETURN = 12
 
 REC_NAMES = {
     REC_META: "meta", REC_SAMPLE: "sample", REC_DISCON: "discon",
     REC_WATCHPC: "watchpc", REC_SNAPMARK: "snapmark", REC_RAMPAGE: "rampage",
     REC_IDLE: "idle", REC_VCPU: "vcpu", REC_WARN: "warn", REC_END: "end",
     REC_NFTRACE: "nftrace",
+    REC_RETURN: "return",
 }
 
 # flags
@@ -45,6 +47,8 @@ _DISCON_V1 = struct.Struct("<IIQQQQQQQ8QQ")
 _DISCON_MCSR = struct.Struct("<QQQ")    # mcause, mepc, mtval
 _WATCHPC = struct.Struct("<IIQQ8QQQ")
 _WATCH_ROW = struct.Struct("<QBI" + _WATCHPC.format[1:])
+_RETURN = struct.Struct("<QQQQII")
+_RETURN_ROW = struct.Struct("<QBI" + _RETURN.format[1:])
 _SNAPMARK = struct.Struct("<QQIIII")
 _RAMPAGE = struct.Struct("<II")
 _END = struct.Struct("<QQQQQQII")
@@ -177,6 +181,44 @@ class PackedWatchHits(Sequence[WatchHit]):
 
 
 @dataclass(slots=True)
+class FunctionReturn:
+    insn: int
+    cpu: int
+    flags: int
+    pc: int
+    target: int
+    sp: int
+    satp: int
+    priv: int
+
+
+class PackedFunctionReturns(Sequence[FunctionReturn]):
+    def __init__(self):
+        self.data = bytearray()
+
+    def append_record(self, insn: int, cpu: int, flags: int, payload: bytes) -> None:
+        self.data.extend(struct.pack("<QBI", insn, cpu, flags))
+        self.data.extend(payload)
+
+    def __len__(self) -> int:
+        return len(self.data) // _RETURN_ROW.size
+
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            return [self[i] for i in range(*index.indices(len(self)))]
+        if index < 0:
+            index += len(self)
+        if not 0 <= index < len(self):
+            raise IndexError(index)
+        v = _RETURN_ROW.unpack_from(self.data, index * _RETURN_ROW.size)
+        return FunctionReturn(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7])
+
+    def __iter__(self) -> Iterator[FunctionReturn]:
+        for i in range(len(self)):
+            yield self[i]
+
+
+@dataclass(slots=True)
 class SnapMark:
     insn: int
     cpu: int
@@ -217,6 +259,7 @@ class Trace:
     samples: list = field(default_factory=list)
     discons: list = field(default_factory=list)
     watch_hits: list[WatchHit] | PackedWatchHits = field(default_factory=list)
+    function_returns: PackedFunctionReturns = field(default_factory=PackedFunctionReturns)
     snapshots: list = field(default_factory=list)
     idles: list = field(default_factory=list)      # (insn, cpu, kind)
     vcpu_events: list = field(default_factory=list)
@@ -230,7 +273,8 @@ class Trace:
         if self.end:
             return self.end.total_insns
         last = 0
-        for seq in (self.samples, self.discons, self.watch_hits, self.snapshots):
+        for seq in (self.samples, self.discons, self.watch_hits,
+                    self.function_returns, self.snapshots):
             if seq:
                 last = max(last, seq[-1].insn)
         return last
@@ -348,6 +392,10 @@ def load(path: str | Path, *, want_pages: bool = True,
                 tr.watch_hits.append(WatchHit(
                     insn, cpu, flags, v[0], v[1], v[2], v[3],
                     tuple(v[4:12]), v[12], v[13]))
+        elif rtype == REC_RETURN:
+            if rlen < _RETURN.size:
+                raise TraceError(f"return record too short: {rlen}")
+            tr.function_returns.append_record(insn, cpu, flags, payload[:_RETURN.size])
         elif rtype == REC_SNAPMARK:
             seq, base, ps, changed, total, _ = _SNAPMARK.unpack_from(payload, 0)
             cur_snap = SnapMark(insn, cpu, flags, seq, base, ps, changed, total)

@@ -70,6 +70,7 @@ enum nf_rec_type {
     NF_REC_WARN     = 9,
     NF_REC_END      = 10,
     NF_REC_NFTRACE  = 11,
+    NF_REC_RETURN   = 12,
 };
 
 
@@ -141,6 +142,15 @@ struct nf_pl_watchpc {
     uint64_t a[8];
     uint64_t sp;
     uint64_t ra;
+} __attribute__((packed));
+
+struct nf_pl_return {
+    uint64_t pc;
+    uint64_t target;
+    uint64_t sp;
+    uint64_t satp;
+    uint32_t priv;
+    uint32_t _pad;
 } __attribute__((packed));
 
 
@@ -315,6 +325,8 @@ static struct {
 
     uint64_t  n_nftrace;
     uint64_t  n_nftrace_fail;
+    bool      function_returns;
+    uint64_t  n_returns;
 
     struct nf_regs regs[NF_MAX_VCPUS];
 
@@ -829,6 +841,35 @@ static void nf_watch_hit(unsigned int vcpu, void *udata)
     g_mutex_unlock(&nf.lock);
 }
 
+static void nf_return_hit(unsigned int vcpu, void *udata)
+{
+    struct nf_regs *r = &nf.regs[vcpu < NF_MAX_VCPUS ? vcpu : 0];
+    struct nf_pl_return ret = { .pc = (uint64_t)(uintptr_t)udata };
+    uint64_t v;
+    uint32_t flags = 0;
+    if (nf_read_reg(vcpu, r->ra, &v)) ret.target = v; else flags |= NF_F_NO_REGS;
+    if (nf_read_reg(vcpu, r->sp, &v)) ret.sp = v; else flags |= NF_F_NO_REGS;
+    if (nf_read_reg(vcpu, r->satp, &v)) ret.satp = v; else flags |= NF_F_NO_CSR;
+    if (nf_read_reg(vcpu, r->priv, &v)) ret.priv = (uint32_t)v; else flags |= NF_F_NO_REGS;
+    uint64_t insn = qemu_plugin_u64_sum(nf.insn_count);
+    g_mutex_lock(&nf.lock);
+    nf_write_rec(NF_REC_RETURN, (uint8_t)vcpu, flags, insn,
+                 &ret, sizeof(ret), NULL, 0);
+    nf.n_returns++;
+    g_mutex_unlock(&nf.lock);
+}
+
+static bool nf_is_riscv_return(struct qemu_plugin_insn *insn)
+{
+    uint8_t bytes[4] = {0};
+    size_t n = qemu_plugin_insn_size(insn);
+    if (n != 2 && n != 4) return false;
+    if (qemu_plugin_insn_data(insn, bytes, n) != n) return false;
+    if (n == 2) return bytes[0] == 0x82 && bytes[1] == 0x80; /* c.jr ra */
+    return bytes[0] == 0x67 && bytes[1] == 0x80 &&
+           bytes[2] == 0 && bytes[3] == 0; /* jalr x0, 0(ra) */
+}
+
 static void nf_tb_trans(qemu_plugin_id_t id, struct qemu_plugin_tb *tb)
 {
     size_t n = qemu_plugin_tb_n_insns(tb);
@@ -848,6 +889,11 @@ static void nf_tb_trans(qemu_plugin_id_t id, struct qemu_plugin_tb *tb)
                     insn, nf_watch_hit, QEMU_PLUGIN_CB_R_REGS,
                     (void *)(uintptr_t)wid);
             }
+        }
+        if (nf.function_returns && nf_is_riscv_return(insn)) {
+            qemu_plugin_register_vcpu_insn_exec_cb(
+                insn, nf_return_hit, QEMU_PLUGIN_CB_R_REGS,
+                (void *)(uintptr_t)qemu_plugin_insn_vaddr(insn));
         }
     }
 
@@ -932,6 +978,7 @@ static void nf_finish(void)
     nf_meta("nf.snapshot_reads=%"PRIu64, nf.snapshot_reads);
     nf_meta("nf.snapshot_fallbacks=%"PRIu64, nf.snapshot_fallbacks);
     nf_meta("nf.snapshot_us=%"PRIu64, nf.snapshot_us);
+    nf_meta("nf.function_returns=%"PRIu64, nf.n_returns);
     nf_write_rec(NF_REC_END, 0, nf.truncated ? NF_F_TRUNCATED : 0, insn,
                  &e, sizeof(e), NULL, 0);
     fflush(nf.out);
@@ -1092,11 +1139,15 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
         else if (!strcmp(kv[0], "ramsize")) nf.ram_size = nf_parse_u64(kv[1], "ramsize");
         else if (!strcmp(kv[0], "maxram"))  nf.max_ram_bytes = nf_parse_u64(kv[1], "maxram");
         else if (!strcmp(kv[0], "maxinsn")) nf.max_insn = nf_parse_u64(kv[1], "maxinsn");
+        else if (!strcmp(kv[0], "returns")) nf.function_returns = nf_parse_u64(kv[1], "returns") != 0;
         else nf_die("未知参数 '%s'", kv[0]);
         g_strfreev(kv);
     }
 
     if (!out_path) nf_die("必须指定 out=<轨迹文件路径>");
+    if (nf.function_returns && (!info->target_name ||
+            strcmp(info->target_name, "riscv64") != 0))
+        nf_die("return tracing currently supports riscv64 only");
 
 
 
@@ -1162,6 +1213,7 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
     nf_meta("nf.page_size=%u", nf.page_size);
     nf_meta("nf.max_ram_bytes=%"PRIu64, nf.max_ram_bytes);
     nf_meta("nf.watches=%u", nf.n_watches);
+    nf_meta("nf.returns=%u", nf.function_returns ? 1u : 0u);
     nf_meta("nf.ev_snap_min=%"PRIu64, nf.ev_snap_min);
     nf_meta("nf.ev_snap_max=%"PRIu64, nf.ev_snap_max);
 

@@ -60,6 +60,19 @@ def test_tracecomplete_reuses_its_recording_folder():
     assert sha256(folder / "tracecomplete.html") == evidence["html_sha256"]
 
 
+def test_merged_video_evidence_matches_recording():
+    for path, _ in report_sidecars():
+        sidecar = json.loads(path.read_text(encoding="utf-8"))
+        if sidecar.get("format") != "nodefusion.video-evidence/1":
+            continue
+        report = sidecar["report"]
+        assert sidecar["info"]["runs"] == [report["run"]]
+        assert sidecar["info"]["kernel_elf_sha256"] == report["kernel_elf_sha256"]
+        mp4 = path.with_name(sidecar["mp4"])
+        assert mp4.stat().st_size == sidecar["bytes"]
+        assert sha256(mp4) == sidecar["mp4_sha256"]
+
+
 def _report(path: Path, entries: list[int], retained: int) -> None:
     data = {
         "events": {"insn": list(range(len(entries))), "entry": entries,
@@ -145,5 +158,11 @@ def test_regenerated_artifact_matches_evidence(evidence, html):
     assert data["meta"]["function_entries"] == {
         key: record["function_trace"][key] for key in ("raw", "retained")
     }
+    if record["function_trace"].get("returns"):
+        assert data["meta"]["function_returns"] == {
+            "raw": record["function_trace"]["returns"],
+            "matched": record["function_trace"]["matched_returns"],
+            "nested_entries": record["function_trace"]["nested_entries"],
+        }
     assert data["meta"]["event_selection"] == record["event_selection"]
     assert data["meta"]["capability"]["coverage"] == record["coverage"]

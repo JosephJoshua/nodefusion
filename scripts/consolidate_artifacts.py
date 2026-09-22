@@ -24,10 +24,9 @@ def _write(path: Path, value: dict) -> None:
         temp.unlink(missing_ok=True)
 
 
-def _report(path: Path, html: Path) -> dict:
-    evidence = json.loads(path.read_text(encoding="utf-8"))
+def _report_value(evidence: dict, html: Path) -> dict:
     if evidence["schema"] != "nodefusion.artifact-evidence/1":
-        raise ValueError(f"unexpected report evidence: {path}")
+        raise ValueError(f"unexpected report evidence for: {html}")
     if sha256(html) != evidence["html_sha256"]:
         raise ValueError(f"HTML hash mismatch: {html}")
     if smoke_report(html)["meta"]["capability"]["coverage"] != evidence["coverage"]:
@@ -35,12 +34,20 @@ def _report(path: Path, html: Path) -> dict:
     return evidence
 
 
+def _report(path: Path, html: Path) -> dict:
+    return _report_value(json.loads(path.read_text(encoding="utf-8")), html)
+
+
 def _video_pair(video_path: Path, evidence_path: Path) -> dict:
     video = json.loads(video_path.read_text(encoding="utf-8"))
-    if video.get("format") != "nodefusion.video-evidence/1" or "report" in video:
+    if video.get("format") != "nodefusion.video-evidence/1":
         raise ValueError(f"unexpected video sidecar: {video_path}")
     html = video_path.with_name(video["html"])
     evidence = _report(evidence_path, html)
+    old = video.get("report")
+    if (old and old["source_sha256"]["trace.nfb"] !=
+            evidence["source_sha256"]["trace.nfb"]):
+        raise ValueError(f"video and report traces differ: {video_path}")
     if ((video.get("info") or {}).get("runs") != [evidence["run"]]
             or video["info"].get("kernel_elf_sha256") != evidence["kernel_elf_sha256"]
             or video_path.with_name(video["mp4"]).stat().st_size != video["bytes"]
@@ -57,12 +64,20 @@ def merge_video(video_path: Path, evidence_path: Path) -> None:
 
 
 def _ucore_pair(coverage_path: Path, evidence_path: Path, html: Path) -> dict:
-    old = json.loads(coverage_path.read_text(encoding="utf-8"))["chapter"]
+    prior = json.loads(coverage_path.read_text(encoding="utf-8"))
     evidence = _report(evidence_path, html)
-    if (old["run"] != evidence["run"]
-            or old["trace_sha256"] != evidence["source_sha256"]["trace.nfb"]
-            or old["kernel_elf_sha256"] != evidence["kernel_elf_sha256"]):
+    old = prior.get("chapter", prior)
+    if (old["run"] != evidence["run"] or
+            ("chapter" in prior and
+             (old["trace_sha256"] != evidence["source_sha256"]["trace.nfb"] or
+              old["kernel_elf_sha256"] != evidence["kernel_elf_sha256"]))):
         raise ValueError(f"chapter evidence is from a different trace: {coverage_path}")
+    if (prior.get("schema") == "nodefusion.artifact-evidence/1" and
+            old["source_sha256"]["trace.nfb"] ==
+            evidence["source_sha256"]["trace.nfb"] and
+            old["kernel_elf_sha256"] == evidence["kernel_elf_sha256"] and
+            "archive_bytes" in old):
+        evidence["archive_bytes"] = old["archive_bytes"]
     return evidence
 
 
@@ -79,15 +94,34 @@ def consolidate(root: Path) -> None:
         name = {1: "bare", 2: "batch", 3: "sched", 4: "exact",
                 5: "exact", 6: "usertest", 8: "exact-filetest"}[chapter]
         stem = f"rcore-ch{chapter}-{name}"
-        video_pairs.append((folder / f"{stem}.json", folder / f"{stem}.evidence.json"))
+        path = folder / f"{stem}.json"
+        evidence = folder / f"{stem}.evidence.json"
+        if evidence.exists():
+            video_pairs.append((path, evidence))
+        else:
+            video = json.loads(path.read_text(encoding="utf-8"))
+            _report_value(video["report"], folder / video["html"])
     for app in ("forkecho", "fsprobe"):
         folder = root / "starryos" / "apps" / app
         stem = f"starry-{app}-ram512"
-        video_pairs.append((folder / f"{stem}.json", folder / f"{stem}.evidence.json"))
+        path = folder / f"{stem}.json"
+        evidence = folder / f"{stem}.evidence.json"
+        if evidence.exists():
+            video_pairs.append((path, evidence))
+        else:
+            video = json.loads(path.read_text(encoding="utf-8"))
+            _report_value(video["report"], folder / video["html"])
     chapter_pairs = []
     for chapter in range(1, 9):
         folder = root / "ucoreos" / f"ch{chapter}"
         evidence_files = list(folder.glob("ucore-*.evidence.json"))
+        if not evidence_files:
+            report = json.loads((folder / "coverage.json").read_text(encoding="utf-8"))
+            htmls = list(folder.glob("ucore-*.html"))
+            if len(htmls) != 1:
+                raise ValueError(f"expected one chapter report: {folder}")
+            _report_value(report, htmls[0])
+            continue
         if len(evidence_files) != 1:
             raise ValueError(f"expected one chapter report: {folder}")
         evidence_path = evidence_files[0]

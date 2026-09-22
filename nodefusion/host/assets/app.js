@@ -124,6 +124,7 @@ function evGet(run, i) {
     kind: D.kinds[E.kind[i]], res: D.res[E.res[i]],
     pid: E.pid[i] < 0 ? null : E.pid[i],
     pc: E.pc[i], func: D.funcs[E.func[i]],
+    stack: E.stack?.[i]?.map((id) => D.funcs[id]) || null,
     tick: E.tick[i] < 0 ? null : E.tick[i],
     detail: E.detail[i], unknown: E.unknown[i],
   };
@@ -1586,7 +1587,10 @@ function renderFunctions() {
   const scope = entryCounts && entryCounts.raw > entryCounts.retained
     ? ` · 显示 ${num(entryCounts.retained)} / ${num(entryCounts.raw)} 条`
     : '';
-  title.appendChild(el('div', 'section-subtitle', `函数入口${scope} · 返回地址可定位直接调用方；无返回事件。`));
+  const returns = run.meta.function_returns || { raw: 0, matched: 0, nested_entries: 0 };
+  title.appendChild(el('div', 'section-subtitle', returns.raw
+    ? `函数入口${scope} · ${num(returns.matched)} / ${num(returns.raw)} 条返回匹配观测帧`
+    : `函数入口${scope} · 返回地址可定位直接调用方；本次未录制返回事件。`));
   heading.appendChild(title);
   p.appendChild(heading);
 
@@ -1599,7 +1603,8 @@ function renderFunctions() {
     const fn = (entryName >= 0 ? run.dict.funcs[entryName] : '')
       || run.dict.funcs[run.events.func[i]] || kind.slice(5);
     const caller = callerId >= 0 ? run.dict.funcs[callerId] : '';
-    entries.push({ i, fn, caller, insn: run.events.insn[i], cpu: run.events.cpu[i], pid: run.events.pid[i] });
+    const path = run.events.stack?.[i]?.map((id) => run.dict.funcs[id]) || null;
+    entries.push({ i, fn, caller, path, insn: run.events.insn[i], cpu: run.events.cpu[i], pid: run.events.pid[i] });
   }
   if (!entries.length) {
     const empty = el('div', 'event-empty');
@@ -1619,7 +1624,9 @@ function renderFunctions() {
   const grouping = el('select'); grouping.id = 'function-grouping';
   grouping.appendChild(new Option('调用关系', 'caller'));
   grouping.appendChild(new Option('名称层级', 'namespace'));
-  if (!entries.some((e) => e.caller)) grouping.value = 'namespace';
+  if (returns.nested_entries) grouping.appendChild(new Option('观测调用链', 'stack'));
+  if (returns.nested_entries) grouping.value = 'stack';
+  else if (!entries.some((e) => e.caller)) grouping.value = 'namespace';
   controls.appendChild(search); controls.appendChild(cpu); controls.appendChild(grouping);
   controls.appendChild(limit); p.appendChild(controls);
 
@@ -1639,11 +1646,32 @@ function renderFunctions() {
   function paint() {
     const q = search.value.trim().toLowerCase();
     const selectedCpu = cpu.value;
-    const filtered = entries.filter((e) => (!q || e.fn.toLowerCase().includes(q) || e.caller.toLowerCase().includes(q)) && (selectedCpu === '' || String(e.cpu) === selectedCpu));
+    const filtered = entries.filter((e) => (!q || e.fn.toLowerCase().includes(q) || e.caller.toLowerCase().includes(q) || (e.path || []).some((name) => name.toLowerCase().includes(q))) && (selectedCpu === '' || String(e.cpu) === selectedCpu));
     const counts = new Map();
     for (const e of filtered) counts.set(e.fn, (counts.get(e.fn) || 0) + 1);
     tree.innerHTML = '';
-    if (grouping.value === 'caller') {
+    if (grouping.value === 'stack') {
+      treeTitle.textContent = '观测调用链';
+      treeNote.textContent = '入口与返回匹配的帧；中断、任务切换和缺失观察点会截断链。';
+      const chains = new Map();
+      for (const e of filtered) {
+        if (!e.path || e.path.length < 2) continue;
+        const key = e.path.join('\0');
+        if (!chains.has(key)) chains.set(key, { path: e.path, count: 0, index: e.i });
+        chains.get(key).count++;
+      }
+      [...chains.values()].sort((a, b) => b.count - a.count || a.path.join().localeCompare(b.path.join()))
+        .slice(0, 120).forEach((chain) => {
+          const row = el('button', 'function-row stack-chain'); row.type = 'button';
+          row.style.setProperty('--bar', `${Math.round(chain.count / Math.max(1, filtered.length) * 100)}%`);
+          row.title = chain.path.join(' → ');
+          row.appendChild(el('span', 'function-name', chain.path.join(' → ')));
+          row.appendChild(el('span', 'function-count', num(chain.count)));
+          row.onclick = () => { setTab('events'); selectEvent(chain.index); };
+          tree.appendChild(row);
+        });
+      if (!chains.size) tree.appendChild(el('div', 'trace-muted', '当前筛选中没有可匹配的嵌套帧。'));
+    } else if (grouping.value === 'caller') {
       treeTitle.textContent = '调用关系';
       treeNote.textContent = '由入口时的返回地址定位直接调用方。';
       const edges = new Map();
@@ -1709,7 +1737,7 @@ function renderFunctions() {
       const node = el('button', 'sequence-node'); node.type = 'button'; node.title = '定位到这条入口事件';
       node.appendChild(el('span', 'sequence-index', String(index + 1).padStart(2, '0')));
       node.appendChild(el('span', 'sequence-function', e.fn));
-      node.appendChild(el('span', 'sequence-meta', `${fmtInsn(e.insn)} · CPU ${e.cpu}${e.caller ? ` · ${e.caller} →` : ''}`));
+      node.appendChild(el('span', 'sequence-meta', `${fmtInsn(e.insn)} · CPU ${e.cpu}${e.path?.length > 1 ? ` · ${e.path.join(' → ')}` : e.caller ? ` · ${e.caller} →` : ''}`));
       node.onclick = () => selectEvent(e.i);
       sequence.appendChild(node);
     });
@@ -1922,6 +1950,7 @@ function showEventDetail(run, i) {
     // 用户态地址在内核符号表里当然查不到 —— 这不是"解析失败"，要说清楚，
     // 否则会被误读成工具出了问题。
     ['函数', e.func || (e.pc && e.pc < 0x80000000 ? '用户态' : '—')],
+    ['观测调用链', e.stack?.length > 1 ? e.stack.join(' → ') : '—'],
   ]));
 
   if (e.detail && Object.keys(e.detail).length) {

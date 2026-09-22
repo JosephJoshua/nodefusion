@@ -402,7 +402,14 @@ python -m nodefusion.tools.crosscheck_watchsel \
 "vm.unmap" = { why = "granularity", evidence = "地址空间销毁入口一次清空全部区域；ELF 中没有逐区域调用的函数，入口参数也不含单个区域的起止地址。" }
 ```
 
-发现可用入口或加入 `nftrace` 探针后，删除对应 absent 项并补上事件映射。一个事件类别不能同时出现在 `[event]` 和 `[absent]` 中。
+多个章节共用 manifest 时，可以让早期章节的 feature absence 取决于本次 ELF 的类型：
+
+```toml
+[absent]
+"bcache.read" = { why = "feature", when = { type_missing = "mykernel::block_cache::BlockCacheManager" }, evidence = "早期章节没有块缓存管理器；文件系统章节引入该类型和块读取路径。" }
+```
+
+先用各章节的 DWARF 核对类型：没有该类型的构建将此项计为不适用，具有该类型的构建继续使用 `[event]` 映射。条件 absent 仅在 DWARF 成功读取后生效。无条件的 absent 类别不能与事件映射并存；新增探针后，删除已经过时的 absent 项。
 
 ## 配置构建和录制
 

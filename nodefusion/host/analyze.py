@@ -91,6 +91,8 @@ class Event:
     function_entry: bool = False
     entry_name: str | None = None
     return_address: int | None = None
+    stack_pointer: int | None = None
+    address_space: int | None = None
 
     def to_json(self) -> dict:
         d = {"insn": self.insn, "cpu": self.cpu, "kind": self.kind,
@@ -483,8 +485,10 @@ class Analysis:
                     present.add(c.path)
                 present.update(n for n in c.names if n)
             self._event_names_present = present
-            return SnapshotBuilder(dw, probe(m, dw), m,
-                                   syms=SymbolIndex(self.elf, dw))
+            builder = SnapshotBuilder(dw, probe(m, dw), m,
+                                      syms=SymbolIndex(self.elf, dw))
+            self._manifest_dw = dw
+            return builder
         except Exception as e:                        # noqa: BLE001
             self.notes.append(
                 f"按 manifest 建实体解码器失败（{type(e).__name__}: {e}），"
@@ -945,7 +949,9 @@ class Analysis:
         return Event(insn=w.insn, cpu=w.cpu, kind=kind, resource=resource,
                      pid=pid, proc=proc, pc=w.pc, func=func or entry["symbol"],
                      detail=detail, unknown=unknown, function_entry=True,
-                     entry_name=entry["symbol"], return_address=w.ra or None)
+                     entry_name=entry["symbol"], return_address=w.ra or None,
+                     stack_pointer=w.sp if not w.flags & trace_mod.F_NO_REGS else None,
+                     address_space=w.satp if not w.flags & trace_mod.F_NO_CSR else None)
 
     def _discon_event(self, d: trace_mod.Discon, si: int,
                       cur_slot: dict) -> Event | None:
@@ -1161,7 +1167,11 @@ class Analysis:
                 from ..model.manifest import load_dir
                 man = load_dir().get(self.kernel_kind)
                 if man is not None:
-                    out = dict(man.absent)
+                    from ..model.resolve import eval_when
+                    dw = getattr(self, "_manifest_dw", None)
+                    out = {kind: spec for kind, spec in man.absent.items()
+                           if not spec.when or (dw is not None and
+                                                eval_when(dw, spec.when)[0])}
                     derive_from_symbols = bool(
                         man.derive_feature_absence_from_symbols)
             except Exception as e:                        # noqa: BLE001

@@ -94,6 +94,39 @@ def test_restore_reports_only_what_actually_came_back(tmp_path):
     assert back == [fs] and fs.exists()
 
 
+def test_interrupted_block_restores_protected_file(tmp_path):
+    fs = _mk(tmp_path / "fs.img", "original")
+    with pytest.raises(KeyboardInterrupt):
+        with ArtifactGuard([fs]):
+            fs.write_text("modified", encoding="utf-8")
+            raise KeyboardInterrupt()
+    assert fs.read_text(encoding="utf-8") == "original"
+
+
+def test_failed_restore_keeps_original_and_backup(tmp_path, monkeypatch):
+    fs = _mk(tmp_path / "fs.img", "original")
+    saved = None
+    with pytest.raises(RecordError, match="备份保留"):
+        with ArtifactGuard([fs]) as guard:
+            saved = guard._dir
+            fs.write_text("modified", encoding="utf-8")
+            def no_space(src, dst):
+                raise OSError("disk full")
+            monkeypatch.setattr("nodefusion.host.record.shutil.copy2", no_space)
+    assert fs.read_text(encoding="utf-8") == "modified"
+    assert saved is not None and list(saved.iterdir())
+    shutil.rmtree(saved)
+
+
+def test_unchanged_protected_file_needs_no_restore_copy(tmp_path, monkeypatch):
+    fs = _mk(tmp_path / "fs.img", "original")
+    with ArtifactGuard([fs]) as guard:
+        monkeypatch.setattr("nodefusion.host.record.shutil.copy2",
+                            lambda *_: (_ for _ in ()).throw(OSError("disk full")))
+        assert guard.restore() == []
+    assert fs.read_text(encoding="utf-8") == "original"
+
+
 # --------------------------------------------------------------------------
 # --------------------------------------------------------------------------
 
