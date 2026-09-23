@@ -44,6 +44,8 @@ arches = ["riscv64", "x86_64"]
 detect = { any_type = ["mykernel::task::Task"], all_symbol = ["INIT_TASK"] }
 builds_on = "basekernel"
 derive_feature_absence_from_symbols = true
+cache_hit_derivation = "one_to_one"
+clone_completion_channel = "nftrace"
 ```
 
 | 键 | 类型 | 缺省值 | 含义 |
@@ -54,6 +56,8 @@ derive_feature_absence_from_symbols = true
 | `detect` | 表 | `{}` | ELF/DWARF 检测条件 |
 | `builds_on` | 字符串 | `""` | 当前 manifest 命中时遮住的基础 manifest |
 | `derive_feature_absence_from_symbols` | 布尔值 | `false` | 按当前 ELF 中的实现符号推导 build-local feature absence |
+| `cache_hit_derivation` | `unverified` / `one_to_one` / `semantic` | `unverified` | 缓存命中数的来源；`semantic` 使用内核上报的逐请求结果 |
+| `clone_completion_channel` | `entry` / `nftrace` | `entry` | fork/clone 的计数来源；成功后上报结果记录时使用 `nftrace` |
 
 当前架构名包括 `riscv64`、`x86_64`、`aarch64` 和 `loongarch64`。`arches` 与 ELF 不符时，probe 产生警告。
 
@@ -68,6 +72,11 @@ derive_feature_absence_from_symbols = true
 同一张 `detect` 表中的条件同时成立才会命中。数组必须为非空字符串数组。多个无继承关系的 manifest 同时命中时，检测结果为歧义。
 
 `derive_feature_absence_from_symbols` 适合跨章节或 feature 共用的 manifest。某个已声明事件类别的全部实现符号在当前 ELF 中均不存在时，该构建会把它视为 feature-level N/A。ELF 中存在实现符号而观察点没有选中时，仍然属于覆盖缺口。
+
+只有逐条核对源码、确认缓存未命中与观测到的设备读取一一对应，才填 `cache_hit_derivation = "one_to_one"`。例如设备层合并相邻块读取，或还有绕过缓存的设备读取，此时保留默认值；命中数和命中率显示未知，严格 audit 会报告缺口。
+内核在每次缓存读取后上报 `NFT_CACHE_READ` 时，填 `cache_hit_derivation = "semantic"`。主机检查结果记录数与缓存读取观察点命中数一致，再计算命中数；旧轨迹缺少这个通道时仍显示未知。
+
+fork 或 clone 的函数入口只表示一次尝试。内核在创建成功后上报 `NFT_PROC_FORK` 或 `NFT_THREAD_CREATE` 时，填 `clone_completion_channel = "nftrace"`。分析器只统计完成记录；整趟运行没有成功创建时，结果为零，也不会退回入口计数。
 
 ## `[[entity]]`
 
@@ -520,6 +529,7 @@ inlined = false
 | `snapshot` | `none` / `always` / `event` | `none` | 入口是否请求快照 |
 | `skip` | 布尔值 | `false` | 匹配并占用地址，不加入观察点 |
 | `inlined` | 布尔值 | `false` | 同时选择 DWARF inline site |
+| `when` | 表 | 无条件 | 按 DWARF 类型存在与否启用规则；接受 `type_exists` 或 `type_missing` |
 
 `match` 的四个键都接受字符串或字符串数组：
 
@@ -560,6 +570,7 @@ inlined = false
 | `args` | 字符串数组 | `[]` | 入口参数寄存器的名称 |
 | `resource` | 字符串 | `""` | 事件关联的资源类别 |
 | `operation` | `read` / `write` | `""` | `disk.io` 的方向 |
+| `coverage_group` | 字符串 | `""` | 同一路径上互相替代的观测点组 |
 | `when` | 表 | 无条件 | 候选项的 DWARF 条件 |
 | `classify` | 表 | — | 按入口参数位掩码改变事件类别 |
 
@@ -570,6 +581,8 @@ inlined = false
 `resource` 随事件进入分析结果，用于标识 process、inode、pagetable 等关联对象。空值使用该 watch 的 subsystem。它不读取对象地址；需要对象身份时，还要在 `args` 或 `nftrace` 记录中提供相应值。
 
 `operation` 只允许用于 `kind = "disk.io"`。
+
+编译器可能把薄包装函数内联掉，只留下它调用的方法。确认两个入口覆盖同一批调用后，可以为它们填写相同的 `coverage_group`。严格覆盖只会在该组已有观测点时接受缺失的别名；事件类别相同本身不构成替代关系。
 
 候选列表按顺序选择第一条 `when` 成立的项。最后一项必须无条件；此前每一项必须带条件。
 

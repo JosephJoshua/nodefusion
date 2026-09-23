@@ -4,7 +4,7 @@ NodeFusion 通过两条通道观察内核。QEMU 插件在函数入口记录事�
 
 每个内核在 `nodefusion/manifests/` 下有一份 TOML 文件。支持同一内核的多个教学章节或编译 feature 时，仍然使用一份 manifest，通过 DWARF 条件选择各自的数据结构和事件映射。
 
-下面以 `mykernel` 为例。完整字段表见[《Manifest 语法参考》](REFERENCE.md)。已有的 `xv6.toml`、`rcore.toml`、`starry.toml` 和 `ucore.toml` 可以作为实际样例。
+下面以 `mykernel` 为例。完整字段表见[《Manifest 语法参考》](REFERENCE.md)。已有的 `xv6.toml`、`rcore.toml`、`arceos.toml`、`starry.toml` 和 `ucore.toml` 可以作为实际样例。
 
 ## 准备内核构建
 
@@ -47,15 +47,18 @@ rg -n 'PageTable|MemorySet|frame_alloc|kalloc|journal|commit' /path/to/kernel
 
 ## 建立覆盖清单
 
-先列出需要支持的构建形态和测试程序。例如一个八章教学内核可以写成：
+先列出需要支持的构建形态和测试程序。例如逐章增加功能的教学内核：
 
 | 构建 | 主要结构 | 测试程序 | 预期通道 |
 | --- | --- | --- | --- |
 | ch1 | 无进程结构 | 内核启动 | 控制台、函数事件 |
+| ch2 | 批处理程序 | 顺序执行多个程序 | 装载、异常与系统调用 |
 | ch3 | 固定任务数组 | 多任务示例 | 任务快照、调度事件 |
-| ch5 | 进程与线程 | fork/exec/wait | 进程关系、生命周期事件 |
+| ch4 | 虚拟内存与页分配器 | 映射、解除映射 | 页表、页分配事件 |
+| ch5 | 进程生命周期 | fork/exec/wait | 进程关系、生命周期事件 |
 | ch6 | 文件系统 | 文件读写 | inode、块缓存、磁盘事件 |
-| ch8 | 同步与线程 | 同步测试 | 线程、锁与调度事件 |
+| ch7 | 管道 | 管道读写 | pipe 事件 |
+| ch8 | 同步与线程 | 线程同步测试 | 线程、锁与调度事件 |
 
 同一形态在多种架构上构建时，每个架构单列。SMP、文件系统、网络等 feature 会改变结构或事件语义时，也各占一行。后续验证按这张表逐项进行。
 
@@ -369,6 +372,18 @@ python -m nodefusion.tools.crosscheck_watchsel \
 ```
 
 候选项按顺序判断，最后一项必须是无条件项。
+
+优化构建有时会内联薄包装函数，只保留被调用的方法。源码和目标 ELF 已确认两个入口覆盖
+同一批调用时，可以给它们设置相同的 `coverage_group`：
+
+```toml
+[event]
+"mykernel::cache::lookup" = { kind = "bcache.get", coverage_group = "cache.lookup" }
+"mykernel::cache::get" = { kind = "bcache.get", coverage_group = "cache.lookup" }
+```
+
+严格审计按观察点核对。组内已有入口时，缺失的内联别名可以由该组覆盖；未分组的同类事件
+仍分别检查。
 
 函数入口看不到返回值，也无法确认函数最终成功。分配结果、提交完成、真实调度切换和 clone 成功后的进程/线程类别适合由 `nftrace` 记录。线协议和类型编号见 [`nodefusion/spec/event-stream.md`](../../nodefusion/spec/event-stream.md)，已有补丁和应用命令见 [`nodefusion/integrations/README.md`](../../nodefusion/integrations/README.md)。
 

@@ -1,57 +1,73 @@
-# Kernel integrations
+# 内核侧观测补丁
 
-These patches add observation points; they do not replace NodeFusion's external
-QEMU observer. Apply them to the exact upstream revision named below, build a
-debug-symbol kernel, then record normally. Runs made without a patch remain
-supported and keep unavailable semantics explicitly marked unknown.
+这些补丁在内核操作完成后写入 `nftrace` 记录。QEMU 插件继续负责指令、寄存器、异常、
+函数入口、返回指令和物理内存快照。线格式见
+[`spec/event-stream.md`](../spec/event-stream.md)。
+
+补丁应先在目标源码提交上执行 `git apply --check`，再应用和构建。录制完成后检查
+`watchlist.json` 与严格审计结果。
 
 ## StarryOS
 
-`starry-nodefusion.patch` targets `tgoskits` commit `7c5bbd1`.
+`starry-nodefusion.patch` 和 `starry-cache-trace.patch` 针对 `tgoskits` 提交
+`7c5bbd1`。
 
 ```sh
 git apply --unidiff-zero --check /path/to/nodefusion/nodefusion/integrations/starry-nodefusion.patch
 git apply --unidiff-zero /path/to/nodefusion/nodefusion/integrations/starry-nodefusion.patch
+git apply --unidiff-zero --check /path/to/nodefusion/nodefusion/integrations/starry-cache-trace.patch
+git apply --unidiff-zero /path/to/nodefusion/nodefusion/integrations/starry-cache-trace.patch
+
 CARGO_PROFILE_RELEASE_DEBUG=2 cargo xtask starry build \
   --config os/StarryOS/configs/board/qemu-riscv64.toml
 ```
 
-The QEMU RISC-V board enables `starryos/nodefusion-trace`. The patch exports the
-stable `nftrace_commit_point` symbol and emits the wire records registered in
-`spec/event-stream.md`:
+QEMU RISC-V board 启用 `starryos/nodefusion-trace` 后提供以下记录：
 
-- `NFT_KALLOC`: physical allocation result, requested page count, and exact
-  post-operation allocator counters, including a zero-address failure result;
-- `NFT_PROC_FORK`: successful process creation from the clone/clone3 common path;
-- `NFT_THREAD_CREATE`: successful thread creation from that same path.
-- `NFT_SCHED_SWITCH`: exact outgoing/incoming scheduler IDs plus Linux TIDs
-  where those exist, emitted by the scheduler tracepoint before the switch.
-- `NFT_KFREE`: physical start address, page count, and exact post-operation
-  allocator counters.
-- `NFT_ALLOCATOR_STATE`: exact allocator counters after byte-heap mutations
-  that can change the backing-page state without going through a page API.
+| 记录 | 内容 |
+| --- | --- |
+| `NFT_KALLOC` | 分配结果、页数和操作后的页计数 |
+| `NFT_KFREE` | 释放起始地址、页数和操作后的页计数 |
+| `NFT_ALLOCATOR_STATE` | 字节堆改变页后端占用后的页计数 |
+| `NFT_PROC_FORK` | clone/clone3 成功创建的进程 |
+| `NFT_THREAD_CREATE` | clone/clone3 成功创建的线程 |
+| `NFT_SCHED_SWITCH` | 切出与切入的调度实体 ID 和 Linux TID |
+| `NFT_CACHE_READ` | 每次缓存或直读请求的命中、未命中或失败结果 |
 
-The allocation callback runs after allocator locks are released and does not
-allocate. The process/thread records run only after clone has committed and the
-task has been spawned. This makes them authoritative over the earlier
-function-entry classifier; the analyzer suppresses that duplicate when the
-post-success record exists.
+分配记录在分配器锁释放后发出。clone 记录在任务成功创建并加入调度后发出。缓存记录按
+请求计数，设备层合并相邻读取不会改变命中数。分析器核对缓存结果数与缓存读取入口数后
+计算命中率。
 
-Use the explicit board config shown above. `--arch riscv64` materializes a
-generated config only when one is missing, so a stale generated file can omit
-new board features even though the source board config is correct.
+构建时使用上面的 board config。`--arch riscv64` 可能复用已有的生成配置，无法保证其中
+包含新加入的 feature。
 
-`starry-thread-probe.S` is a 744-byte, no-libc RISC-V reproduction for the
-`CLONE_THREAD` branch. Build it with the command in its header and run it in the
-guest. On the patched kernel it produces `NFT_THREAD_CREATE`; ordinary shell
-children produce `NFT_PROC_FORK`. This checks the distinction with the real
-Linux clone ABI rather than inferring it from a function name.
+[`starry-thread-probe.S`](starry-thread-probe.S) 是 `CLONE_THREAD` 路径的无 libc
+RISC-V 探针。构建命令写在文件头。普通 shell 子进程产生 `NFT_PROC_FORK`，该探针产生
+`NFT_THREAD_CREATE`。
 
 ## rCore
 
-`rcore-nodefusion.patch` targets the tutorial repository's `ch7` commit
-`6eed34d`. It adds the per-region VM-unmap hook and an allocation-result
-`nftrace` producer.
+章节补丁如下：
+
+| 章节 | 补丁 |
+| --- | --- |
+| ch3 | `rcore-sched-yield-observation.patch` |
+| ch4 | `rcore-ch4-nodefusion.patch`、`rcore-sched-yield-observation.patch`、`rcore-page-table-new-observation.patch`、`rcore-heap-observation.patch` |
+| ch5 | `rcore-ch6-nodefusion.patch`、`rcore-page-table-new-observation.patch`、`rcore-heap-observation.patch`、`rcore-ch5-drop-observation.patch` |
+| ch6 | `rcore-ch6-nodefusion.patch`、`rcore-page-table-new-observation.patch` |
+| ch7 | `rcore-nodefusion.patch`、`rcore-page-table-observation-points.patch` |
+| ch8 | `rcore-ch8-nodefusion.patch`，随后应用 `rcore-page-table-observation-points.patch` |
+
+`rcore-nodefusion.patch` 针对 Tutorial ch7 提交 `6eed34d`。它在每个 `MapArea`
+移除前上报区域起止 VPN，并覆盖进程退出时的 `areas.clear()` 路径。
+
+各章语义补丁在页帧操作完成并释放分配器借用后发送 `NFT_KALLOC` 或 `NFT_KFREE`，
+同时记录精确页计数。两条 `__switch` 路径发送 `NFT_SCHED_SWITCH`；调度器上下文使用协议
+定义的 no-task 值。
+
+`rcore-heap-observation.patch` 为 ch4、ch5 的全局分配器提供稳定入口。manifest 在这两个
+构建中选择该入口，并跳过同一次操作的 `__rust_*` 包装层。`rcore-page-table-new-observation.patch`
+保留 ch4–ch6 的 `PageTable::new` 入口；ch7、ch8 使用覆盖更多页表方法的补丁。
 
 ```sh
 git apply --unidiff-zero --check /path/to/nodefusion/nodefusion/integrations/rcore-nodefusion.patch
@@ -59,56 +75,42 @@ git apply --unidiff-zero /path/to/nodefusion/nodefusion/integrations/rcore-nodef
 cd os && CARGO_PROFILE_RELEASE_DEBUG=2 make build
 ```
 
-The hook is called once for every `MapArea` immediately before that logical
-region is removed, including the `areas.clear()` process-exit path. It accepts
-the start and end VPN and changes no VM state. This supplies the per-region
-granularity that neither `MapArea::unmap` nor `recycle_data_pages` has in an
-unpatched course kernel.
+ch7、ch8 的页表观察点补丁为 `PageTable::new`、`find_pte_create`、`find_pte`、
+`map`、`translate` 和 `current_add_signal` 添加 `#[inline(never)]`，使优化构建保留可解析
+入口。`rcore-ch8-modern-toolchain.patch` 适配当前 Rust nightly 的 `PanicInfo::message()`
+接口。
 
-`frame_alloc` emits `NFT_KALLOC` only after releasing the allocator borrow and
-constructing the zeroed `FrameTracker`. The record carries the physical address,
-`num_pages = 1`, and exact post-operation free/allocated page counts; allocation
-failure carries address zero. `frame_dealloc` emits the corresponding
-post-operation `NFT_KFREE` record. The analyzer uses these records as complete
-physical-memory events and suppresses earlier function-entry duplicates.
+从不带 Git 分支元数据的 rCore 源码目录构建时，向 `record` 传入 `--make-var CHAPTER=N`
+和 `--make-var TEST=N`。ch6 的 `ch6_usertest` 还需 `--make-var BASE=2`，使文件系统镜像
+同时包含 `ch6b_initproc`。
 
-The two rCore `__switch` call paths also emit `NFT_SCHED_SWITCH`. They record
-the exact task PID and use the registered no-task sentinel for the scheduler
-context, so short-lived tasks do not depend on landing inside a periodic memory
-snapshot for attribution.
+easy-fs 没有日志或事务层。rCore manifest 将 `log.commit` 声明为 feature absence。
 
-The patch intentionally does not create `log.commit`. easy-fs has no journal,
-transaction commit, recovery record, or equivalent crash-atomic operation;
-mapping a cache flush to that vocabulary would manufacture a false comparison
-with xv6. NodeFusion keeps this kernel feature absence explicit, evidence-backed,
-and embedded in HTML/video metadata.
+## uCoreOS
 
-## uCore
-
-`ucore-nodefusion.patch` targets `LearningOS/uCore-Tutorial-Code` ch8 commit
-`7728a992c20ce43627fbc319ccb4f5765e807cba`. It adds the same stable NFTrace
-wire boundary used by the other integrations, with post-operation allocation,
-free, fork, and thread-creation records. The noinline
-`nodefusion_pagetable_map` hook runs after each successful PTE write, while the
-existing `mappages` and `uvmunmap` entries retain region-level map/unmap counts.
+ch8 使用的 `ucore-nodefusion.patch` 针对 `LearningOS/uCore-Tutorial-Code` 提交
+`7728a992c20ce43627fbc319ccb4f5765e807cba`。它提供页分配、释放、进程创建和线程创建
+记录，并在 PTE 写入成功后调用 `nodefusion_pagetable_map`。`mappages` 和 `uvmunmap`
+保留区域级映射与解除映射事件。
 
 ```sh
 git apply --check /path/to/nodefusion/nodefusion/integrations/ucore-nodefusion.patch
 git apply /path/to/nodefusion/nodefusion/integrations/ucore-nodefusion.patch
 ```
 
-The full ch8 showcase used two separately reviewable compatibility fixes:
+ch4–ch7 使用章节对应补丁：
 
-- `ucore-ch8-showcase.patch` assigns the spinning mutex after a waiter observes
-  it unlocked; the upstream teaching branch otherwise allows multiple waiters
-  into the critical section.
-- `ucore-user-modern-toolchain.patch` targets `LearningOS/uCore-Tutorial-Test`
-  commit `1733f460c596b013b1c509ad42afa428640783b0`. It enables the `zicsr` ISA
-  extension required by current GCC and removes a stray `.c` suffix from the
-  aggregate test list.
+| 章节 | 补丁 |
+| --- | --- |
+| ch4 | `ucore-legacy-nodefusion.patch` |
+| ch5 | `ucore-ch5-nodefusion.patch` |
+| ch6、ch7 | `ucore-ch6-ch7-nodefusion.patch` |
 
-Apply those patches in the kernel and nested `user` repositories respectively,
-then record through the `ucore.toml` profile. The profile uses QEMU's built-in
-OpenSBI because the repository's historical RustSBI image does not boot with
-QEMU 10.2.2. uCore ch8 has no journal or transaction layer, so `log.commit`
-remains an evidence-backed N/A rather than a fabricated cache-write event.
+ch8 showcase 还使用：
+
+- `ucore-ch8-showcase.patch`：补上自旋互斥锁等待成功后的 `locked = 1`；
+- `ucore-user-modern-toolchain.patch`：针对 Tutorial Test 提交
+  `1733f460c596b013b1c509ad42afa428640783b0`，启用 Zicsr 并修正测试列表。
+
+`ucore.toml` 使用 QEMU 内置 OpenSBI；仓库内的历史 RustSBI 镜像无法在 QEMU 10.2.2
+上完成该构建的启动。uCoreOS 没有日志或事务层，`log.commit` 记为 feature absence。
