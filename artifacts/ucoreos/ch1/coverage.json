@@ -1,27 +1,56 @@
 {
   "schema": "nodefusion.artifact-evidence/1",
-  "run": "ucore-ch1-probe",
+  "run": "ucore-ch1-return-aware",
   "kernel_kind": "ucore",
   "source_sha256": {
-    "trace.nfb": "da10b0a0e85888a4cc2cb6011681c1069d3516101d1568a1651acca44cfb20fc",
-    "manifest.json": "bd7c8472aafe88b16739b40ea2f35368f94e372e0f10440bb346258d115c15d3",
-    "watchlist.json": "b7d5019922ed768ca61cb3c31c3fbcf75a84783c2cc1ffd2b3fd1603788770ee",
-    "kernel_layout.json": "71582cb130a95ed5377a8e789f1c842c04a0b37d34b8a8dcd78a609043368251"
+    "trace.nfb": "d0e127fa8a9ea468fdd7e8cb25fab4146f592c9bcad0938555b65239b7834976",
+    "manifest.json": "8c242e984713bdf9909dffd79649d9d65807f73f311aaa46ba03c51986f6cef4",
+    "watchlist.json": "7d8980b22d367e51212b2ceaaee08ea3fbdbf54e37f5da1c509cbae0b61c5d11",
+    "kernel_layout.json": "221c507c130a463ac0ae35b1c0f554e458c2704982603debb268197cde0e1001"
   },
   "kernel_elf_sha256": "6d9f1bfed86d6a24cf8909debbd78e949a858c22135c3e950bd942b9f7895771",
-  "archive_bytes": {"trace.nfb": 2300273, "kernel_elf": 20880},
-  "html_sha256": "90889118867a5e21cefd4af62e57cf48a566dd7c4f49fc69e3aac1eaba33dc3d",
-  "html_bytes": 158994,
+  "html_sha256": "467bc7cd4b8958b045d824c3c33d483e8b7ee8b1f8fd57476fffd680a977aaac",
+  "html_bytes": 163215,
   "function_trace": {
-    "kind": "function-entry sequence (no return events)",
-    "raw": 145,
-    "retained": 145
+    "kind": "return-matched observed frames",
+    "raw": 304,
+    "retained": 304,
+    "returns": 154571,
+    "matched_returns": 302,
+    "nested_entries": 303
+  },
+  "event_selection": {
+    "applied": false,
+    "policy": "kind-preserving/systematic-v3",
+    "raw": 468,
+    "retained": 468,
+    "dropped": 0,
+    "target_limit": 150000,
+    "minimum_spare": 25000,
+    "always_keep": "all events when the raw stream fits",
+    "priority_raw": 165,
+    "spare_raw": 303,
+    "spare_budget": 0,
+    "stride": 1,
+    "retained_kinds": {
+      "firmware.trap": 19,
+      "func.clean_bss": 1,
+      "func.console_init": 1,
+      "func.console_putchar": 144,
+      "func.consputc": 144,
+      "func.main": 1,
+      "func.printf": 5,
+      "func.printint": 7,
+      "kernel.panic": 1,
+      "sbi.call": 145
+    },
+    "dropped_kinds": {}
   },
   "coverage": {
     "status": "complete",
     "percent": 100.0,
-    "passed": 177,
-    "total": 177,
+    "passed": 196,
+    "total": 196,
     "metrics": {
       "covered": 6,
       "applicable": 6,
@@ -50,12 +79,18 @@
       "dropped_from_interactive": 0
     },
     "snapshots": {
-      "checked": 3,
+      "checked": 19,
       "incomplete": 0,
       "physical_memory": 0,
       "physical_counters": 0,
       "processes": 0,
-      "resources": 0
+      "resources": 0,
+      "pre_initialization": {
+        "physical_memory": 0,
+        "physical_counters": 0,
+        "processes": 0,
+        "resources": 0
+      }
     },
     "snapshot_not_applicable": [
       "physical_counters",
@@ -69,27 +104,17 @@
       "unresolved": 0
     },
     "full_watch_scope": true,
+    "function_watch_drops": 0,
+    "function_stacks_available": true,
+    "observation_points": {
+      "unresolved": [],
+      "reported_missing": 95,
+      "layout_missing": []
+    },
     "blockers": []
   },
-  "event_selection": {
-    "applied": false,
-    "policy": "kind-preserving/systematic-v3",
-    "raw": 309,
-    "retained": 309,
-    "dropped": 0,
-    "target_limit": 150000,
-    "minimum_spare": 25000,
-    "always_keep": "all events when the raw stream fits",
-    "priority_raw": 165,
-    "spare_raw": 144,
-    "spare_budget": 0,
-    "stride": 1,
-    "retained_kinds": {
-      "firmware.trap": 19,
-      "func.console_putchar": 144,
-      "kernel.panic": 1,
-      "sbi.call": 145
-    },
-    "dropped_kinds": {}
+  "archive_bytes": {
+    "trace.nfb": 11010843,
+    "kernel_elf": 20880
   }
 }

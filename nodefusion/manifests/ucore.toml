@@ -4,6 +4,8 @@
 # pipeline remains kernel-neutral.
 
 [kernel]
+cache_hit_derivation = "one_to_one"
+clone_completion_channel = "nftrace"
 name   = "ucore"
 family = "ucore"
 arches = ["riscv64"]

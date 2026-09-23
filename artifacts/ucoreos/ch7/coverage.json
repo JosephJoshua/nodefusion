@@ -1,75 +1,39 @@
 {
   "schema": "nodefusion.artifact-evidence/1",
-  "run": "ucore-ch7-100pct-final",
+  "run": "ucore-ch7-return-aware",
   "kernel_kind": "ucore",
   "source_sha256": {
-    "trace.nfb": "fcec2895f2774d477ba0aba14a1a73911e1f884d8017f6f2622daca578f1ee1b",
-    "manifest.json": "512bda5cbf94c90c2b19ab9ac5f2ec20b0bb40ffc8b294ff393594c6f6f7db75",
-    "watchlist.json": "40442957b306b852806d2d4eaa4df97c6339fb8585c07e51c1f0a711f8db8c62",
-    "kernel_layout.json": "f06fbfd87b086139885847328031e178a0a07734a4a03f7a741da36bb4ea02b8"
+    "trace.nfb": "dcdeeee9361cf1d0814c965de7c9f1c32089d901af7baa7ca3b2d22903a3f1ba",
+    "manifest.json": "d6f3b073b16531c589e57bdffaec39fdf56c53394cf3de53b930b6d24057d9b6",
+    "watchlist.json": "40eea8595cece5945db7924ead3456822a9c7850f747d85001f53e36c0443509",
+    "kernel_layout.json": "2ff50c2ac64f80109a112b69bd8f60afd5d3d9c5015dbe148a73c0ff4b091150"
   },
   "kernel_elf_sha256": "d91193618f0b32a4076ec20cbe5b05fc7764f4ae4071dc497400ba761d44cea0",
-  "archive_bytes": {"trace.nfb": 19033091, "kernel_elf": 175744},
-  "html_sha256": "be44d459c869638ee2e968bd83c4063f418ee476c2da3890b7657b61f917607d",
-  "html_bytes": 1104700,
-  "function_trace": {
-    "kind": "function-entry sequence (no return events)",
-    "raw": 82510,
-    "retained": 82510
+  "archive_bytes": {
+    "trace.nfb": 44267264,
+    "kernel_elf": 175744
   },
-  "coverage": {
-    "status": "complete",
-    "percent": 100.0,
-    "passed": 59670,
-    "total": 59670,
-    "metrics": {
-      "covered": 18,
-      "applicable": 18,
-      "not_applicable": [
-        "log_commits"
-      ],
-      "missing": [],
-      "sampled": []
-    },
-    "semantic_events": {
-      "raw": 47340,
-      "unknown": 0,
-      "unknown_fields": {},
-      "dropped_from_interactive": 0
-    },
-    "snapshots": {
-      "checked": 3,
-      "incomplete": 0,
-      "physical_memory": 0,
-      "physical_counters": 0,
-      "processes": 0,
-      "resources": 0
-    },
-    "snapshot_not_applicable": [],
-    "manifest_fields": {
-      "cells": 12288,
-      "states": {
-        "absent": 1536,
-        "empty": 3067,
-        "present": 7685
-      },
-      "not_applicable": 1536,
-      "unresolved": 0
-    },
-    "full_watch_scope": true,
-    "blockers": []
+  "html_sha256": "0941b33e3c58d5603aecb0b0962d59d50aa81b665a76fe330da0fd7159567156",
+  "html_bytes": 2418135,
+  "function_trace": {
+    "kind": "return-matched observed frames",
+    "raw": 134287,
+    "retained": 134287,
+    "returns": 338332,
+    "matched_returns": 130663,
+    "nested_entries": 34916
   },
   "event_selection": {
     "applied": false,
     "policy": "kind-preserving/systematic-v3",
-    "raw": 86651,
-    "retained": 86651,
+    "raw": 138428,
+    "retained": 138428,
     "dropped": 0,
     "target_limit": 150000,
     "minimum_spare": 25000,
     "always_keep": "all events when the raw stream fits",
-    "priority_raw": 47340,
-    "spare_raw": 39311,
+    "priority_raw": 47335,
+    "spare_raw": 91093,
     "spare_budget": 0,
     "stride": 1,
     "retained_kinds": {
@@ -82,17 +46,22 @@
       "file.alloc": 5,
       "file.close": 3,
       "firmware.trap": 19,
-      "func.add_task": 10,
+      "func.add_task": 9,
       "func.allocpid": 3,
+      "func.clean_bss": 1,
+      "func.consgetc": 741,
       "func.console_getchar": 741,
       "func.console_putchar": 1714,
       "func.console_read": 741,
       "func.console_write": 751,
+      "func.consputc": 515,
       "func.cpuid": 43,
+      "func.curr_proc": 10663,
       "func.dirls": 1,
+      "func.dummy": 7579,
       "func.either_copyout": 131,
       "func.fdalloc": 2,
-      "func.fetch_task": 11,
+      "func.fetch_task": 10,
       "func.free_desc": 63,
       "func.freepagetable": 3,
       "func.freerange": 1,
@@ -104,6 +73,9 @@
       "func.kinit": 1,
       "func.kvmmap": 5,
       "func.load_init_app": 1,
+      "func.main": 1,
+      "func.memmove": 891,
+      "func.memset": 31305,
       "func.nftrace_allocator_state": 1,
       "func.nftrace_page_alloc": 101,
       "func.nftrace_page_free": 29,
@@ -111,13 +83,18 @@
       "func.plic_claim": 21,
       "func.plic_complete": 21,
       "func.plicinit": 1,
-      "func.pop_queue": 11,
+      "func.pop_queue": 10,
+      "func.printf": 29,
+      "func.printint": 6,
       "func.push_argv": 2,
-      "func.push_queue": 10,
+      "func.push_queue": 9,
       "func.root_dir": 3,
       "func.set_next_timer": 4,
       "func.show_all_files": 1,
       "func.stdio_init": 3,
+      "func.strlen": 4,
+      "func.strncmp": 50,
+      "func.threadid": 1,
       "func.timer_init": 1,
       "func.useraddr": 4,
       "func.uvmcreate": 3,
@@ -144,15 +121,15 @@
       "proc.alloc": 3,
       "proc.exec": 1,
       "proc.exit": 3,
-      "proc.fork": 4,
+      "proc.fork": 2,
       "proc.free": 3,
       "proc.initproc": 1,
       "proc.wait": 2,
       "sbi.call": 2460,
       "sched.enter": 1,
-      "sched.switch": 20,
+      "sched.switch": 18,
       "sched.yield": 2,
-      "sched.yield_to_scheduler": 10,
+      "sched.yield_to_scheduler": 9,
       "syscall.close": 3,
       "syscall.dispatch": 1505,
       "syscall.enter": 1505,
@@ -180,5 +157,60 @@
       "vm.unmap": 10
     },
     "dropped_kinds": {}
+  },
+  "coverage": {
+    "status": "complete",
+    "percent": 100.0,
+    "passed": 629861,
+    "total": 629861,
+    "metrics": {
+      "covered": 18,
+      "applicable": 18,
+      "not_applicable": [
+        "log_commits"
+      ],
+      "missing": [],
+      "sampled": []
+    },
+    "semantic_events": {
+      "raw": 47335,
+      "unknown": 0,
+      "unknown_fields": {},
+      "dropped_from_interactive": 0
+    },
+    "snapshots": {
+      "checked": 142,
+      "incomplete": 0,
+      "physical_memory": 0,
+      "physical_counters": 0,
+      "processes": 0,
+      "resources": 0,
+      "pre_initialization": {
+        "physical_memory": 0,
+        "physical_counters": 124,
+        "processes": 0,
+        "resources": 0
+      }
+    },
+    "snapshot_not_applicable": [],
+    "manifest_fields": {
+      "cells": 581632,
+      "states": {
+        "absent": 72704,
+        "empty": 145390,
+        "present": 363538
+      },
+      "not_applicable": 72704,
+      "unresolved": 0
+    },
+    "full_watch_scope": true,
+    "function_watch_drops": 0,
+    "function_stacks_available": true,
+    "observation_points": {
+      "unresolved": [],
+      "reported_missing": 13,
+      "layout_missing": []
+    },
+    "blockers": []
   }
 }
