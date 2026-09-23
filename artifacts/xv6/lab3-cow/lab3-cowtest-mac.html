@@ -434,6 +434,7 @@ tr.sel td { background: color-mix(in oklch, var(--accent) 12%, var(--bg)); }
 .function-row { position: relative; display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 32px; padding: 6px 8px; border: 0; border-bottom: 1px solid var(--line); background: linear-gradient(90deg, color-mix(in oklch, var(--accent) 10%, transparent) var(--bar), transparent var(--bar)); color: var(--fg); text-align: left; cursor: pointer; }
 .function-row:hover { background-color: var(--bg3); }
 .function-name, .sequence-function { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 11px; }
+.stack-chain .function-name { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
 .function-count, .sequence-meta { flex: none; margin-left: 10px; color: var(--fg2); font-family: var(--mono); font-size: 11px; }
 .sequence-link { width: 1px; height: 10px; margin-left: 18px; background: var(--line); }
 .sequence-node { display: grid; grid-template-columns: 25px minmax(0, 1fr); gap: 4px 8px; width: 100%; padding: 7px 8px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--fg); text-align: left; cursor: pointer; }
@@ -698,6 +699,7 @@ function evGet(run, i) {
     kind: D.kinds[E.kind[i]], res: D.res[E.res[i]],
     pid: E.pid[i] < 0 ? null : E.pid[i],
     pc: E.pc[i], func: D.funcs[E.func[i]],
+    stack: E.stack?.[i]?.map((id) => D.funcs[id]) || null,
     tick: E.tick[i] < 0 ? null : E.tick[i],
     detail: E.detail[i], unknown: E.unknown[i],
   };
@@ -1216,7 +1218,9 @@ function renderOverview() {
   // 而且不成立的时候恰好会给出一个特别像结论的数（0.0%）。所以只要有一侧
   // 抽样过就不给百分比 —— 这是三态里的"测不准"，跟"测出来是 0"不一样。
   const hrSampled = !!(smet.bcache_reads || smet.disk_io);
-  const hrSub = hrSampled ? '样本不可合并' : `${num(m.bcache_hits)} / ${num(m.bcache_reads)} 次读`;
+  const hrSub = m.cache_hit_accounting === 'unverified'
+    ? `缓存请求 ${num(m.bcache_reads)} · 磁盘 I/O ${num(m.disk_io)}`
+    : hrSampled ? '样本不可合并' : `${num(m.bcache_hits)} / ${num(m.bcache_reads)} 次缓存请求`;
   card((m.bcache_hit_rate === null || hrSampled)
          ? '—' : (m.bcache_hit_rate * 100).toFixed(1) + '%',
        '缓存命中率', hrSub);
@@ -1240,7 +1244,8 @@ function renderOverview() {
        withRange('', m.log_commits, 'log_commits'));
   p.appendChild(cards);
 
-  p.appendChild(el('div', 'hint', '缓存命中率：bread 次数 − 磁盘 I/O，外部推导。'));
+  if (m.cache_hit_accounting === 'one_to_one')
+    p.appendChild(el('div', 'hint', '缓存命中率按缓存请求与设备读取次数计算。'));
 
   // 上面若干张卡片显示 "—"，是因为这个内核里压根没有对应的函数可挂观测点。
   // 不写清楚的话，"—" 和 "0" 在读者眼里都是"没发生"，而这两件事完全不同。
@@ -1892,10 +1897,16 @@ function renderEvents() {
   };
   const searchWrap = el('label', 'filter-control filter-search');
   searchWrap.appendChild(el('span', 'filter-label', '搜索'));
+  const selection = run.meta.event_selection || {};
+  const sampled = !!selection.applied && selection.dropped > 0;
   const kinds = [...new Set(run.dict.kinds)].sort();
   const kSel = el('select');
   kSel.appendChild(new Option('全部事件类型', ''));
-  for (const k of kinds) kSel.appendChild(new Option(k, k));
+  for (const k of kinds) {
+    const kept = (selection.retained_kinds || {})[k] || 0;
+    const raw = kept + ((selection.dropped_kinds || {})[k] || 0);
+    kSel.appendChild(new Option(sampled ? `${k} · ${num(kept)} / ${num(raw)}` : k, k));
+  }
   kSel.value = NF.filters.kind;
   kSel.onchange = () => { NF.filters.kind = kSel.value; renderEvents(); };
 
@@ -1980,14 +1991,16 @@ function renderEvents() {
   applyFilters();
   const info = el('div', 'result-bar');
   info.appendChild(el('strong', null, `${num(evFiltered.length)} 条结果`));
-  info.appendChild(el('span', null, ` / ${num(run.events.insn.length)} 条事件`));
+  info.appendChild(el('span', null, sampled
+    ? ` / ${num(run.events.insn.length)} 条浏览样本 · 原始 ${num(selection.raw)} 条`
+    : ` / ${num(run.events.insn.length)} 条事件`));
   if (NF.filters.kind || NF.filters.group || NF.filters.res || NF.filters.pid || NF.filters.cpu || NF.filters.text || NF.filters.from || NF.filters.to) {
     info.appendChild(el('span', 'result-active', '已应用筛选'));
   }
   p.appendChild(info);
   if (!evFiltered.length) {
     const empty = el('div', 'event-empty');
-    empty.appendChild(el('strong', null, '没有匹配的事件'));
+    empty.appendChild(el('strong', null, sampled ? '样本中没有匹配事件' : '没有匹配的事件'));
     empty.appendChild(el('p', null, '清除筛选或调整范围。'));
     p.appendChild(empty);
     return;
@@ -2001,7 +2014,9 @@ function renderEvents() {
   }
   [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).forEach(([kind, count]) => {
     const b = el('button', 'facet' + (NF.filters.kind === kind ? ' selected' : ''));
-    b.type = 'button'; b.title = `筛选 ${kind}`;
+    b.type = 'button'; b.title = sampled
+      ? `筛选 ${kind} · 原始 ${num(count + ((selection.dropped_kinds || {})[kind] || 0))} 条`
+      : `筛选 ${kind}`;
     b.appendChild(el('span', null, kind)); b.appendChild(el('b', null, num(count)));
     b.onclick = () => { NF.filters.kind = NF.filters.kind === kind ? '' : kind; renderEvents(); };
     facet.appendChild(b);
@@ -2010,7 +2025,7 @@ function renderEvents() {
 
   const density = el('div', 'event-density');
   const densityHead = el('div', 'density-head');
-  densityHead.appendChild(el('div', 'density-label', '事件分布'));
+  densityHead.appendChild(el('div', 'density-label', sampled ? '样本事件分布' : '事件分布'));
   const bars = el('div', 'density-bars');
   const bins = 48; const totalInsn = Number(run.meta.total_insns) || 1; const binCounts = Array(bins).fill(0);
   for (const i of evFiltered) {
@@ -2115,6 +2130,7 @@ function summarize(e) {
     case 'pagetable.unmap': return `va=${hex(d.va)} ${num(d.npages)} 页`;
     case 'vm.copy': return `父页表=${hex(d.old)} 子页表=${hex(d.new)} 大小=${num(d.sz)}`;
     case 'bcache.read': case 'bcache.get': return `dev=${d.dev} block=${d.blockno}`;
+    case 'bcache.result': return `${d.outcome || '?'} · block=${d.first_block} · ${num(d.blocks)} 块`;
     case 'disk.io': return d.write ? '写盘' : '读盘';
     case 'sync.sleep': return `chan=${hex(d.chan)}`;
     case 'sync.wakeup': return `chan=${hex(d.chan)}`;
@@ -2160,7 +2176,10 @@ function renderFunctions() {
   const scope = entryCounts && entryCounts.raw > entryCounts.retained
     ? ` · 显示 ${num(entryCounts.retained)} / ${num(entryCounts.raw)} 条`
     : '';
-  title.appendChild(el('div', 'section-subtitle', `函数入口${scope} · 返回地址可定位直接调用方；无返回事件。`));
+  const returns = run.meta.function_returns || { raw: 0, matched: 0, nested_entries: 0 };
+  title.appendChild(el('div', 'section-subtitle', returns.raw
+    ? `函数入口${scope} · ${num(returns.matched)} / ${num(returns.raw)} 条返回匹配观测帧`
+    : `函数入口${scope} · 返回地址可定位直接调用方；本次未录制返回事件。`));
   heading.appendChild(title);
   p.appendChild(heading);
 
@@ -2173,7 +2192,8 @@ function renderFunctions() {
     const fn = (entryName >= 0 ? run.dict.funcs[entryName] : '')
       || run.dict.funcs[run.events.func[i]] || kind.slice(5);
     const caller = callerId >= 0 ? run.dict.funcs[callerId] : '';
-    entries.push({ i, fn, caller, insn: run.events.insn[i], cpu: run.events.cpu[i], pid: run.events.pid[i] });
+    const path = run.events.stack?.[i]?.map((id) => run.dict.funcs[id]) || null;
+    entries.push({ i, fn, caller, path, insn: run.events.insn[i], cpu: run.events.cpu[i], pid: run.events.pid[i] });
   }
   if (!entries.length) {
     const empty = el('div', 'event-empty');
@@ -2193,7 +2213,9 @@ function renderFunctions() {
   const grouping = el('select'); grouping.id = 'function-grouping';
   grouping.appendChild(new Option('调用关系', 'caller'));
   grouping.appendChild(new Option('名称层级', 'namespace'));
-  if (!entries.some((e) => e.caller)) grouping.value = 'namespace';
+  if (returns.nested_entries) grouping.appendChild(new Option('观测调用链', 'stack'));
+  if (returns.nested_entries) grouping.value = 'stack';
+  else if (!entries.some((e) => e.caller)) grouping.value = 'namespace';
   controls.appendChild(search); controls.appendChild(cpu); controls.appendChild(grouping);
   controls.appendChild(limit); p.appendChild(controls);
 
@@ -2213,11 +2235,32 @@ function renderFunctions() {
   function paint() {
     const q = search.value.trim().toLowerCase();
     const selectedCpu = cpu.value;
-    const filtered = entries.filter((e) => (!q || e.fn.toLowerCase().includes(q) || e.caller.toLowerCase().includes(q)) && (selectedCpu === '' || String(e.cpu) === selectedCpu));
+    const filtered = entries.filter((e) => (!q || e.fn.toLowerCase().includes(q) || e.caller.toLowerCase().includes(q) || (e.path || []).some((name) => name.toLowerCase().includes(q))) && (selectedCpu === '' || String(e.cpu) === selectedCpu));
     const counts = new Map();
     for (const e of filtered) counts.set(e.fn, (counts.get(e.fn) || 0) + 1);
     tree.innerHTML = '';
-    if (grouping.value === 'caller') {
+    if (grouping.value === 'stack') {
+      treeTitle.textContent = '观测调用链';
+      treeNote.textContent = '入口与返回匹配的帧；中断、任务切换和缺失观察点会截断链。';
+      const chains = new Map();
+      for (const e of filtered) {
+        if (!e.path || e.path.length < 2) continue;
+        const key = e.path.join('\0');
+        if (!chains.has(key)) chains.set(key, { path: e.path, count: 0, index: e.i });
+        chains.get(key).count++;
+      }
+      [...chains.values()].sort((a, b) => b.count - a.count || a.path.join().localeCompare(b.path.join()))
+        .slice(0, 120).forEach((chain) => {
+          const row = el('button', 'function-row stack-chain'); row.type = 'button';
+          row.style.setProperty('--bar', `${Math.round(chain.count / Math.max(1, filtered.length) * 100)}%`);
+          row.title = chain.path.join(' → ');
+          row.appendChild(el('span', 'function-name', chain.path.join(' → ')));
+          row.appendChild(el('span', 'function-count', num(chain.count)));
+          row.onclick = () => { setTab('events'); selectEvent(chain.index); };
+          tree.appendChild(row);
+        });
+      if (!chains.size) tree.appendChild(el('div', 'trace-muted', '当前筛选中没有可匹配的嵌套帧。'));
+    } else if (grouping.value === 'caller') {
       treeTitle.textContent = '调用关系';
       treeNote.textContent = '由入口时的返回地址定位直接调用方。';
       const edges = new Map();
@@ -2283,7 +2326,7 @@ function renderFunctions() {
       const node = el('button', 'sequence-node'); node.type = 'button'; node.title = '定位到这条入口事件';
       node.appendChild(el('span', 'sequence-index', String(index + 1).padStart(2, '0')));
       node.appendChild(el('span', 'sequence-function', e.fn));
-      node.appendChild(el('span', 'sequence-meta', `${fmtInsn(e.insn)} · CPU ${e.cpu}${e.caller ? ` · ${e.caller} →` : ''}`));
+      node.appendChild(el('span', 'sequence-meta', `${fmtInsn(e.insn)} · CPU ${e.cpu}${e.path?.length > 1 ? ` · ${e.path.join(' → ')}` : e.caller ? ` · ${e.caller} →` : ''}`));
       node.onclick = () => selectEvent(e.i);
       sequence.appendChild(node);
     });
@@ -2496,6 +2539,7 @@ function showEventDetail(run, i) {
     // 用户态地址在内核符号表里当然查不到 —— 这不是"解析失败"，要说清楚，
     // 否则会被误读成工具出了问题。
     ['函数', e.func || (e.pc && e.pc < 0x80000000 ? '用户态' : '—')],
+    ['观测调用链', e.stack?.length > 1 ? e.stack.join(' → ') : '—'],
   ]));
 
   if (e.detail && Object.keys(e.detail).length) {
