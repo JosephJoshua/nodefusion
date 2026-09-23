@@ -1,0 +1,24 @@
+diff --git a/os/src/main.rs b/os/src/main.rs
+--- a/os/src/main.rs
++++ b/os/src/main.rs
+@@ -22,5 +22,5 @@
+ #![deny(warnings)]
++#![allow(function_casts_as_integer, static_mut_refs)]
+ #![no_std]
+ #![no_main]
+-#![feature(panic_info_message)]
+ #![feature(alloc_error_handler)]
+diff --git a/os/src/lang_items.rs b/os/src/lang_items.rs
+--- a/os/src/lang_items.rs
++++ b/os/src/lang_items.rs
+@@ -10,8 +10,8 @@ fn panic(info: &PanicInfo) -> ! {
+             "[kernel] Panicked at {}:{} {}",
+             location.file(),
+             location.line(),
+-            info.message().unwrap()
++            info.message()
+         );
+     } else {
+-        println!("[kernel] Panicked: {}", info.message().unwrap());
++        println!("[kernel] Panicked: {}", info.message());
+     }

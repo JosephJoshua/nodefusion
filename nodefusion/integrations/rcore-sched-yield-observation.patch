@@ -1,0 +1,9 @@
+diff --git a/os/src/task/mod.rs b/os/src/task/mod.rs
+--- a/os/src/task/mod.rs
++++ b/os/src/task/mod.rs
+@@ -161,4 +161,5 @@
+ /// Suspend the current 'Running' task and run the next task in task list.
++#[inline(never)]
+ pub fn suspend_current_and_run_next() {
+     mark_current_suspended();
+     run_next_task();

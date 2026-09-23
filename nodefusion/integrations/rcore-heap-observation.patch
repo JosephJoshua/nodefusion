@@ -1,0 +1,48 @@
+diff --git a/os/src/mm/heap_allocator.rs b/os/src/mm/heap_allocator.rs
+--- a/os/src/mm/heap_allocator.rs
++++ b/os/src/mm/heap_allocator.rs
+@@ -1,9 +1,43 @@
+ //! The global allocator
+ use crate::config::KERNEL_HEAP_SIZE;
+ use buddy_system_allocator::LockedHeap;
++use core::alloc::{GlobalAlloc, Layout};
++use core::ops::Deref;
++
++struct ObservedHeap(LockedHeap);
++
++impl Deref for ObservedHeap {
++    type Target = LockedHeap;
++
++    fn deref(&self) -> &Self::Target {
++        &self.0
++    }
++}
++
++unsafe impl GlobalAlloc for ObservedHeap {
++    #[inline(never)]
++    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
++        GlobalAlloc::alloc(&self.0, layout)
++    }
++
++    #[inline(never)]
++    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
++        GlobalAlloc::dealloc(&self.0, ptr, layout)
++    }
++
++    #[inline(never)]
++    unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
++        GlobalAlloc::realloc(&self.0, ptr, layout, new_size)
++    }
++
++    #[inline(never)]
++    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
++        GlobalAlloc::alloc_zeroed(&self.0, layout)
++    }
++}
+ 
+ #[global_allocator]
+ /// heap allocator instance
+-static HEAP_ALLOCATOR: LockedHeap = LockedHeap::empty();
++static HEAP_ALLOCATOR: ObservedHeap = ObservedHeap(LockedHeap::empty());
+ 
+ #[alloc_error_handler]

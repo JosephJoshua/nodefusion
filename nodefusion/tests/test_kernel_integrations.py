@@ -1,5 +1,6 @@
 """Contracts shared by the shipped kernel integration patches and manifests."""
 
+import subprocess
 from pathlib import Path
 
 from nodefusion.host.analyze import Analysis
@@ -7,6 +8,16 @@ from nodefusion.model.manifest import load
 
 ROOT = Path(__file__).resolve().parents[1]
 INTEGRATIONS = ROOT / "integrations"
+
+
+def test_integration_patches_are_well_formed_unified_diffs():
+    for patch in INTEGRATIONS.glob("*.patch"):
+        subprocess.run(
+            ["git", "apply", "--numstat", str(patch)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
 
 
 def test_starry_patch_exports_the_wire_point_and_all_registered_types():
@@ -22,6 +33,15 @@ def test_starry_patch_exports_the_wire_point_and_all_registered_types():
     assert "trace_page_free(pos, num_pages, free_pages, used_pages)" in text
     assert "trace_allocator_state(free_pages, used_pages)" in text
     assert "flags.contains(CloneFlags::THREAD)" in text
+
+
+def test_starry_cache_results_are_recorded_per_request():
+    patch = (INTEGRATIONS / "starry-cache-trace.patch").read_text()
+    assert "const NFT_CACHE_READ: u64 = 7;" in patch
+    assert "folio.slot(slot).is_uptodate()" in patch
+    assert "if filled.is_err() { 2 } else { u64::from(hit) }" in patch
+    assert "trace_cache_read(if result.is_ok() { 0 } else { 2 }" in patch
+    assert '"ax-fs-ng/nodefusion-trace"' in patch
 
 
 def test_starry_thread_probe_uses_a_real_linux_clone_thread_call():
@@ -72,6 +92,14 @@ def test_rcore_chapter_patches_preserve_per_region_and_scheduler_identity():
     assert "Arc::as_ptr(&task) as usize" in ch8
     assert "a: [from_task, to_task, from_pid, to_pid]" in ch8
     assert "block_current_and_run_next" in ch8
+
+
+def test_rcore_ch8_keeps_applicable_vm_and_signal_watchpoints_callable():
+    patch = (INTEGRATIONS / "rcore-page-table-observation-points.patch").read_text()
+    assert patch.count("#[inline(never)]") == 6
+    for name in ("PageTable", "find_pte_create", "find_pte(", "map(",
+                 "translate(", "current_add_signal("):
+        assert name in patch
 
 
 def test_rcore_ch4_sched_probe_uses_task_ids_without_inventing_pids():
@@ -185,10 +213,9 @@ def test_ucore_manifest_covers_all_eight_measured_shapes():
     assert "-f nfs/fs.c" in manifest.profile.build
     assert "scripts/pack.py" in manifest.profile.build
     assert manifest.profile.devices[0].built_when == ("Makefile", "fs-copy.img:")
-    doc = (ROOT.parent / "docs" / "kernels" / "ucoreos" /
-           "chapters.md").read_text()
+    doc = (ROOT.parent / "artifacts" / "ucoreos" / "README.md").read_text()
     for chapter in range(1, 9):
-        assert f"| {chapter} |" in doc
+        assert f"| ch{chapter} |" in doc
     legacy = (INTEGRATIONS / "ucore-legacy-nodefusion.patch").read_text()
     for token in ("NFT_KALLOC", "NFT_KFREE", "NFT_ALLOCATOR_STATE",
                   "nodefusion_pagetable_map"):

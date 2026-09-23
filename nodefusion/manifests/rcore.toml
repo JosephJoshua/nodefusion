@@ -24,6 +24,7 @@
 name   = "rcore"
 family = "rcore"
 arches = ["riscv64"]
+cache_hit_derivation = "one_to_one"
 
 
 
@@ -336,6 +337,20 @@ throttle  = 0
 
 [[watch]]
 subsystem = "heap"
+match     = { fn = ["__rust_alloc", "__rust_dealloc", "__rust_realloc", "__rust_alloc_zeroed"] }
+skip      = true
+when      = { type_exists = "os::mm::heap_allocator::ObservedHeap" }
+
+[[watch]]
+subsystem = "heap"
+match     = { module = "os::mm::heap_allocator", fn = ["alloc", "dealloc", "realloc", "alloc_zeroed"] }
+when      = { type_exists = "os::mm::heap_allocator::ObservedHeap" }
+snapshot  = "none"
+args      = 2
+throttle  = 0
+
+[[watch]]
+subsystem = "heap"
 match     = { fn = ["__rust_alloc", "__rust_dealloc", "__rust_realloc"] }
 snapshot  = "none"
 args      = 2
@@ -430,7 +445,7 @@ subsystem = "mm"
 
 match     = { fn = ["find_pte_create", "find_pte", "translate"] }
 args      = 2
-throttle  = 64
+throttle  = 0
 
 
 
@@ -909,12 +924,12 @@ throttle  = 0
 
 
 
-"easy_fs::block_cache::get_block_cache" = "bcache.read"
+"easy_fs::block_cache::get_block_cache" = { kind = "bcache.read", coverage_group = "easy-fs.cache-lookup" }
 # ch6/ch7 retain the free wrapper above; in ch8 rustc inlines that wrapper and
 # the only instrumentable lookup is the method it forwards to.  The selected
 # watchlist contains exactly one of these two layers in each measured ELF, so
 # mapping both names preserves one event per cache lookup without double-counting.
-"easy_fs::block_cache::BlockCacheManager::get_block_cache" = "bcache.read"
+"easy_fs::block_cache::BlockCacheManager::get_block_cache" = { kind = "bcache.read", coverage_group = "easy-fs.cache-lookup" }
 "os::drivers::block::virtio_blk::VirtIOBlock::read_block" = { kind = "disk.io", operation = "read" }
 "os::drivers::block::virtio_blk::VirtIOBlock::write_block" = { kind = "disk.io", operation = "write" }
 
@@ -1198,9 +1213,13 @@ throttle  = 0
 
 
 
-"__rust_alloc" = "heap.alloc"
-"__rust_dealloc" = "heap.free"
-"__rust_realloc" = "heap.realloc"
+"__rust_alloc" = { kind = "heap.alloc", coverage_group = "rcore.heap.alloc" }
+"__rust_dealloc" = { kind = "heap.free", coverage_group = "rcore.heap.free" }
+"__rust_realloc" = { kind = "heap.realloc", coverage_group = "rcore.heap.realloc" }
+"os::mm::heap_allocator::ObservedHeap::alloc" = { kind = "heap.alloc", coverage_group = "rcore.heap.alloc" }
+"os::mm::heap_allocator::ObservedHeap::dealloc" = { kind = "heap.free", coverage_group = "rcore.heap.free" }
+"os::mm::heap_allocator::ObservedHeap::realloc" = { kind = "heap.realloc", coverage_group = "rcore.heap.realloc" }
+"os::mm::heap_allocator::ObservedHeap::alloc_zeroed" = { kind = "heap.alloc_zeroed", coverage_group = "rcore.heap.alloc-zeroed" }
 "os::syscall::syscall" = "syscall.dispatch"
 "os::syscall::fs::sys_close" = "syscall.close"
 "os::syscall::fs::sys_fstat" = "syscall.fstat"
@@ -1301,7 +1320,7 @@ throttle  = 0
 
 
 "os::mm::heap_allocator::init_heap" = "heap.init"
-"os::mm::heap_allocator::_::__rust_alloc_zeroed" = "heap.alloc_zeroed"
+"os::mm::heap_allocator::_::__rust_alloc_zeroed" = { kind = "heap.alloc_zeroed", coverage_group = "rcore.heap.alloc-zeroed" }
 "os::task::run_first_task" = "sched.enter"
 
 

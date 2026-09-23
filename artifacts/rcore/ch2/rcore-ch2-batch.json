@@ -234,8 +234,8 @@
       "kernel_layout.json": "63c1c6b865a12687fe3556311cf2c32e800720c255c0967219e1f8c2b2392010"
     },
     "kernel_elf_sha256": "73bb62300e1c1825a3b9210bb27417a0abf4342863f772f209a98a95c3273919",
-    "html_sha256": "2b8feb9152804f782d1c1fb1233105dd37b44ae3cda517ac1e29939cbbe78d71",
-    "html_bytes": 191291,
+    "html_sha256": "c40e10a67e465cc3466d374fa714398b4545ce3c35188317a9a90940834ba151",
+    "html_bytes": 192173,
     "function_trace": {
       "kind": "return-matched observed frames",
       "raw": 865,

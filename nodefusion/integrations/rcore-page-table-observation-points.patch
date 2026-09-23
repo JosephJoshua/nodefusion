@@ -1,0 +1,24 @@
+diff --git a/os/src/mm/page_table.rs b/os/src/mm/page_table.rs
+--- a/os/src/mm/page_table.rs
++++ b/os/src/mm/page_table.rs
+@@ -75,1 +75,2 @@
++    #[inline(never)]
+     pub fn new() -> Self {
+@@ -91,1 +92,2 @@
++    #[inline(never)]
+     fn find_pte_create(&mut self, vpn: VirtPageNum) -> Option<&mut PageTableEntry> {
+@@ -111,1 +113,2 @@
++    #[inline(never)]
+     fn find_pte(&self, vpn: VirtPageNum) -> Option<&mut PageTableEntry> {
+@@ -128,1 +131,2 @@
++    #[inline(never)]
+     pub fn map(&mut self, vpn: VirtPageNum, ppn: PhysPageNum, flags: PTEFlags) {
+@@ -143,1 +146,2 @@
++    #[inline(never)]
+     pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
+diff --git a/os/src/task/mod.rs b/os/src/task/mod.rs
+--- a/os/src/task/mod.rs
++++ b/os/src/task/mod.rs
+@@ -198,1 +198,2 @@
++#[inline(never)]
+ pub fn current_add_signal(signal: SignalFlags) {

@@ -1,0 +1,9 @@
+diff --git a/os/src/mm/page_table.rs b/os/src/mm/page_table.rs
+--- a/os/src/mm/page_table.rs
++++ b/os/src/mm/page_table.rs
+@@ -74,4 +74,5 @@
+ impl PageTable {
+     /// Create a new page table
++    #[inline(never)]
+     pub fn new() -> Self {
+         let frame = frame_alloc().unwrap();

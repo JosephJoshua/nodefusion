@@ -5,8 +5,8 @@
   "frames": 526,
   "fps": 12,
   "seconds": 43.833333333333336,
-  "bytes": 857093,
-  "mp4_sha256": "60d2b39489986acfb0db08bc716b2c3ced03e8f25f6af50bdc4bf5c3efdf8ec5",
+  "bytes": 741095,
+  "mp4_sha256": "59e6ba890b105b12177fc071cbc0ab45a381a5ebbae32d7270626ecdec0ef99a",
   "width": 1280,
   "height": 720,
   "evidence_scope": "all",
@@ -23,12 +23,12 @@
   ],
   "info": {
     "runs": [
-      "rcore-ch5-exact"
+      "rcore-ch5-observation"
     ],
     "program": "ch5b_usertest",
     "kernel_kind": "rcore",
-    "kernel_elf": "rcore-9d63229f.elf",
-    "kernel_elf_sha256": "9d63229f05c83dc77c148b06e3caa46290f6ae4c7b31dcd8029af9c63106eb0d",
+    "kernel_elf": "rcore-248b259f.elf",
+    "kernel_elf_sha256": "248b259f8ffd80e6784c29f7a54b707415431934153142de393330e0911845c0",
     "observed_fields": {
       "process": [
         "base",
@@ -59,7 +59,12 @@
         "func": [
           "self"
         ],
-        "heap": [],
+        "heap": [
+          "layout",
+          "new_size",
+          "ptr",
+          "self"
+        ],
         "interrupt": [
           "cause_code",
           "cause_name",
@@ -136,7 +141,9 @@
           "syscall_num",
           "to_pc"
         ],
-        "task": [],
+        "task": [
+          "self"
+        ],
         "trap": [
           "cause_code",
           "cause_name",
@@ -164,24 +171,28 @@
     "event_selection": {
       "applied": false,
       "policy": "kind-preserving/systematic-v3",
-      "raw": 62610,
-      "retained": 62610,
+      "raw": 65128,
+      "retained": 65128,
       "dropped": 0,
       "target_limit": 150000,
       "minimum_spare": 25000,
       "always_keep": "all events when the raw stream fits",
-      "priority_raw": 61296,
+      "priority_raw": 63814,
       "spare_raw": 1314,
       "spare_budget": 0,
       "stride": 1,
       "retained_kinds": {
         "firmware.trap": 19,
-        "func.drop": 1259,
+        "func.FrameTracker::drop": 1259,
         "func.remap_test": 1,
         "func.unmap@0": 54,
+        "heap.alloc": 2565,
+        "heap.free": 2537,
         "heap.init": 1,
+        "heap.realloc": 259,
         "interrupt.timer": 15,
         "pagetable.map": 33279,
+        "pagetable.new": 70,
         "pagetable.unmap": 119,
         "phys.alloc": 1365,
         "phys.free": 1259,
@@ -190,25 +201,27 @@
         "proc.exit": 54,
         "proc.fork": 55,
         "proc.initproc": 1,
-        "sbi.call": 7672,
+        "sbi.call": 7241,
         "sched.enter": 1,
         "sched.switch": 263,
         "sched.yield": 77,
-        "syscall.dispatch": 2717,
-        "syscall.enter": 2718,
+        "syscall.dispatch": 2286,
+        "syscall.enter": 2286,
         "syscall.exec": 13,
         "syscall.exit": 53,
         "syscall.fork": 55,
         "syscall.getpid": 1,
-        "syscall.read": 1085,
+        "syscall.read": 870,
         "syscall.sbrk": 8,
         "syscall.waitpid": 98,
-        "syscall.write": 1342,
+        "syscall.write": 1126,
         "syscall.yield": 62,
         "task.kstack_alloc": 56,
-        "trap.enter": 2734,
+        "task.kstack_free": 54,
+        "task.pid_free": 54,
+        "trap.enter": 2302,
         "trap.page_fault": 1,
-        "trap.userret": 2734,
+        "trap.userret": 2302,
         "vm.copy": 55,
         "vm.from_elf": 14,
         "vm.grow": 6,
@@ -217,7 +230,7 @@
         "vm.map": 475,
         "vm.remove_area": 54,
         "vm.shrink": 1,
-        "vm.translate_buffer": 2427,
+        "vm.translate_buffer": 1995,
         "vm.translate_str": 13,
         "vm.unmap": 378
       },
@@ -237,18 +250,21 @@
         "evidence": "easy-fs/src 整个 crate grep 不到 log / journal / transaction。最像的 block_cache_sync_all()（Inode::write_at 末尾调一次）只把缓存里的脏块逐个写回，没有日志块、没有原子性、没有崩溃恢复；xv6 的 commit 图的正是崩溃原子性。"
       }
     },
-    "total_insns": 50986588,
-    "program_start_insn": 33478664,
-    "states": 94,
-    "events": 62610,
+    "total_insns": 50396487,
+    "program_start_insn": 0,
+    "states": 52,
+    "events": 65128,
     "kinds": [
       "firmware.trap",
       "sbi.call",
       "vm.init",
       "heap.init",
       "vm.kernel_init",
+      "pagetable.new",
       "phys.alloc",
+      "heap.alloc",
       "pagetable.map",
+      "heap.realloc",
       "vm.map",
       "func.remap_test",
       "proc.initproc",
@@ -270,8 +286,9 @@
       "syscall.exec",
       "vm.translate_str",
       "proc.exec",
-      "func.drop",
+      "func.FrameTracker::drop",
       "phys.free",
+      "heap.free",
       "syscall.write",
       "vm.translate_buffer",
       "syscall.read",
@@ -285,6 +302,8 @@
       "pagetable.unmap",
       "trap.page_fault",
       "syscall.getpid",
+      "task.pid_free",
+      "task.kstack_free",
       "vm.remove_area",
       "func.unmap@0"
     ],
@@ -293,50 +312,54 @@
   },
   "report": {
     "schema": "nodefusion.artifact-evidence/1",
-    "run": "rcore-ch5-exact",
+    "run": "rcore-ch5-observation",
     "kernel_kind": "rcore",
     "source_sha256": {
-      "trace.nfb": "edf3f49fd05c23ceed7e87988880e13099d0c8d8a89f0b20c5c5674b5c93d21f",
-      "manifest.json": "c3e7d8dffd2ee2196e8dbee4e2e4da345eb5e63dd6c832e6e3326b63218454e6",
-      "watchlist.json": "f925da27d40ac5c9eb60386d413b04f291a866da6684184b1df78f7a282b2e14",
-      "kernel_layout.json": "d9827d15fd282d42d5f3d511daa89f36bb338967c4ff60b66cbb0b2a32ce1798"
+      "trace.nfb": "0e648779d9922e540aa90cf56e2a6ccc1afc7ba3e4320d0c6890f07de20c7632",
+      "manifest.json": "7385b2af40900f424153031152113c17ef4a4a94fa9e796d95892ac11fb4ac52",
+      "watchlist.json": "d519330d52ce31d574dc14464b821f823eb827953f1af5612e2c921e6356e5a4",
+      "kernel_layout.json": "d29095fc7d8619f1824e7e4cdb43e4efc6abedc15f9e7398052a06c4bc488461"
     },
-    "kernel_elf_sha256": "9d63229f05c83dc77c148b06e3caa46290f6ae4c7b31dcd8029af9c63106eb0d",
-    "html_sha256": "3071500935b07d616c6345ea654b52a20962e78f3f120e49f1a98de210d23829",
-    "html_bytes": 868963,
+    "kernel_elf_sha256": "248b259f8ffd80e6784c29f7a54b707415431934153142de393330e0911845c0",
     "archive_bytes": {
-      "trace.nfb": 29766216,
-      "kernel_elf": 4466616
+      "trace.nfb": 29549024,
+      "kernel_elf": 6208080
     },
+    "html_sha256": "de3a2297e004bb45d93f46b89967eab0dfbad5244f98c1cb549ba9ce308077bf",
+    "html_bytes": 707141,
     "function_trace": {
       "kind": "return-matched observed frames",
-      "raw": 49298,
-      "retained": 49298,
-      "returns": 309051,
-      "matched_returns": 40554,
-      "nested_entries": 37061
+      "raw": 52679,
+      "retained": 52679,
+      "returns": 298740,
+      "matched_returns": 40409,
+      "nested_entries": 10634
     },
     "event_selection": {
       "applied": false,
       "policy": "kind-preserving/systematic-v3",
-      "raw": 62610,
-      "retained": 62610,
+      "raw": 65128,
+      "retained": 65128,
       "dropped": 0,
       "target_limit": 150000,
       "minimum_spare": 25000,
       "always_keep": "all events when the raw stream fits",
-      "priority_raw": 61296,
+      "priority_raw": 63814,
       "spare_raw": 1314,
       "spare_budget": 0,
       "stride": 1,
       "retained_kinds": {
         "firmware.trap": 19,
-        "func.drop": 1259,
+        "func.FrameTracker::drop": 1259,
         "func.remap_test": 1,
         "func.unmap@0": 54,
+        "heap.alloc": 2565,
+        "heap.free": 2537,
         "heap.init": 1,
+        "heap.realloc": 259,
         "interrupt.timer": 15,
         "pagetable.map": 33279,
+        "pagetable.new": 70,
         "pagetable.unmap": 119,
         "phys.alloc": 1365,
         "phys.free": 1259,
@@ -345,25 +368,27 @@
         "proc.exit": 54,
         "proc.fork": 55,
         "proc.initproc": 1,
-        "sbi.call": 7672,
+        "sbi.call": 7241,
         "sched.enter": 1,
         "sched.switch": 263,
         "sched.yield": 77,
-        "syscall.dispatch": 2717,
-        "syscall.enter": 2718,
+        "syscall.dispatch": 2286,
+        "syscall.enter": 2286,
         "syscall.exec": 13,
         "syscall.exit": 53,
         "syscall.fork": 55,
         "syscall.getpid": 1,
-        "syscall.read": 1085,
+        "syscall.read": 870,
         "syscall.sbrk": 8,
         "syscall.waitpid": 98,
-        "syscall.write": 1342,
+        "syscall.write": 1126,
         "syscall.yield": 62,
         "task.kstack_alloc": 56,
-        "trap.enter": 2734,
+        "task.kstack_free": 54,
+        "task.pid_free": 54,
+        "trap.enter": 2302,
         "trap.page_fault": 1,
-        "trap.userret": 2734,
+        "trap.userret": 2302,
         "vm.copy": 55,
         "vm.from_elf": 14,
         "vm.grow": 6,
@@ -372,7 +397,7 @@
         "vm.map": 475,
         "vm.remove_area": 54,
         "vm.shrink": 1,
-        "vm.translate_buffer": 2427,
+        "vm.translate_buffer": 1995,
         "vm.translate_str": 13,
         "vm.unmap": 378
       },
@@ -381,8 +406,8 @@
     "coverage": {
       "status": "complete",
       "percent": 100.0,
-      "passed": 77605,
-      "total": 77605,
+      "passed": 71590,
+      "total": 71590,
       "metrics": {
         "covered": 14,
         "applicable": 14,
@@ -397,31 +422,47 @@
         "sampled": []
       },
       "semantic_events": {
-        "raw": 61296,
+        "raw": 63814,
         "unknown": 0,
         "unknown_fields": {},
         "dropped_from_interactive": 0
       },
       "snapshots": {
-        "checked": 68,
+        "checked": 52,
         "incomplete": 0,
         "physical_memory": 0,
         "physical_counters": 0,
         "processes": 0,
-        "resources": 0
+        "resources": 0,
+        "pre_initialization": {
+          "physical_memory": 0,
+          "physical_counters": 10,
+          "processes": 12,
+          "resources": 0
+        }
       },
       "snapshot_not_applicable": [],
       "manifest_fields": {
-        "cells": 16020,
+        "cells": 7570,
         "states": {
-          "absent": 1602,
-          "empty": 68,
-          "present": 14350
+          "absent": 757,
+          "empty": 40,
+          "present": 6773
         },
-        "not_applicable": 1602,
+        "not_applicable": 757,
         "unresolved": 0
       },
       "full_watch_scope": true,
+      "function_watch_drops": 0,
+      "function_stacks_available": true,
+      "observation_points": {
+        "unresolved": [],
+        "reported_missing": 66,
+        "layout_missing": [
+          "app_manager",
+          "task_manager_inner"
+        ]
+      },
       "blockers": []
     }
   }
