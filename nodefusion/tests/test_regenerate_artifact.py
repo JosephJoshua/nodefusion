@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from nodefusion.host.bundle import encode
-from scripts.finalize_artifacts import finalize
+from scripts.finalize_artifacts import finalize, refresh_assets
 from scripts.regenerate_artifact import sha256, smoke_report
 
 
@@ -12,7 +12,7 @@ ARTIFACTS = Path(__file__).resolve().parents[2] / "artifacts"
 
 EXPECTED_RUNS = {
     "arceos-helloworld", "arceos-lazymapping", "arceos-tracecomplete",
-    "arceos-userprivilege", "lab3-cowtest-mac", "starry-100pct-final",
+    "arceos-userprivilege", "lab3-cowtest-mac", "starry-cache-semantic",
     "starry-forkecho-ram512", "starry-fsprobe-ram512",
     *{f"rcore-ch{n}" for n in range(1, 9)},
     *{f"ucore-ch{n}" for n in range(1, 9)},
@@ -142,6 +142,19 @@ def test_finalize_demangles_and_updates_verified_evidence(tmp_path):
     assert record["html_sha256"] == sha256(html)
     assert record["event_selection"]["retained"] == 1
     assert smoke_report(html)["dict"]["funcs"][0].endswith("CowBackend::clone_map")
+
+
+def test_refresh_assets_preserves_the_embedded_data_block():
+    payload = encode({"value": 7})
+    page = ("<style>\nold css\n</style>\n"
+            f'<script type="application/nodefusion">{payload}</script>\n'
+            "<script>\nold js\n</script>\n</body>")
+    refreshed, changed = refresh_assets(page)
+    assert changed == 2
+    assert payload in refreshed
+    assert "old css" not in refreshed
+    assert "old js" not in refreshed
+    assert (Path(__file__).resolve().parents[1] / "host/assets/app.js").read_text() in refreshed
 
 
 @pytest.mark.parametrize("evidence,html", report_sidecars())

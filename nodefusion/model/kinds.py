@@ -5,7 +5,7 @@ GENERATED_PREFIXES: tuple[str, ...] = ("func.",)
 
 KINDS: frozenset[str] = frozenset({
     "bcache.get", "bcache.init", "bcache.read", "bcache.release",
-    "bcache.write",
+    "bcache.result", "bcache.write",
     "disk.balloc", "disk.bfree", "disk.interrupt", "disk.io",
     "file.alloc", "file.close", "file.dup", "file.read", "file.write",
     "firmware.interrupt", "firmware.trap",

@@ -2,7 +2,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from nodefusion.host.record import (Recorder, RunConfig, _calibration_watchlist,
-                                    _program_start_from_trace)
+                                    _program_start_from_trace,
+                                    _snapshot_focus_start)
 from nodefusion.host.watchlist import NFTRACE_COMMIT, WatchEntry, WatchList
 
 
@@ -54,6 +55,20 @@ def test_exec_entry_keeps_priority_over_scheduler_fallback():
         nftrace=[SimpleNamespace(insn=40, type=4, a=((1 << 64) - 1, 0))])
     assert _program_start_from_trace(trace, {
         "entries": [{"index": 2, "kind": "proc.exec"}]}, interactive=False) == 60
+
+
+def test_interactive_execs_do_not_pretend_to_mark_a_compound_workload():
+    trace = SimpleNamespace(watch_hits=[
+        SimpleNamespace(watch_id=2, insn=30),
+        SimpleNamespace(watch_id=2, insn=300)], nftrace=[])
+    assert _program_start_from_trace(trace, {
+        "entries": [{"index": 2, "kind": "proc.exec"}]}, interactive=True) == 0
+
+
+def test_interactive_snapshot_density_does_not_claim_a_program_boundary():
+    assert _snapshot_focus_start(0, 1_000_000, interactive=True) == 850_000
+    assert _snapshot_focus_start(0, 1_000_000, interactive=False) == 0
+    assert _snapshot_focus_start(123, 1_000_000, interactive=True) == 123
 
 
 def test_headless_first_task_entry_when_no_semantic_scheduler():

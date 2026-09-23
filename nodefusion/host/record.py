@@ -29,7 +29,24 @@ PROMPT = "$ "
 NO_PROGRAM = "(boot-to-exit)"
 
 
+def _snapshot_focus_start(program_start: int, total: int | None,
+                          *, interactive: bool) -> int:
+    if program_start:
+        return program_start
+    # The interactive workload has no verified start marker.  Reserve the
+    # final 15% for dense snapshots and cover the rest with boot snapshots.
+    # This is a density policy, not a claim that the command starts here.
+    return int(total * 0.85) if interactive and total else 0
+
+
 def _program_start_from_trace(trace, watchlist: dict, *, interactive: bool) -> int:
+    # An interactive shell runs its own execs before accepting the command,
+    # and a compound command can run many more.  Neither the first nor the
+    # last exec identifies the requested program.  Until the recorder has an
+    # explicit guest/host boundary marker, zero means "not established" and
+    # snapshots must cover the complete run.
+    if interactive:
+        return 0
     exec_ids = {e["index"] for e in watchlist["entries"]
                 if e.get("kind") == "proc.exec" or e.get("name") == "exec"}
     for hit in reversed(trace.watch_hits):
@@ -37,25 +54,23 @@ def _program_start_from_trace(trace, watchlist: dict, *, interactive: bool) -> i
             return hit.insn
     # Headless chapter kernels can run their first app without an exec path.
     # The scheduler's first idle-to-task commit marks that boundary exactly.
-    if not interactive:
-        no_task = (1 << 64) - 1
-        first_switch = next((r.insn for r in trace.nftrace
-                             if r.type == 4 and r.a[0] == no_task and
-                             r.a[1] != no_task), 0)
-        if first_switch:
-            return first_switch
-        switch_ids = {e["index"] for e in watchlist["entries"]
-                      if e.get("kind") == "sched.switch"}
-        first_watch_switch = next((hit.insn for hit in trace.watch_hits
-                                   if hit.watch_id in switch_ids), 0)
-        if first_watch_switch:
-            return first_watch_switch
-        first_task_ids = {e["index"] for e in watchlist["entries"]
-                          if (e.get("symbol") or e.get("name") or "")
-                          .split("::")[-1] == "run_first_task"}
-        return next((hit.insn for hit in trace.watch_hits
-                     if hit.watch_id in first_task_ids), 0)
-    return 0
+    no_task = (1 << 64) - 1
+    first_switch = next((r.insn for r in trace.nftrace
+                         if r.type == 4 and r.a[0] == no_task and
+                         r.a[1] != no_task), 0)
+    if first_switch:
+        return first_switch
+    switch_ids = {e["index"] for e in watchlist["entries"]
+                  if e.get("kind") == "sched.switch"}
+    first_watch_switch = next((hit.insn for hit in trace.watch_hits
+                               if hit.watch_id in switch_ids), 0)
+    if first_watch_switch:
+        return first_watch_switch
+    first_task_ids = {e["index"] for e in watchlist["entries"]
+                      if (e.get("symbol") or e.get("name") or "")
+                      .split("::")[-1] == "run_first_task"}
+    return next((hit.insn for hit in trace.watch_hits
+                 if hit.watch_id in first_task_ids), 0)
 
 
 def _calibration_watchlist(wl: watchlist_mod.WatchList) -> watchlist_mod.WatchList:
@@ -719,11 +734,9 @@ class Recorder:
         if tmp_trace.exists():
             tr = nftrace_mod.load(tmp_trace, want_pages=False)
             total = tr.total_insns
-            # Manifest-selected watches keep the real function name (for
-            # example ``load_user_app``) and carry the normalized event name
-            # in ``kind``.  The old table watchlist happened to call the entry
-            # simply ``exec``; keying calibration only on that legacy label
-            # silently left program_start_insn at zero for StarryOS.
+            # Only headless kernels have an unambiguous first-task boundary.
+            # An interactive shell's exec sequence cannot identify the host
+            # command without a dedicated marker.
             prog_start = _program_start_from_trace(
                 tr, wl_json, interactive=self.profile.interactive)
             tmp_trace.unlink(missing_ok=True)
@@ -821,25 +834,28 @@ class Recorder:
             calibrated_total, prog_start = self._calibrate(
                 calibration_path, calibration_wl.to_json())
 
+        focus_start = _snapshot_focus_start(
+            prog_start, calibrated_total, interactive=self.profile.interactive)
+
         if c.snap_insns is not None:
             snap_insns = c.snap_insns
-        elif prog_start > 0 and calibrated_total and calibrated_total > prog_start:
+        elif focus_start > 0 and calibrated_total and calibrated_total > focus_start:
             snap_insns = max(200_000,
-                             (calibrated_total - prog_start) // max(1, c.target_snapshots))
+                             (calibrated_total - focus_start) // max(1, c.target_snapshots))
         else:
             snap_insns = max(1_000_000,
                              (calibrated_total or 1_000_000_000) // max(1, c.target_snapshots))
 
         if c.boot_snap_insns is not None:
             boot_snap = c.boot_snap_insns
-        elif c.boot_snapshots and prog_start > 0:
-            boot_snap = max(50_000, prog_start // max(1, c.boot_snapshots))
-        elif prog_start > 0:
-            boot_snap = max(1_000_000, prog_start // 20)
+        elif c.boot_snapshots and focus_start > 0:
+            boot_snap = max(50_000, focus_start // max(1, c.boot_snapshots))
+        elif focus_start > 0:
+            boot_snap = max(1_000_000, focus_start // 20)
         else:
             boot_snap = 0
 
-        snap_start = c.snap_start if c.snap_start is not None else prog_start
+        snap_start = c.snap_start if c.snap_start is not None else focus_start
         if snap_start == 0:
             boot_snap = 0
 
@@ -892,6 +908,10 @@ class Recorder:
             "boot_snap_insns": boot_snap,
             "snap_start_insn": snap_start,
             "program_start_insn": prog_start,
+            "snapshot_focus": ("interactive_tail_15pct" if
+                               self.profile.interactive and not prog_start and
+                               c.snap_start is None and calibrated_total else
+                               "program_boundary" if prog_start else "uniform"),
             "calibrated_total_insns": calibrated_total,
             "max_ram_bytes": c.max_ram_bytes,
             "function_returns": c.function_returns,

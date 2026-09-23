@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import zlib
 from collections import Counter
 from pathlib import Path
@@ -19,14 +20,7 @@ DIAGNOSTIC_PREFIXES = ("func.",)
 
 
 def _is_semantic(kind: str) -> bool:
-    """Whether ``kind`` is part of the normalized event vocabulary.
-
-    ``func.*`` deliberately means "a watchpoint fired but nobody has assigned
-    portable semantics to it yet".  It is useful diagnostic evidence and must
-    remain sampled, but it is the only event family that may be omitted from an
-    interactive bundle.  A hand-maintained allowlist cannot stay complete as
-    manifests add normalized namespaces.
-    """
+    """Return whether ``kind`` belongs to the normalized event vocabulary."""
     return not any(kind.startswith(prefix) for prefix in DIAGNOSTIC_PREFIXES)
 
 
@@ -179,6 +173,45 @@ def _observed_fields(states: list[dict], events: list) -> dict:
     }
 
 
+def _unresolved_applicable_watches(a: Analysis, feature_absent: set[str]) -> list[str]:
+    """Separate future-chapter/alternate rules from unresolved live paths."""
+    missing = a.watchlist.get("missing", [])
+    present = getattr(a, "_event_names_present", None)
+    events = getattr(a, "kevents", None) or {}
+    selected_names = {name for entry in a.watchlist.get("entries", [])
+                      for name in (entry.get("name"), entry.get("symbol")) if name}
+    selected_groups = set()
+    for entry in a.watchlist.get("entries", []):
+        spec = (events.get(entry.get("symbol") or "")
+                or events.get(entry.get("name") or ""))
+        group = getattr(spec, "coverage_group", "")
+        if group:
+            selected_groups.add(group)
+    gaps = []
+    for rule in missing:
+        event_name = re.search(r"^\[event\] '([^']+)'", rule)
+        if event_name:
+            name = event_name.group(1)
+            spec = events.get(name)
+            if spec is None:
+                continue
+            kind = getattr(spec, "kind", None)
+            group = getattr(spec, "coverage_group", "")
+            if (name in selected_names or kind in feature_absent
+                    or (group and group in selected_groups)):
+                continue
+            if present is not None and name not in present:
+                continue
+        else:
+            # [[watch]] rules define selection scope. Their candidates can be
+            # absent in an earlier chapter or optimized into callers. Every
+            # semantic contract is also registered under [event], whose
+            # independently reported miss is the strict observation gap.
+            continue
+        gaps.append(rule)
+    return gaps
+
+
 def _coverage(a: Analysis, metrics: dict, states: list[dict], selection: dict) -> dict:
     """Strict, machine-readable applicable-coverage audit for one bundle.
 
@@ -193,6 +226,7 @@ def _coverage(a: Analysis, metrics: dict, states: list[dict], selection: dict) -
     absent = metrics.get("absent_declared") or {}
     feature_absent = {kind for kind, spec in absent.items()
                       if spec.get("why") == "feature"}
+    unresolved_watches = _unresolved_applicable_watches(a, feature_absent)
     scalar = [k for k, v in metrics.items()
               if k not in {"by_kind", "unobservable_reason", "absent_declared",
                            "armed_silent", "sampling"}
@@ -206,6 +240,9 @@ def _coverage(a: Analysis, metrics: dict, states: list[dict], selection: dict) -
     for name, deps in Analysis._DERIVED_FROM.items():
         if any(dep in feature_absent for dep in deps):
             not_applicable.add(name)
+    if metrics.get("bcache_reads") == 0 and metrics.get("bcache_hits") == 0:
+        # A rate has no denominator when this workload never reads the cache.
+        not_applicable.add("bcache_hit_rate")
     # Some historical kernels genuinely have no process table, allocator, or
     # resource cache yet.  Their snapshots still carry complete physical pages,
     # but the corresponding semantic channel is not applicable.  Derive these
@@ -230,10 +267,11 @@ def _coverage(a: Analysis, metrics: dict, states: list[dict], selection: dict) -
     unknown_fields = Counter(
         field for e in unknown_events for field in (e.unknown or []))
 
-    start = int(a.manifest.get("program_start_insn") or 0)
-    relevant_states = [s for s in states if int(s.get("insn") or 0) >= start]
-    if not relevant_states:
-        relevant_states = states
+    # A calibrated program marker is not an integrity boundary.  In
+    # particular, a shell may execute most of a compound workload before its
+    # last exec.  Every recorded snapshot must decode, including boot and the
+    # part of a workload preceding any approximate marker.
+    relevant_states = states
     # Allocator counters are only defined after the kernel's allocator
     # initialization commit.  Early boot snapshots are still valid physical
     # memory images, but asking them for a free/used total would manufacture a
@@ -242,18 +280,57 @@ def _coverage(a: Analysis, metrics: dict, states: list[dict], selection: dict) -
     allocator_start = min(
         (int(r[0]) for r in getattr(a, "nft_allocator_states", [])),
         default=0)
+    phys_ready = next((int(s.get("insn") or 0) for s in relevant_states
+                       if s.get("phys_ok", False)), None)
+    proc_ready = next((int(s.get("insn") or 0) for s in relevant_states
+                       if s.get("procs_ok", False)), None)
+    resource_ready = {}
+    for s in relevant_states:
+        for table in s.get("resources", []):
+            if table.get("ok", False):
+                resource_ready.setdefault(table.get("name"), int(s.get("insn") or 0))
+
+    def initializing(reason):
+        # A lazy static is not a process/resource table until it reaches
+        # Complete.  Keep other decoding failures visible, including failures
+        # before the first successful state.
+        return str(reason or "").startswith(("Lazy/Once 的状态是 ",
+                                              "LazyInit 还没初始化"))
+
+    def pre_init_physical(state):
+        # The kernel has not yet established an address-space root (or an
+        # end-of-kernel address) from which physical ownership can be read.
+        # If the channel never becomes readable, this exemption is disabled.
+        return (phys_ready is not None
+                and int(state.get("insn") or 0) < phys_ready
+                and not state.get("phys_ok", False))
+
+    def pre_init_process(state):
+        return (proc_ready is not None
+                and int(state.get("insn") or 0) < proc_ready
+                and not state.get("procs_ok", False)
+                and initializing(state.get("procs_reason")))
+
+    def pre_init_resource(state, table):
+        ready = resource_ready.get(table.get("name"))
+        return (ready is not None and int(state.get("insn") or 0) < ready
+                and not table.get("ok", False)
+                and initializing(table.get("reason")))
+
     bad_phys_counters = sum(
         not s.get("phys_free_ok", False) for s in relevant_states
         if int(s.get("insn") or 0) >= allocator_start)
     bad_snapshots = {
         "incomplete": sum(not s.get("complete", False) for s in relevant_states),
-        "physical_memory": sum(not s.get("phys_ok", False) for s in relevant_states),
+        "physical_memory": sum(not s.get("phys_ok", False)
+                               for s in relevant_states if not pre_init_physical(s)),
         "physical_counters": 0 if "physical_counters" in snapshot_na else bad_phys_counters,
         "processes": 0 if "processes" in snapshot_na else sum(
-            not s.get("procs_ok", False) for s in relevant_states),
+            not s.get("procs_ok", False) for s in relevant_states
+            if not pre_init_process(s)),
         "resources": sum(
             1 for s in relevant_states for table in s.get("resources", [])
-            if not table.get("ok", False)),
+            if not pre_init_resource(s, table) and not table.get("ok", False)),
     }
     if "resources" in snapshot_na:
         bad_snapshots["resources"] = 0
@@ -278,6 +355,9 @@ def _coverage(a: Analysis, metrics: dict, states: list[dict], selection: dict) -
                 and not a.trace.truncated_at_eof
                 and a.manifest.get("trace_complete") is not False)
     plugin_ok = not (a.trace.end and a.trace.end.truncated)
+    watch_drops = int(getattr(a.trace.end, "watch_drops", 0) or 0) if a.trace.end else 0
+    entry_only = (not getattr(a.trace, "function_returns", ())
+                  and any(e.function_entry for e in a.events))
 
     blockers = []
     if missing_metrics:
@@ -299,6 +379,14 @@ def _coverage(a: Analysis, metrics: dict, states: list[dict], selection: dict) -
     if not trace_ok or not plugin_ok:
         blockers.append({"check": "trace_integrity",
                          "trace_complete": trace_ok, "snapshots_complete": plugin_ok})
+    if watch_drops:
+        blockers.append({"check": "function_watch_sampling", "count": watch_drops})
+    if entry_only:
+        blockers.append({"check": "function_stacks",
+                         "reason": "no function return records"})
+    if unresolved_watches:
+        blockers.append({"check": "unresolved_observation_points",
+                         "items": unresolved_watches})
 
     # Atomic denominator: each applicable metric, normalized event, snapshot
     # channel, manifest field cell, scope and
@@ -307,17 +395,26 @@ def _coverage(a: Analysis, metrics: dict, states: list[dict], selection: dict) -
     pre_allocator_states = sum(
         int(s.get("insn") or 0) < allocator_start for s in relevant_states
     ) if allocator_start else 0
-    snapshot_units = len(relevant_states) * (4 - len(snapshot_na)) - (
+    pre_physical_states = sum(pre_init_physical(s) for s in relevant_states)
+    pre_process_states = sum(
+        pre_init_process(s) for s in relevant_states
+    ) if "processes" not in snapshot_na else 0
+    pre_resource_tables = sum(
+        pre_init_resource(s, table)
+        for s in relevant_states for table in s.get("resources", [])
+    ) if "resources" not in snapshot_na else 0
+    snapshot_units = len(relevant_states) * (4 - len(snapshot_na)) - pre_physical_states - (
         pre_allocator_states if "physical_counters" not in snapshot_na else 0
-    ) + sum(
+    ) - pre_process_states + sum(
         0 if "resources" in snapshot_na else len(s.get("resources", []))
-        for s in relevant_states)
+        for s in relevant_states) - pre_resource_tables
     field_units = sum(field_states.values())
-    total = (len(applicable) + len(semantic_events) + snapshot_units + field_units + 3)
+    total = (len(applicable) + len(semantic_events) + snapshot_units + field_units + 6)
     failed = (len(missing_metrics) + len(sampled_metrics) + len(unknown_events)
               + bad_snap_total + bad_field_cells
               + (0 if full_watch_scope else 1) + (0 if trace_ok else 1)
-              + (0 if plugin_ok else 1))
+              + (0 if plugin_ok else 1) + (1 if watch_drops else 0)
+              + (1 if entry_only else 0) + (1 if unresolved_watches else 0))
     passed = max(0, total - failed)
     complete = not blockers
     percent = 100.0 if complete else min(99.99, round(
@@ -335,13 +432,25 @@ def _coverage(a: Analysis, metrics: dict, states: list[dict], selection: dict) -
                             "unknown": len(unknown_events),
                             "unknown_fields": dict(sorted(unknown_fields.items())),
                             "dropped_from_interactive": dropped_semantic},
-        "snapshots": {"checked": len(relevant_states), **bad_snapshots},
+        "snapshots": {"checked": len(relevant_states), **bad_snapshots,
+                      "pre_initialization": {
+                          "physical_memory": pre_physical_states,
+                          "physical_counters": pre_allocator_states,
+                          "processes": pre_process_states,
+                          "resources": pre_resource_tables}},
         "snapshot_not_applicable": sorted(snapshot_na),
         "manifest_fields": {"cells": field_units,
                             "states": dict(sorted(field_states.items())),
                             "not_applicable": field_states.get("absent", 0),
                             "unresolved": bad_field_cells},
         "full_watch_scope": full_watch_scope,
+        "function_watch_drops": watch_drops,
+        "function_stacks_available": not entry_only,
+        "observation_points": {
+            "unresolved": unresolved_watches,
+            "reported_missing": len(a.watchlist.get("missing", [])),
+            "layout_missing": list(getattr(a.layout, "missing", [])),
+        },
         "blockers": blockers,
     }
 
@@ -361,9 +470,11 @@ def coverage(a: Analysis) -> dict:
         "phys_ok": st.phys_available,
         "phys_free_ok": st.phys_free_available,
         "procs_ok": st.procs_available,
+        "procs_reason": st.procs_reason,
         "procs": [({"fields": p.fields} if p.fields is not None else {})
                   for p in st.procs],
-        "resources": [{"ok": r.available} for r in st.resources],
+        "resources": [{"name": r.name, "ok": r.available, "reason": r.reason}
+                      for r in st.resources],
     } for st in a.states]
     _, selection = _event_selection(a.events, materialize=False)
     return _coverage(a, a.metrics(), states, selection)
@@ -517,6 +628,7 @@ def build(a: Analysis) -> dict:
             "snap_insns": man.get("snap_insns"),
             "boot_snap_insns": man.get("boot_snap_insns"),
             "program_start_insn": man.get("program_start_insn") or 0,
+            "snapshot_focus": man.get("snapshot_focus") or "legacy_calibration",
             "started_utc": man.get("started_utc"),
             "wall_seconds": man.get("wall_seconds"),
             "qemu": tr.meta.get("qemu.version") or tr.meta.get("qemu.target"),

@@ -344,14 +344,30 @@ def resolve_kernel_elf(manifest: dict) -> tuple[Path, str | None]:
         f"逐位相同，所以符号地址是录制当时那一套。")
 
 
+def _addressable_event_names(dw, symbols) -> set[str]:
+    from ..model.watchsel import candidates
+
+    present: set[str] = set()
+    for candidate in candidates(dw, symbols):
+        if candidate.addr is None:
+            continue
+        if candidate.path:
+            present.add(candidate.path)
+        present.update(name for name in candidate.names if name)
+    return present
+
+
 class Analysis:
     def __init__(self, run_dir: Path):
         self.run_dir = Path(run_dir)
+        self.notes: list[str] = []
         self.manifest = json.loads(
             (self.run_dir / "manifest.json").read_text(encoding="utf-8"))
         self.watchlist = json.loads(
             (self.run_dir / "watchlist.json").read_text(encoding="utf-8"))
         self.kernel_kind = self.manifest.get("kernel_kind")
+        self.cache_hit_derivation = "unverified"
+        self.clone_completion_channel = "entry"
         self.kevents: dict | None = None
         self._event_names_present: set[str] | None = None
         from . import layout as layout_mod
@@ -365,6 +381,8 @@ class Analysis:
                 from ..model.manifest import load_dir
                 _man = load_dir().get(self.kernel_kind)
                 if _man is not None:
+                    self.cache_hit_derivation = _man.cache_hit_derivation
+                    self.clone_completion_channel = _man.clone_completion_channel
                     self.syscalls = load_syscall_names(
                         self.kernel_dir, _man.syscalls)
             except Exception as e:                        # noqa: BLE001
@@ -391,6 +409,9 @@ class Analysis:
             recs.sort(key=lambda x: x.insn)
             self.nft_records[key] = recs
             self.nft_index[key] = ([x.insn for x in recs], [x.a[0] for x in recs])
+        self.nft_clone_types = {type_ for (_cpu, type_) in self.nft_records
+                                if type_ in (self.NFT_PROC_FORK,
+                                             self.NFT_THREAD_CREATE)}
 
         # Exact allocator counters carried by the semantic channel.  Types 1
         # and 5 put (free, allocated) in a2/a3; type 6 is a counter-only
@@ -416,7 +437,6 @@ class Analysis:
 
         self.states: list[guest_mod.SystemState] = []
         self.events: list[Event] = []
-        self.notes: list[str] = []
 
         if _elf_note:
             self.notes.append(_elf_note)
@@ -476,15 +496,9 @@ class Analysis:
             m = ms[kind]
             from .watchlist import _pick_branch
             self.kevents = {k: _pick_branch(dw, v) for k, v in m.events.items()}
-            from ..model.watchsel import candidates
             syms = [s for s in self.elf.symbols
                     if s.value and s.name and (s.is_func or s.sym_type == 0)]
-            present: set[str] = set()
-            for c in candidates(dw, syms):
-                if c.path:
-                    present.add(c.path)
-                present.update(n for n in c.names if n)
-            self._event_names_present = present
+            self._event_names_present = _addressable_event_names(dw, syms)
             builder = SnapshotBuilder(dw, probe(m, dw), m,
                                       syms=SymbolIndex(self.elf, dw))
             self._manifest_dw = dw
@@ -601,11 +615,19 @@ class Analysis:
         if n == 0:
             return None, None
         start = max(0, min(state_idx, n - 1))
+        cache = getattr(self, "_pid_slot_cache", None)
+        if cache is None:
+            cache = self._pid_slot_cache = {}
+        key = (start, slot)
+        if key in cache:
+            return cache[key]
         for i in list(range(start, n)) + list(range(start - 1, -1, -1)):
             for p in self.states[i].procs:
                 if p.slot == slot:
-                    return p.pid, p.name
-        return None, None
+                    cache[key] = (p.pid, p.name)
+                    return cache[key]
+        cache[key] = (None, None)
+        return cache[key]
 
     def _tasks_exhaustive(self) -> bool | None:
         ents = self.decoder.entities
@@ -627,10 +649,18 @@ class Analysis:
         if not ctx or n == 0:
             return None
         start = max(0, min(state_idx, n - 1))
+        cache = getattr(self, "_task_ctx_cache", None)
+        if cache is None:
+            cache = self._task_ctx_cache = {}
+        key = (start, ctx)
+        if key in cache:
+            return cache[key]
         for i in list(range(start, n)) + list(range(start - 1, -1, -1)):
             for p in self.states[i].procs:
                 if p.sched_ctx == ctx or ctx in (p.sched_ctxs or ()):
+                    cache[key] = p
                     return p
+        cache[key] = None
         return None
 
     def _sched_owner(self, state_idx: int, ctx: int) -> dict | None:
@@ -638,12 +668,20 @@ class Analysis:
         if not ctx or n == 0:
             return None
         start = max(0, min(state_idx, n - 1))
+        cache = getattr(self, "_sched_owner_cache", None)
+        if cache is None:
+            cache = self._sched_owner_cache = {}
+        key = (start, ctx)
+        if key in cache:
+            return cache[key]
         for i in list(range(start, n)) + list(range(start - 1, -1, -1)):
             got = getattr(self.states[i], "sched_owners", None)
             if got:
                 own = got.get(ctx)
                 if own is not None:
+                    cache[key] = own
                     return own
+        cache[key] = None
         return None
 
     def _attribute_switch(self, detail: dict, unknown: list, si: int,
@@ -761,6 +799,7 @@ class Analysis:
     NFT_SCHED_SWITCH = 4
     NFT_KFREE = 5
     NFT_ALLOCATOR_STATE = 6
+    NFT_CACHE_READ = 7
     NFT_NO_TASK = (1 << 64) - 1
 
     NFT_MAX_LAG = 5_000_000
@@ -777,18 +816,21 @@ class Analysis:
             return None
         return pas[i]
 
-    def _nft_clone_after(self, cpu: int, insn: int, kind: str) -> bool:
-        """Whether an authoritative clone-result record follows this entry."""
+    def _nft_clone_channel(self, kind: str) -> bool:
+        """A successful-clone producer supersedes entry-based clone counts.
+
+        Looking for a record *after each entry* is ambiguous: a failed fork
+        can precede a later successful one on the same CPU.  Once this trace
+        contains authoritative completion records, count those records alone.
+        Legacy kernels with no such channel still retain their entry events.
+        """
         nft_type = {"proc.fork": self.NFT_PROC_FORK,
                     "thread.create": self.NFT_THREAD_CREATE}.get(kind)
         if nft_type is None:
             return False
-        recs = self.nft_records.get((cpu, nft_type), [])
-        if not recs:
-            return False
-        points = [r.insn for r in recs]
-        i = bisect.bisect_right(points, insn)
-        return i < len(points) and points[i] - insn <= self.NFT_MAX_LAG
+        if getattr(self, "clone_completion_channel", "entry") == "nftrace":
+            return True
+        return nft_type in self.nft_clone_types
 
     def _nftrace_event(self, r: trace_mod.NfTraceRec, si: int,
                        cur_slot: dict) -> Event | None:
@@ -833,6 +875,18 @@ class Analysis:
             # timeline would turn allocator bookkeeping into millions of fake
             # user-facing events.
             return None
+
+        if r.type == self.NFT_CACHE_READ:
+            pid, proc = self._attribute(r.cpu, si, cur_slot)
+            outcome = {0: "miss", 1: "hit", 2: "error"}.get(r.a[0])
+            return Event(
+                insn=r.insn, cpu=r.cpu, kind="bcache.result",
+                resource="bcache", pid=pid, proc=proc, pc=None,
+                func=watchlist_mod.NFTRACE_COMMIT,
+                detail={"outcome": outcome, "first_block": r.a[1],
+                        "blocks": r.a[2], "direct": bool(r.a[3]),
+                        "source": "nftrace"},
+                unknown=[] if outcome is not None else ["outcome"])
 
         if r.type == self.NFT_SCHED_SWITCH:
             pid, proc = self._attribute(r.cpu, si, cur_slot)
@@ -890,13 +944,10 @@ class Analysis:
         kind, classification_unknown = classify_event_kind(
             kind, name, entry, w.a, self.kevents)
 
-        # A patched Starry kernel reports the successful result from the
-        # common clone/clone3 path.  Prefer that post-success record and omit
-        # the earlier classified call event; otherwise one fork would appear
-        # twice.  Legacy traces have no such record and keep the entry-based
-        # classifier above.
-        classifier, _ = event_classifier(name, entry, self.kevents)
-        if classifier and self._nft_clone_after(w.cpu, w.insn, kind):
+        # The completion channel is shared by Starry and uCore.  An entry is
+        # an attempt, while the nftrace record is emitted only after success.
+        # Do not count both (or pair a failed entry with a later success).
+        if kind in ("proc.fork", "thread.create") and self._nft_clone_channel(kind):
             return None
         if kind == SWITCH_EVENT and self.nft_records.get(
                 (w.cpu, self.NFT_SCHED_SWITCH)):
@@ -1103,11 +1154,24 @@ class Analysis:
         breads = watched("bcache.read")
         disk_io = watched("disk.io")
         disk_reads = self._disk_reads(disk_io)
-        if breads is None or disk_reads is None:
+        # Subtracting device *calls* from cache requests requires a bijection
+        # between misses and observed reads.  Batched or unrelated device IO
+        # invalidates the equation.
+        accounting = getattr(self, "cache_hit_derivation", "unverified")
+        cache_results = [r for r in self.trace.nftrace
+                         if r.type == self.NFT_CACHE_READ]
+        if (accounting == "semantic" and breads is not None
+                and len(cache_results) == breads
+                and all(r.a[0] in (0, 1, 2) for r in cache_results)):
+            cache_hits = sum(r.a[0] == 1 for r in cache_results)
+            hit_rate = (None if any(r.a[0] == 2 for r in cache_results)
+                        else (cache_hits / breads) if breads else None)
+        elif (accounting != "one_to_one" or breads is None
+              or disk_reads is None or disk_reads > breads):
             cache_hits = None
             hit_rate = None
         else:
-            cache_hits = max(0, breads - disk_reads)
+            cache_hits = breads - disk_reads
             hit_rate = (cache_hits / breads) if breads else None
 
         m = {
@@ -1120,6 +1184,7 @@ class Analysis:
             "bcache_reads": breads,
             "bcache_hits": cache_hits,
             "bcache_hit_rate": hit_rate,
+            "cache_hit_accounting": accounting,
             "by_kind": counts,
         }
         for metric, kind in self._METRIC_KINDS.items():

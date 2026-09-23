@@ -169,10 +169,42 @@ def test_latest_allocator_state_fills_absolute_snapshot_counters():
     assert st.phys_reason == "页表根 0x1 未走完"
 
 
-def test_clone_entry_can_detect_the_authoritative_post_success_record():
+def test_clone_completion_channel_is_selected_per_event_kind():
     a = object.__new__(A.Analysis)
-    rec = NfTraceRec(insn=150, cpu=0, type=A.Analysis.NFT_PROC_FORK,
-                     a=(7, 8, 0, 0))
-    a.nft_records = {(0, A.Analysis.NFT_PROC_FORK): [rec]}
-    assert a._nft_clone_after(0, 100, "proc.fork") is True
-    assert a._nft_clone_after(0, 100, "thread.create") is False
+    a.nft_clone_types = {A.Analysis.NFT_PROC_FORK}
+    assert a._nft_clone_channel("proc.fork") is True
+    assert a._nft_clone_channel("thread.create") is False
+
+
+def test_successful_clone_channel_replaces_all_entry_attempts():
+    a = object.__new__(A.Analysis)
+    a.nft_clone_types = {A.Analysis.NFT_PROC_FORK}
+    a.nft_records = {(0, A.Analysis.NFT_PROC_FORK): [
+        NfTraceRec(insn=200, cpu=0, type=A.Analysis.NFT_PROC_FORK,
+                   a=(7, 8, 0, 0))]}
+    a.watch_by_id = {0: {"name": "fork", "symbol": "fork",
+                         "kind": "proc.fork"}}
+    a.kernel_kind = "ucore"
+    a.kevents = {}
+    hit = NS(watch_id=0, cpu=0, insn=100, a=(0,) * 8)
+    # The entry could have failed; pairing it with a later success by a
+    # five-million-instruction window would be unsound.
+    assert a._watch_event(hit, 0, {}) is None
+    assert a._nftrace_event(a.nft_records[(0, A.Analysis.NFT_PROC_FORK)][0],
+                            0, {}).kind == "proc.fork"
+
+
+def test_declared_clone_channel_suppresses_failed_only_entry_attempts():
+    a = object.__new__(A.Analysis)
+    a.clone_completion_channel = "nftrace"
+    a.nft_clone_types = set()
+    a.nft_records = {}
+    assert a._nft_clone_channel("proc.fork") is True
+    assert a._nft_clone_channel("thread.create") is True
+
+
+def test_entry_only_kernel_keeps_clone_attempts_without_semantic_records():
+    a = object.__new__(A.Analysis)
+    a.clone_completion_channel = "entry"
+    a.nft_clone_types = set()
+    assert a._nft_clone_channel("proc.fork") is False

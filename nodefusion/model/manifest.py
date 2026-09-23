@@ -84,6 +84,7 @@ class WatchSpec:
     skip: bool = False
     inlined: bool = False
     snapshot: str = "none"
+    when: dict | None = None
 
 
 @dataclass
@@ -93,6 +94,7 @@ class EventSpec:
     args: list[str] = field(default_factory=list)
     resource: str = ""
     operation: str = ""
+    coverage_group: str = ""
     classify: dict | None = None
     when: dict | None = None
     alts: tuple["EventSpec", ...] = ()
@@ -160,6 +162,8 @@ class Manifest:
     #: if none of that kind's implementation symbols exist in the resolved
     #: ELF/DWARF.  A symbol that exists but was not watched remains a gap.
     derive_feature_absence_from_symbols: bool = False
+    cache_hit_derivation: str = "unverified"
+    clone_completion_channel: str = "entry"
     builds_on: str = ""
     entities: list[EntitySpec] = field(default_factory=list)
     watches: list[WatchSpec] = field(default_factory=list)
@@ -253,14 +257,15 @@ _ENTITY_KEYS = frozenset({
 _SOURCE_COMBINE = frozenset({"first", "union"})
 _TABLE_KEYS = frozenset({"column", "show_when_any", "empty"})
 _WATCH_KEYS = frozenset({"subsystem", "match", "args", "throttle",
-                         "snapshot", "skip", "inlined"})
+                         "snapshot", "skip", "inlined", "when"})
 _SNAPSHOT_KINDS = frozenset({"none", "always", "event"})
 _WATCH_MATCH_KEYS = frozenset({"module", "module_prefix", "file", "fn"})
 _ENTITY_COLUMN_KEYS = frozenset({
     "key", "label", "format", "values", "optional", "synthetic"})
 _KERNEL_KEYS = frozenset({
     "name", "family", "arches", "detect", "builds_on",
-    "derive_feature_absence_from_symbols"})
+    "derive_feature_absence_from_symbols", "cache_hit_derivation",
+    "clone_completion_channel"})
 _DETECT_KEYS = frozenset({"any_type", "any_symbol", "all_symbol"})
 
 
@@ -324,6 +329,16 @@ def load(path: str | Path) -> Manifest:
     if not k or "name" not in k:
         raise ManifestError(f"{p} 缺 [kernel] 或它的 name")
     _reject_unknown(k, _KERNEL_KEYS, "[kernel]", p)
+    cache_hit_derivation = k.get("cache_hit_derivation", "unverified")
+    if cache_hit_derivation not in {"unverified", "one_to_one", "semantic"}:
+        raise ManifestError(
+            f"{p} 的 [kernel].cache_hit_derivation 应为 "
+            "'unverified'、'one_to_one' 或 'semantic'")
+    clone_completion_channel = k.get("clone_completion_channel", "entry")
+    if clone_completion_channel not in {"entry", "nftrace"}:
+        raise ManifestError(
+            f"{p} 的 [kernel].clone_completion_channel 应为 "
+            "'entry' 或 'nftrace'")
     detect = k.get("detect", {})
     if not isinstance(detect, dict):
         raise ManifestError(
@@ -389,6 +404,15 @@ def load(path: str | Path) -> Manifest:
                 f"{p} 的第 {i} 条 [[watch]] 的 snapshot={snap!r} 不认识，"
                 f"只能是 {'/'.join(sorted(_SNAPSHOT_KINDS))}。")
         skip = bool(w.get("skip", False))
+        when = w.get("when")
+        if when is not None and (not isinstance(when, dict)
+                                 or len(when) != 1
+                                 or next(iter(when)) not in {"type_exists", "type_missing"}
+                                 or not isinstance(next(iter(when.values())), str)
+                                 or not next(iter(when.values())).strip()):
+            raise ManifestError(
+                f"{p} 的第 {i} 条 [[watch]] 的 when 需要非空的 "
+                "type_exists 或 type_missing 类型名。")
         if skip and snap != "none":
             raise ManifestError(
                 f"{p} 的第 {i} 条 [[watch]] 同时写了 skip 和 "
@@ -396,7 +420,8 @@ def load(path: str | Path) -> Manifest:
         watches.append(WatchSpec(
             subsystem=w.get("subsystem", ""), match=m,
             args=int(w.get("args", 2)), throttle=int(w.get("throttle", 0)),
-            snapshot=snap, skip=skip, inlined=bool(w.get("inlined", False))))
+            snapshot=snap, skip=skip, inlined=bool(w.get("inlined", False)),
+            when=when))
 
     events: dict[str, EventSpec] = {}
     for fn, spec in (raw.get("event") or {}).items():
@@ -436,6 +461,8 @@ def load(path: str | Path) -> Manifest:
         arches=list(k.get("arches", [])), detect=detect,
         derive_feature_absence_from_symbols=bool(
             k.get("derive_feature_absence_from_symbols", False)),
+        cache_hit_derivation=cache_hit_derivation,
+        clone_completion_channel=clone_completion_channel,
         builds_on=k.get("builds_on", ""),
         entities=entities, watches=watches, events=events, absent=absent,
         profile=_profile(raw.get("profile"), p),
@@ -483,7 +510,7 @@ def _event_one(spec, fn: str, p: Path, idx: int | None) -> EventSpec:
             f"{p} 的 {where} 应该是个表（{{ kind = \"...\" }}），实际是 "
             f"{type(spec).__name__}。")
     _reject_unknown(spec, {"kind", "args", "resource", "operation", "when",
-                           "classify"},
+                           "classify", "coverage_group"},
                     where, p)
     if not spec.get("kind"):
         raise ManifestError(f"{p} 的 {where} 缺 kind。")
@@ -503,6 +530,9 @@ def _event_one(spec, fn: str, p: Path, idx: int | None) -> EventSpec:
             f"{p} 的 {where} 给 {spec['kind']!r} 写了 operation={operation!r}。"
             "operation 目前只定义了 disk.io 的读写方向，不能借给别的类别。")
     args = list(spec.get("args", []))
+    coverage_group = str(spec.get("coverage_group", ""))
+    if "coverage_group" in spec and not coverage_group.strip():
+        raise ManifestError(f"{p} 的 {where} 的 coverage_group 不能为空。")
     classify = spec.get("classify")
     if classify is not None:
         if not isinstance(classify, dict):
@@ -538,6 +568,7 @@ def _event_one(spec, fn: str, p: Path, idx: int | None) -> EventSpec:
                      args=args,
                      resource=str(spec.get("resource", "")),
                      operation=operation,
+                     coverage_group=coverage_group,
                      classify=classify,
                      when=when)
 

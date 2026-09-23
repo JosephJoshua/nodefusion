@@ -138,6 +138,10 @@ def regenerate(run: Path, out: Path, evidence: Path, *, replace: bool = False,
             "kernel_kind": analysis.kernel_kind,
             "source_sha256": {name: sha256(run / name) for name in _SOURCE_FILES},
             "kernel_elf_sha256": actual,
+            "archive_bytes": {
+                "trace.nfb": (run / "trace.nfb").stat().st_size,
+                "kernel_elf": analysis.kernel_elf_path.stat().st_size,
+            },
             "html_sha256": sha256(staged),
             "html_bytes": staged.stat().st_size,
             "function_trace": {

@@ -89,10 +89,10 @@ def merge_ucore(coverage_path: Path, evidence_path: Path, html: Path) -> None:
 
 def consolidate(root: Path) -> None:
     video_pairs = []
-    for chapter in (1, 2, 3, 4, 5, 6, 8):
+    for chapter in (1, 2, 3, 4, 5, 6):
         folder = root / "rcore" / f"ch{chapter}"
         name = {1: "bare", 2: "batch", 3: "sched", 4: "exact",
-                5: "exact", 6: "usertest", 8: "exact-filetest"}[chapter]
+                5: "exact", 6: "usertest"}[chapter]
         stem = f"rcore-ch{chapter}-{name}"
         path = folder / f"{stem}.json"
         evidence = folder / f"{stem}.evidence.json"
@@ -101,6 +101,12 @@ def consolidate(root: Path) -> None:
         else:
             video = json.loads(path.read_text(encoding="utf-8"))
             _report_value(video["report"], folder / video["html"])
+    for chapter, stem in ((7, "rcore-ch7-100pct-final"),
+                          (8, "rcore-ch8-100pct-return")):
+        folder = root / "rcore" / f"ch{chapter}"
+        _report(folder / f"{stem}.evidence.json", folder / f"{stem}.html")
+    _report(root / "starryos/showcase/starry-cache-semantic.evidence.json",
+            root / "starryos/showcase/starry-cache-semantic.html")
     for app in ("forkecho", "fsprobe"):
         folder = root / "starryos" / "apps" / app
         stem = f"starry-{app}-ram512"

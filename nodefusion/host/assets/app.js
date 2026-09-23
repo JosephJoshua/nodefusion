@@ -643,7 +643,9 @@ function renderOverview() {
   // 而且不成立的时候恰好会给出一个特别像结论的数（0.0%）。所以只要有一侧
   // 抽样过就不给百分比 —— 这是三态里的"测不准"，跟"测出来是 0"不一样。
   const hrSampled = !!(smet.bcache_reads || smet.disk_io);
-  const hrSub = hrSampled ? '样本不可合并' : `${num(m.bcache_hits)} / ${num(m.bcache_reads)} 次读`;
+  const hrSub = m.cache_hit_accounting === 'unverified'
+    ? `缓存请求 ${num(m.bcache_reads)} · 磁盘 I/O ${num(m.disk_io)}`
+    : hrSampled ? '样本不可合并' : `${num(m.bcache_hits)} / ${num(m.bcache_reads)} 次缓存请求`;
   card((m.bcache_hit_rate === null || hrSampled)
          ? '—' : (m.bcache_hit_rate * 100).toFixed(1) + '%',
        '缓存命中率', hrSub);
@@ -667,7 +669,8 @@ function renderOverview() {
        withRange('', m.log_commits, 'log_commits'));
   p.appendChild(cards);
 
-  p.appendChild(el('div', 'hint', '缓存命中率：bread 次数 − 磁盘 I/O，外部推导。'));
+  if (m.cache_hit_accounting === 'one_to_one')
+    p.appendChild(el('div', 'hint', '缓存命中率按缓存请求与设备读取次数计算。'));
 
   // 上面若干张卡片显示 "—"，是因为这个内核里压根没有对应的函数可挂观测点。
   // 不写清楚的话，"—" 和 "0" 在读者眼里都是"没发生"，而这两件事完全不同。
@@ -1319,10 +1322,16 @@ function renderEvents() {
   };
   const searchWrap = el('label', 'filter-control filter-search');
   searchWrap.appendChild(el('span', 'filter-label', '搜索'));
+  const selection = run.meta.event_selection || {};
+  const sampled = !!selection.applied && selection.dropped > 0;
   const kinds = [...new Set(run.dict.kinds)].sort();
   const kSel = el('select');
   kSel.appendChild(new Option('全部事件类型', ''));
-  for (const k of kinds) kSel.appendChild(new Option(k, k));
+  for (const k of kinds) {
+    const kept = (selection.retained_kinds || {})[k] || 0;
+    const raw = kept + ((selection.dropped_kinds || {})[k] || 0);
+    kSel.appendChild(new Option(sampled ? `${k} · ${num(kept)} / ${num(raw)}` : k, k));
+  }
   kSel.value = NF.filters.kind;
   kSel.onchange = () => { NF.filters.kind = kSel.value; renderEvents(); };
 
@@ -1407,14 +1416,16 @@ function renderEvents() {
   applyFilters();
   const info = el('div', 'result-bar');
   info.appendChild(el('strong', null, `${num(evFiltered.length)} 条结果`));
-  info.appendChild(el('span', null, ` / ${num(run.events.insn.length)} 条事件`));
+  info.appendChild(el('span', null, sampled
+    ? ` / ${num(run.events.insn.length)} 条浏览样本 · 原始 ${num(selection.raw)} 条`
+    : ` / ${num(run.events.insn.length)} 条事件`));
   if (NF.filters.kind || NF.filters.group || NF.filters.res || NF.filters.pid || NF.filters.cpu || NF.filters.text || NF.filters.from || NF.filters.to) {
     info.appendChild(el('span', 'result-active', '已应用筛选'));
   }
   p.appendChild(info);
   if (!evFiltered.length) {
     const empty = el('div', 'event-empty');
-    empty.appendChild(el('strong', null, '没有匹配的事件'));
+    empty.appendChild(el('strong', null, sampled ? '样本中没有匹配事件' : '没有匹配的事件'));
     empty.appendChild(el('p', null, '清除筛选或调整范围。'));
     p.appendChild(empty);
     return;
@@ -1428,7 +1439,9 @@ function renderEvents() {
   }
   [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).forEach(([kind, count]) => {
     const b = el('button', 'facet' + (NF.filters.kind === kind ? ' selected' : ''));
-    b.type = 'button'; b.title = `筛选 ${kind}`;
+    b.type = 'button'; b.title = sampled
+      ? `筛选 ${kind} · 原始 ${num(count + ((selection.dropped_kinds || {})[kind] || 0))} 条`
+      : `筛选 ${kind}`;
     b.appendChild(el('span', null, kind)); b.appendChild(el('b', null, num(count)));
     b.onclick = () => { NF.filters.kind = NF.filters.kind === kind ? '' : kind; renderEvents(); };
     facet.appendChild(b);
@@ -1437,7 +1450,7 @@ function renderEvents() {
 
   const density = el('div', 'event-density');
   const densityHead = el('div', 'density-head');
-  densityHead.appendChild(el('div', 'density-label', '事件分布'));
+  densityHead.appendChild(el('div', 'density-label', sampled ? '样本事件分布' : '事件分布'));
   const bars = el('div', 'density-bars');
   const bins = 48; const totalInsn = Number(run.meta.total_insns) || 1; const binCounts = Array(bins).fill(0);
   for (const i of evFiltered) {
@@ -1542,6 +1555,7 @@ function summarize(e) {
     case 'pagetable.unmap': return `va=${hex(d.va)} ${num(d.npages)} 页`;
     case 'vm.copy': return `父页表=${hex(d.old)} 子页表=${hex(d.new)} 大小=${num(d.sz)}`;
     case 'bcache.read': case 'bcache.get': return `dev=${d.dev} block=${d.blockno}`;
+    case 'bcache.result': return `${d.outcome || '?'} · block=${d.first_block} · ${num(d.blocks)} 块`;
     case 'disk.io': return d.write ? '写盘' : '读盘';
     case 'sync.sleep': return `chan=${hex(d.chan)}`;
     case 'sync.wakeup': return `chan=${hex(d.chan)}`;

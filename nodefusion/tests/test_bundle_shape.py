@@ -205,6 +205,145 @@ def test_compact_coverage_audit_matches_the_rendered_bundle():
     assert B.coverage(a) == B.build(a)["meta"]["capability"]["coverage"]
 
 
+def test_coverage_checks_snapshots_before_an_approximate_program_marker():
+    a = _analysis(_state(), _state())
+    a.manifest["program_start_insn"] = 100
+    result = B.build(a)["meta"]["capability"]["coverage"]
+    assert result["snapshots"]["checked"] == 2
+
+
+def test_lazy_tables_only_become_applicable_after_initialization():
+    first = _state([ResourceTable("thread", "线程", False,
+                                  "Lazy/Once 的状态是 1=Running")])
+    first.procs_available = False
+    first.procs_reason = "Lazy/Once 的状态是 0=Incomplete"
+    second = _state([_table("thread")])
+    second.insn = 100
+    result = B.build(_analysis(first, second))["meta"]["capability"]["coverage"]
+    assert result["snapshots"]["processes"] == 0
+    assert result["snapshots"]["resources"] == 0
+    assert result["snapshots"]["pre_initialization"] == {
+        "physical_memory": 0, "physical_counters": 0,
+        "processes": 1, "resources": 1}
+
+
+def test_initialization_does_not_exempt_unrelated_snapshot_failures():
+    first = _state([ResourceTable("thread", "线程", False, "bad DWARF")])
+    first.procs_available = False
+    first.procs_reason = "bad pointer"
+    second = _state([_table("thread")])
+    second.insn = 100
+    result = B.build(_analysis(first, second))["meta"]["capability"]["coverage"]
+    assert result["snapshots"]["processes"] == 1
+    assert result["snapshots"]["resources"] == 1
+
+
+def test_physical_ownership_starts_when_the_kernel_root_exists():
+    early = _state()
+    early.phys_available = False
+    later = _state()
+    later.insn = 100
+    result = B.build(_analysis(early, later))["meta"]["capability"]["coverage"]
+    assert result["snapshots"]["physical_memory"] == 0
+    assert result["snapshots"]["pre_initialization"]["physical_memory"] == 1
+
+    # An unresolvable physical channel is a gap, not pre-initialization.
+    result = B.build(_analysis(early))["meta"]["capability"]["coverage"]
+    assert result["snapshots"]["physical_memory"] == 1
+
+
+def test_throttled_function_watches_block_complete_capture():
+    a = _analysis(_state())
+    a.trace.end = NS(truncated=False, watch_drops=3)
+    result = B.build(a)["meta"]["capability"]["coverage"]
+    assert result["function_watch_drops"] == 3
+    assert {item["check"] for item in result["blockers"]} >= {
+        "function_watch_sampling"}
+
+
+def test_entry_only_trace_does_not_claim_complete_function_stacks():
+    a = _analysis(_state())
+    a.events = [Event(1, 0, "proc.fork", "process", function_entry=True)]
+    result = B.build(a)["meta"]["capability"]["coverage"]
+    assert result["function_stacks_available"] is False
+    assert "function_stacks" in {item["check"] for item in result["blockers"]}
+
+
+def test_unresolved_live_event_blocks_coverage_but_selection_rules_do_not():
+    a = _analysis(_state())
+    a.watchlist = {"entries": [], "missing": [
+        "[mm] fn=['live_map']",
+        "[event] 'os::future::fork' 没匹配上任何观察点",
+        "[event] 'os::mm::live_map' 没匹配上任何观察点",
+    ]}
+    a._event_names_present = {"os::mm::live_map"}
+    a.kevents = {"os::future::fork": NS(kind="proc.fork"),
+                 "os::mm::live_map": NS(kind="vm.map")}
+    result = B.build(a)["meta"]["capability"]["coverage"]
+    assert result["observation_points"]["reported_missing"] == 3
+    assert result["observation_points"]["unresolved"] == [
+        "[event] 'os::mm::live_map' 没匹配上任何观察点"]
+    assert "unresolved_observation_points" in {
+        item["check"] for item in result["blockers"]}
+
+
+def test_selected_event_name_clears_a_stale_missing_diagnostic():
+    a = _analysis(_state())
+    a.watchlist = {
+        "entries": [{"index": 0, "name": "freeproc", "symbol": "freeproc"}],
+        "missing": ["[event] 'freeproc' 没匹配上任何观察点"],
+    }
+    a._event_names_present = {"freeproc"}
+    a.kevents = {"freeproc": NS(kind="proc.free")}
+    result = B.build(a)["meta"]["capability"]["coverage"]
+    assert result["observation_points"]["unresolved"] == []
+    assert "unresolved_observation_points" not in {
+        item["check"] for item in result["blockers"]}
+
+
+def test_selected_full_symbol_clears_a_short_name_missing_diagnostic():
+    a = _analysis(_state())
+    symbol = "os::mm::page_table::PageTable::new"
+    a.watchlist = {
+        "entries": [{"index": 0, "name": "new", "symbol": symbol}],
+        "missing": [f"[event] '{symbol}' 没匹配上任何观察点"],
+    }
+    a._event_names_present = {symbol}
+    a.kevents = {symbol: NS(kind="pagetable.new")}
+    result = B.build(a)["meta"]["capability"]["coverage"]
+    assert result["observation_points"]["unresolved"] == []
+
+
+def test_same_kind_does_not_hide_a_distinct_missing_observation_point():
+    a = _analysis(_state())
+    a.watchlist = {
+        "entries": [{"index": 0, "name": "map_one", "kind": "vm.map"}],
+        "missing": ["[event] 'map_two' 没匹配上任何观察点"],
+    }
+    a._event_names_present = {"map_one", "map_two"}
+    a.kevents = {"map_one": NS(kind="vm.map", coverage_group=""),
+                 "map_two": NS(kind="vm.map", coverage_group="")}
+    result = B.build(a)["meta"]["capability"]["coverage"]
+    assert result["observation_points"]["unresolved"] == [
+        "[event] 'map_two' 没匹配上任何观察点"]
+
+
+def test_declared_equivalent_observation_point_clears_an_inlined_alias():
+    a = _analysis(_state())
+    a.watchlist = {
+        "entries": [{"index": 0, "name": "cache_method",
+                     "kind": "bcache.read"}],
+        "missing": ["[event] 'cache_wrapper' 没匹配上任何观察点"],
+    }
+    a._event_names_present = {"cache_method", "cache_wrapper"}
+    a.kevents = {
+        "cache_method": NS(kind="bcache.read", coverage_group="cache.lookup"),
+        "cache_wrapper": NS(kind="bcache.read", coverage_group="cache.lookup"),
+    }
+    result = B.build(a)["meta"]["capability"]["coverage"]
+    assert result["observation_points"]["unresolved"] == []
+
+
 def test_every_normalized_namespace_is_retained_when_budget_allows(monkeypatch):
     """Adding a new semantic namespace must not require editing an allowlist."""
     monkeypatch.setattr(B, "MAX_EVENTS", 7)

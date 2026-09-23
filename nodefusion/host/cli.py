@@ -107,8 +107,8 @@ def cmd_record(args) -> int:
     for w in r.manifest.get("record_warnings") or []:
         print(f"[NodeFusion] 注意：{w}")
     if r.manifest["watchlist_missing"]:
-        print(f"[NodeFusion] 这个内核里不存在的被观察函数："
-              f"{', '.join(r.manifest['watchlist_missing'])}")
+        print(f"[NodeFusion] 未选中的观察规则：{len(r.manifest['watchlist_missing'])} 条"
+              "（明细见 watchlist.json）")
     if not args.no_render:
         return cmd_render(argparse.Namespace(
             run=[r.run_dir.name], runs=str(cfg.out_root), out=None, title=None,
@@ -364,12 +364,12 @@ def _add_event_stream_option(parser: argparse.ArgumentParser) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
-        prog="nodefusion", description="NodeFusion：面向任意 xv6 程序的运行观测与可视化")
+        prog="nodefusion", description="NodeFusion：操作系统内核运行观测与可视化")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     r = sub.add_parser("record", help="录制一次运行")
     r.add_argument("--program", help="要在 guest shell 里运行的命令，例如 cowtest。"
-                                     "无 shell 的内核（rCore）留空")
+                                     "无 shell 的构建可省略")
     r.add_argument("--name", help="运行名（默认取程序名 / 内核目录名）")
     r.add_argument("--kernel", required=True, help="被观察内核的工程目录")
     r.add_argument("--kernel-kind", default=None, metavar="种类",

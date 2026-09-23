@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from nodefusion.host.nfelf import Elf64
+from nodefusion.host.analyze import _addressable_event_names
 from nodefusion.host.record import RecordError, select_watchlist
 from nodefusion.model.layout import Function, InlineSite
 from nodefusion.model.manifest import (
@@ -17,8 +18,12 @@ from nodefusion.model.watchsel import (
 
 class FakeDw:
 
-    def __init__(self, fns):
+    def __init__(self, fns, types=()):
         self.functions = list(fns)
+        self.types = set(types)
+
+    def find(self, name):
+        return name if name in self.types else None
 
 
 class FakeSym:
@@ -78,11 +83,32 @@ def test_symbols_supply_addresses_dwarf_does_not_have():
     only_dwarf = select(dw, [w("mm", {"module": "os::mm"})])
     assert only_dwarf.picked == []
     assert only_dwarf.no_address == {"mm": 1}
-
     both = select(dw, [w("mm", {"module": "os::mm"})], symbols=syms)
     assert [(s.name, s.addr) for s in both.picked] == [("from_elf", 0x802045bc)]
     assert both.picked[0].path == "os::mm::memory_set::MemorySet::from_elf"
 
+
+def test_only_addressable_functions_count_as_live_event_paths():
+    dw = FakeDw([fn("os::heap::__rust_alloc_zeroed", None),
+                 fn("os::mm::PageTable::new", 0x80200000)])
+    assert _addressable_event_names(dw, []) == {
+        "os::mm::PageTable::new", "new"}
+
+
+def test_conditional_watch_selects_one_layer_of_an_allocator():
+    dw = FakeDw([fn("__rust_alloc", 0x1000),
+                 fn("os::nodefusion_heap::ObservedHeap::alloc", 0x2000)],
+                types=["os::nodefusion_heap::ObservedHeap"])
+    rules = [
+        WatchSpec(subsystem="heap", match={"fn": ["__rust_alloc"]},
+                  skip=True, when={"type_exists": "os::nodefusion_heap::ObservedHeap"}),
+        WatchSpec(subsystem="heap", match={"module": "os::nodefusion_heap",
+                                                 "fn": ["alloc"]},
+                  when={"type_exists": "os::nodefusion_heap::ObservedHeap"}),
+        WatchSpec(subsystem="heap", match={"fn": ["__rust_alloc"]}),
+    ]
+    assert [entry.path for entry in select(dw, rules).picked] == [
+        "os::nodefusion_heap::ObservedHeap::alloc"]
 
 def test_dwarf_keeps_decl_file_even_when_the_symbol_wins_the_path():
     dw = FakeDw([fn("kalloc", 0x80001000, decl_file="kernel/kalloc.c")])

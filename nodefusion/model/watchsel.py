@@ -270,6 +270,10 @@ def select(dw: DwarfSource, watches: list[WatchSpec],
     inline_base: dict[str, str] = {}
 
     for w in watches:
+        if w.when:
+            from .resolve import eval_when
+            if not eval_when(dw, w.when)[0]:
+                continue
         n_hit = 0
         for fn in cands:
             if fn.inlined and not w.inlined:
