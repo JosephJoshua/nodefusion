@@ -4468,8 +4468,8 @@
       "kernel_layout.json": "bfea2a6b0450adcfbc0877df7ab89c5bb50ca037116a8207e338d1ba43816307"
     },
     "kernel_elf_sha256": "1f19797e7bf239042465ef9469c18002e4e65ebb28bc055d7fcf3b37a2bf7941",
-    "html_sha256": "d1e660e6f3eaf3e26c9727bc9198336f3c7e4603e1ca60f6287b76b1a533020a",
-    "html_bytes": 7162987,
+    "html_sha256": "63e85d5ef74418d5b1e8d78de0b52adb09d3a268ec492465580100333101f4a0",
+    "html_bytes": 7163869,
     "function_trace": {
       "kind": "return-matched observed frames",
       "raw": 16644226,

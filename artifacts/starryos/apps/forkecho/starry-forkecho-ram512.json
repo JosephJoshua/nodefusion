@@ -4302,8 +4302,8 @@
       "kernel_layout.json": "bfea2a6b0450adcfbc0877df7ab89c5bb50ca037116a8207e338d1ba43816307"
     },
     "kernel_elf_sha256": "1f19797e7bf239042465ef9469c18002e4e65ebb28bc055d7fcf3b37a2bf7941",
-    "html_sha256": "abf0b78b815cebccf76e871c7a0f761ed10b6df128799a8145dbb9feb76ec738",
-    "html_bytes": 7501265,
+    "html_sha256": "7170f4b3b0baedf19f4478aacfa4cc8462055cb353716663475985a7b1d10d8c",
+    "html_bytes": 7502147,
     "function_trace": {
       "kind": "return-matched observed frames",
       "raw": 17397887,

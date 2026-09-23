@@ -1,0 +1,130 @@
+diff --git a/fs/ax-fs-ng/Cargo.toml b/fs/ax-fs-ng/Cargo.toml
+--- a/fs/ax-fs-ng/Cargo.toml
++++ b/fs/ax-fs-ng/Cargo.toml
+@@ -10,8 +10,9 @@ license.workspace = true
+ [features]
+ host-test = ["ax-sync/host-test"]
+ fat = ["dep:fatfs"]
+ ext4 = ["dep:rsext4"]
+ vfs = ["ax-sync/sleep"]
++nodefusion-trace = []
+ lockdep = ["axfs-ng-vfs/lockdep"]
+ 
+ [dependencies]
+diff --git a/fs/ax-fs-ng/src/block/cache/address_space.rs b/fs/ax-fs-ng/src/block/cache/address_space.rs
+--- a/fs/ax-fs-ng/src/block/cache/address_space.rs
++++ b/fs/ax-fs-ng/src/block/cache/address_space.rs
+@@ -167,10 +167,19 @@ impl BlockAddressSpace {
+         let geometry = self.geometry;
+         let frame = geometry.frame_of(first_block);
+         let first_slot = geometry.slot_of(first_block);
+         let count = usize::try_from(count).map_err(|_| crate::BlockError::InvalidRequest)?;
+         let folio = self.getblk(dev, frame)?;
+-        fill_missing_slots(dev, folio, &geometry, frame, first_slot, count)?;
++        #[cfg(feature = "nodefusion-trace")]
++        let hit = (first_slot..first_slot + count)
++            .all(|slot| folio.slot(slot).is_uptodate());
++        let filled = fill_missing_slots(dev, folio, &geometry, frame, first_slot, count);
++        #[cfg(feature = "nodefusion-trace")]
++        super::device::trace_cache_read(
++            if filled.is_err() { 2 } else { u64::from(hit) },
++            first_block, count as u64, 0,
++        );
++        filled?;
+         folio.copy_from_slots(first_slot, count, out);
+         Ok(())
+     }
+ 
+diff --git a/fs/ax-fs-ng/src/block/cache/device.rs b/fs/ax-fs-ng/src/block/cache/device.rs
+--- a/fs/ax-fs-ng/src/block/cache/device.rs
++++ b/fs/ax-fs-ng/src/block/cache/device.rs
+@@ -16,8 +16,19 @@ use alloc::{boxed::Box, sync::Arc};
+ use core::sync::atomic::{AtomicUsize, Ordering};
+ 
+ use super::address_space::{BlockAddressSpace, FolioGeometry};
+ use crate::{BlockError, BlockResult, block::FsBlockDevice, os::sync::SleepMutex};
+ 
++#[cfg(feature = "nodefusion-trace")]
++unsafe extern "C" {
++    fn nodefusion_trace_cache_read(outcome: u64, first: u64, count: u64, direct: u64);
++}
++
++#[cfg(feature = "nodefusion-trace")]
++pub(super) fn trace_cache_read(outcome: u64, first: u64, count: u64, direct: u64) {
++    // The kernel exports this hook only when the feature is selected.
++    unsafe { nodefusion_trace_cache_read(outcome, first, count, direct) }
++}
++
+ /// The shared per-device cache tree and its global-writeback endpoint.
+ ///
+ /// All filesystem instances on one physical device serialize through this
+@@ -213,15 +224,20 @@ impl<T: FsBlockDevice> FsBlockDevice for BufferedBlockDevice<T> {
+     fn read_block(&mut self, block_id: u64, buf: &mut [u8]) -> BlockResult<()> {
+         let (first, count) = self.split_request(block_id, buf.len())?;
+         let mut state = self.shared.state.lock();
+         if state.geometry().spans_one_folio(first, count) {
+             return state.read_buffered(&mut self.inner, first, count, buf);
+         }
+         // Direct read: write overlapping dirty slots back first so stale
+         // device bytes cannot bypass newer cached data.
+-        state.writeback_dirty(&mut self.inner, Some((first, count)))?;
+-        self.inner.read_block(block_id, buf)?;
+-        state.apply_direct(first, count, buf, true);
+-        Ok(())
++        let result = (|| {
++            state.writeback_dirty(&mut self.inner, Some((first, count)))?;
++            self.inner.read_block(block_id, buf)?;
++            state.apply_direct(first, count, buf, true);
++            Ok(())
++        })();
++        #[cfg(feature = "nodefusion-trace")]
++        trace_cache_read(if result.is_ok() { 0 } else { 2 }, first, count, 1);
++        result
+     }
+ 
+     fn write_block(&mut self, block_id: u64, buf: &[u8]) -> BlockResult<()> {
+diff --git a/os/StarryOS/kernel/Cargo.toml b/os/StarryOS/kernel/Cargo.toml
+--- a/os/StarryOS/kernel/Cargo.toml
++++ b/os/StarryOS/kernel/Cargo.toml
+@@ -84,9 +84,9 @@ ext4 = ["ax-fs-ng/ext4"]
+ fat = ["ax-fs-ng/fat"]
+ input = ["dep:ax-input", "ax-runtime/input"]
+ ipi = ["ax-runtime/ipi"]
+ loongarch64-low-va = []
+ memtrack = ["axbacktrace/alloc", "ax-alloc/tracking"]
+-nodefusion-trace = ["ax-alloc/nodefusion-trace"]
++nodefusion-trace = ["ax-alloc/nodefusion-trace", "ax-fs-ng/nodefusion-trace"]
+ rknpu = ["ax-driver/rknpu"]
+ jpeg = ["ax-driver/jpeg"]
+ rga = ["ax-driver/rga", "dep:rockchip-rga"]
+diff --git a/os/StarryOS/kernel/src/nftrace.rs b/os/StarryOS/kernel/src/nftrace.rs
+--- a/os/StarryOS/kernel/src/nftrace.rs
++++ b/os/StarryOS/kernel/src/nftrace.rs
+@@ -11,7 +11,8 @@ const NFT_PROC_FORK: u64 = 2;
+ const NFT_THREAD_CREATE: u64 = 3;
+ const NFT_SCHED_SWITCH: u64 = 4;
+ const NFT_KFREE: u64 = 5;
+ const NFT_ALLOCATOR_STATE: u64 = 6;
++const NFT_CACHE_READ: u64 = 7;
+ 
+ #[repr(C)]
+ #[derive(Clone, Copy)]
+@@ -113,11 +114,18 @@ pub(crate) fn sched_switch(
+     prev_task_id: u64,
+     next_task_id: u64,
+     prev_tid: u64,
+     next_tid: u64,
+ ) {
+     let record = NfTraceRecord {
+         type_: NFT_SCHED_SWITCH,
+         a: [prev_task_id, next_task_id, prev_tid, next_tid],
+     };
+     nftrace_commit_point(&record);
+ }
++
++#[unsafe(no_mangle)]
++pub extern "C" fn nodefusion_trace_cache_read(
++    outcome: u64, first: u64, count: u64, direct: u64,
++) {
++    emit4(NFT_CACHE_READ, outcome, first, count, direct);
++}

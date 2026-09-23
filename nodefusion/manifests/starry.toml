@@ -24,6 +24,8 @@ family = "arceos"
 
 builds_on = "arceos"
 arches = ["riscv64", "x86_64", "aarch64", "loongarch64"]
+cache_hit_derivation = "semantic"
+clone_completion_channel = "nftrace"
 detect = { any_type = ["starry_kernel::task::process::topology::Process"] }
 
 # ---------------------------------------------------------------- process
@@ -486,9 +488,7 @@ match     = { module = "starry_kernel::trap" }
 args      = 2
 throttle  = 0
 
-# Metric-bearing entry points inside otherwise high-volume modules must be
-# exact.  These narrow rules precede the diagnostic module-wide rules below,
-# so each address is selected once with throttle 0.
+# Keep addressable entry points exact; the bounded HTML has its own sampler.
 [[watch]]
 subsystem = "mm"
 match     = { module = "starry_kernel::mm::loader", fn = ["load_user_app"] }
@@ -496,22 +496,28 @@ args      = 2
 throttle  = 0
 
 [[watch]]
+subsystem = "vm"
+match     = { module = "starry_kernel::mm::aspace", fn = ["map_with_reported_flags", "map_linear", "extend_area", "unmap", "unmap_metadata"] }
+args      = 3
+throttle  = 0
+
+[[watch]]
 subsystem = "mm"
 match     = { module = "starry_kernel::mm" }
 args      = 2
-throttle  = 64
+throttle  = 0
 
 [[watch]]
 subsystem = "fs"
 match     = { module = ["starry_kernel::file", "starry_kernel::pseudofs"] }
 args      = 2
-throttle  = 64
+throttle  = 0
 
 [[watch]]
 subsystem = "ipc"
 match     = { module = "starry_kernel::ipc" }
 args      = 2
-throttle  = 64
+throttle  = 0
 
 
 
@@ -550,7 +556,7 @@ throttle  = 0
 subsystem = "ax-mm"
 match     = { module = "ax_mm" }
 args      = 2
-throttle  = 64
+throttle  = 0
 
 [[watch]]
 subsystem = "ax-alloc"
@@ -562,7 +568,7 @@ throttle  = 0
 subsystem = "ax-alloc"
 match     = { module = "ax_alloc" }
 args      = 1
-throttle  = 256
+throttle  = 0
 
 
 
@@ -595,7 +601,7 @@ throttle  = 0
 subsystem = "disk"
 match     = { module = "ax_fs_ng::block::runtime::lifecycle::io" }
 args      = 2
-throttle  = 64
+throttle  = 0
 
 [[watch]]
 subsystem = "fs"
@@ -607,7 +613,7 @@ throttle  = 0
 subsystem = "fs"
 match     = { module = "ax_fs_ng::block::cache::device" }
 args      = 2
-throttle  = 64
+throttle  = 0
 
 
 
@@ -900,6 +906,11 @@ build_deviation = "本次观测的内核用 CARGO_PROFILE_RELEASE_DEBUG=2 编，
 
 "ax_mm::backend::{impl#0}::map"                = "vm.map"
 "ax_mm::backend::{impl#0}::unmap"              = "vm.unmap"
+"starry_kernel::mm::aspace::AddrSpace::map_with_reported_flags" = { kind = "vm.map", resource = "vm" }
+"starry_kernel::mm::aspace::AddrSpace::map_linear" = { kind = "vm.map", resource = "vm" }
+"starry_kernel::mm::aspace::AddrSpace::extend_area" = { kind = "vm.grow", resource = "vm" }
+"starry_kernel::mm::aspace::AddrSpace::unmap" = { kind = "vm.unmap", resource = "vm" }
+"starry_kernel::mm::aspace::AddrSpace::unmap_metadata" = { kind = "vm.unmap", resource = "vm" }
 "ax_mm::init_memory_management"                = "vm.init"
 "ax_mm::new_kernel_aspace"                     = "vm.aspace_create"
 
