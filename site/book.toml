@@ -1,0 +1,22 @@
+[book]
+title = "操作系统内核分析"
+language = "zh-CN"
+src = "src"
+
+[build]
+build-dir = "book"
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "light"
+additional-css = ["theme/education.css"]
+additional-js = ["theme/navigation.js", "theme/lesson.js", "theme/study.js", "theme/reports.js"]
+git-repository-url = "https://github.com/JosephJoshua/nodefusion"
+site-url = "/nodefusion/"
+no-section-label = true
+
+[output.html.playground]
+runnable = false
+
+[output.html.print]
+enable = true

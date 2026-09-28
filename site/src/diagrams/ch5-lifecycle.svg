@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 490" role="img" aria-labelledby="title desc">
+  <title id="title">rCore 与 uCore 的进程资源回收</title>
+  <desc id="desc">fork 为子进程建立独立的数据页与页表。rCore 在 exit 时释放数据页，waitpid 移除最后一个强引用后释放页表页、内核栈与 PID。uCore 在 exit 时释放数据页和页表页，waitpid 将进程表项设为 UNUSED；内核栈和异常上下文使用静态数组。</desc>
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#5f6a65" stroke-width="1.5"/></marker></defs>
+  <rect x="1" y="1" width="898" height="488" rx="4" fill="#faf9f6" stroke="#d8d6ce"/>
+  <g font-family="system-ui, sans-serif" font-size="16" fill="#292c28">
+    <text x="28" y="36" font-size="20" font-weight="600">子进程的资源与状态</text>
+    <text x="94" y="73" font-weight="600">fork 完成</text>
+    <text x="391" y="73" font-weight="600">exit 完成</text>
+    <text x="674" y="73" font-weight="600">waitpid 成功</text>
+    <text x="28" y="111" font-weight="600">rCore</text>
+    <g fill="#e5eee8" stroke="#787e74" stroke-width="1.5" stroke-linejoin="round">
+      <path d="M29 124 L263 123 L264 230 L28 231 Z"/>
+      <path d="M328 123 L568 125 L567 231 L329 230 Z"/>
+      <path d="M634 125 L872 123 L873 230 L633 231 Z" fill="#efede6"/>
+    </g>
+    <text x="44" y="153">独立数据页、页表页</text>
+    <text x="44" y="183">新 PID、动态内核栈</text>
+    <text x="44" y="213">父进程持有子进程 Arc</text>
+    <text x="344" y="153">释放数据页，成为 Zombie</text>
+    <text x="344" y="183">保留页表、PID 与内核栈</text>
+    <text x="344" y="213">父进程仍持有子进程 Arc</text>
+    <text x="650" y="153">取得退出码，移除子进程</text>
+    <text x="650" y="183">最后一个强引用释放后</text>
+    <text x="650" y="213">回收页表、PID 与内核栈</text>
+    <text x="28" y="282" font-weight="600">uCore</text>
+    <g fill="#e5eee8" stroke="#787e74" stroke-width="1.5" stroke-linejoin="round">
+      <path d="M28 296 L264 295 L263 402 L29 403 Z"/>
+      <path d="M329 297 L567 295 L568 402 L328 403 Z" fill="#efede6"/>
+      <path d="M633 295 L873 297 L872 403 L634 402 Z" fill="#efede6"/>
+    </g>
+    <text x="44" y="325">独立数据页、页表页</text>
+    <text x="44" y="355">分配表项与新 PID</text>
+    <text x="44" y="385">使用对应的静态内核栈</text>
+    <text x="344" y="325">释放数据页和页表页</text>
+    <text x="344" y="355">有父进程时成为 ZOMBIE</text>
+    <text x="344" y="385">保留 PID、父指针与退出码</text>
+    <text x="650" y="325">取得退出码</text>
+    <text x="650" y="355">表项设为 UNUSED</text>
+    <text x="650" y="385">静态内核栈与上下文保留</text>
+    <g fill="none" stroke="#5f6a65" stroke-width="1.7" marker-end="url(#arrow)">
+      <path d="M269 178 Q295 175 323 178"/><path d="M573 178 Q601 181 628 178"/>
+      <path d="M269 350 Q295 353 323 350"/><path d="M573 350 Q601 347 628 350"/>
+    </g>
+    <text x="28" y="451">图中为仍有父进程的子进程。孤儿进程的处理见两套实现的退出路径。</text>
+    <text x="28" y="477">rCore 的初始用户进程与调度器 idle 上下文分别保存执行状态。</text>
+  </g>
+</svg>

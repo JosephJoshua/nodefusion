@@ -1,7 +1,7 @@
 # 内核侧观测补丁
 
-这些补丁在内核操作完成后写入 `nftrace` 记录。QEMU 插件继续负责指令、寄存器、异常、
-函数入口、返回指令和物理内存快照。线格式见
+观测补丁提供 `nftrace` 语义记录或独立的函数入口，目录中还包含各章的构建兼容补丁。
+QEMU 插件负责指令、寄存器、异常、函数入口、返回指令和物理内存快照。线格式见
 [`spec/event-stream.md`](../spec/event-stream.md)。
 
 补丁应先在目标源码提交上执行 `git apply --check`，再应用和构建。录制完成后检查
@@ -47,7 +47,42 @@ RISC-V 探针。构建命令写在文件头。普通 shell 子进程产生 `NFT_
 
 ## rCore
 
-章节补丁如下：
+2026A `ch1-api-impl` 提交 `ebb82caa6bec05652a041e613c12a52fde3813f0` 使用
+`rcore-2026a-ch1-observation.patch`，为 `clear_bss` 保留独立入口。
+
+2026A `ch3-api-impl` 提交 `5deb0f963bf27299a3e8e069b95ea684b781e66e` 使用
+`rcore-2026a-ch3-observation.patch`，为暂停函数保留独立入口。
+
+2026A `ch4-api-impl` 提交 `ef2dfc4c23c70a1eb4c6a0b30feb694b2d09a73d` 使用
+`rcore-2026a-ch4-observation.patch`。页分配器初始化后记录初始页计数，分配和释放
+完成后记录物理地址及更新后的计数。完整区域匹配成功后，
+`remove_framed_area` 在清除映射前上报起止 VPN。堆操作委托给原有分配器，
+保留独立入口；页表创建、映射、区域插入和任务暂停也保留独立入口。
+
+2026A `ch5-api-impl` 提交 `023a5a0885fed8ae999406f17a494777c3e59af1` 使用
+`rcore-2026a-ch5-observation.patch`。分配和释放记录包含操作后的页计数；成功的
+`fork` 在子进程加入就绪队列后记录双方 PID。调度记录区分进程和 idle 上下文，
+idle 使用协议的 no-task 值。区域取消映射、堆缩小和失败映射回滚在清除 PTE 前
+记录实际范围。退出时的 `recycle_data_pages` 释放数据页，僵尸进程的页表仍保留，
+该路径不产生清除 PTE 的区域事件。堆操作仍委托给原有分配器。
+
+2026A `ch6-api-impl` 提交 `b47c54b5c1f3254518238b0c7450af9c187b4231` 使用
+`rcore-2026a-ch6-observation.patch`。它提供相同的页计数、父子 PID 和调度记录，
+并为内存区域操作与 `find_inode_id` 保留独立入口。文件系统目录查找和读写算法保持原样。
+构建观察版时复用参考构建的用户 ELF 和初始磁盘镜像，再核对每个文件的字节数与校验和。
+
+2026A `ch7-api-impl` 提交 `c8e0313a55ed5926123d990f196061978c460aed` 使用
+`rcore-2026a-ch7-observation.patch`。它保留管道缓冲区读写、容量检查、写端关闭检查和
+信号处理函数的入口，沿用页计数、父子 PID、调度和区域取消映射记录。管道与信号处理算法保持原样。
+
+2026A `ch8-api-impl` 提交 `00b2a84360710640fbde595c194a7f2447e755f2` 使用
+`rcore-2026a-ch8-observation.patch`。成功的 `fork` 记录父子 PID，`thread_create`
+完成线程初始化后记录父子 TID。调度记录包含线程对象地址及所属进程 PID；idle 使用
+no-task 值。互斥锁、信号量、条件变量和资源回收函数保留独立入口，同步算法保持原样。
+区域事件覆盖 `MapArea::unmap` 和缩小区域的路径。`recycle_data_pages` 释放数据页，
+僵尸进程仍保留页表项，释放结果由物理页记录表示。
+
+既有章节使用的补丁如下：
 
 | 章节 | 补丁 |
 | --- | --- |
@@ -88,10 +123,49 @@ easy-fs 没有日志或事务层。rCore manifest 将 `log.commit` 声明为 fea
 
 ## uCoreOS
 
+2026A 第二章提交 `729e1ad1632bb639dfe546f34765c0537b503990` 的调用者向
+`usertrapret` 传入 `boot_stack_top`，函数再次加上 `PGSIZE`，使异常栈落入
+`trap_page`。装载下一个应用时，`memset(trap_page, 0, 4096)` 会清零正在使用的栈。
+`ucore-2026a-ch2-stack.patch` 将异常栈指针直接设为传入的栈顶。这是用于比较运行的
+机制修正补丁；原参考构建及其停滞轨迹单独保留。
+
+2026A `ch3-api-impl` 提交 `6bb0c2e8d84eda0451092f24f907ed084299e6e6` 使用
+`ucore-2026a-build.patch`，固定汇编源文件列表的求值时机，避免生成 `link_app.S` 后
+重复链接对应对象。用户程序按课程的 `tools/run_lab.py --mode positive` 构建与检查。
+
 ch8 使用的 `ucore-nodefusion.patch` 针对 `LearningOS/uCore-Tutorial-Code` 提交
 `7728a992c20ce43627fbc319ccb4f5765e807cba`。它提供页分配、释放、进程创建和线程创建
 记录，并在 PTE 写入成功后调用 `nodefusion_pagetable_map`。`mappages` 和 `uvmunmap`
 保留区域级映射与解除映射事件。
+
+2026A `ch4-api-impl` 提交 `51f02268653c68f169f5599055da3b0391995ee6` 使用
+`ucore-2026a-ch4-observation.patch`，与 `ucore-2026a-build.patch` 配合构建。
+物理页初始化完成后发送初始空闲页计数；分配和释放完成后记录物理地址及更新后的
+空闲、已分配页数。分配失败记录地址零。PTE 写入成功后调用
+`nodefusion_pagetable_map`，记录虚拟地址、物理地址和权限。
+
+2026A `ch5-api-impl` 提交 `386f10c55d0285273b78df19c4607c0f475e17a2` 使用
+`ucore-2026a-ch5-observation.patch`，先应用 `ucore-2026a-build.patch`。
+初始化、分配和释放记录空闲与已用页数；`fork` 完成子进程初始化并加入就绪队列后
+记录父子 PID。两条 `swtch` 路径记录进程与 idle 的切换，PTE 写入后记录单页映射。
+
+2026A `ch6-api-impl` 提交 `df045c4455f2dacb81caf39510aed994bf49ade7` 使用
+`ucore-2026a-ch6-observation.patch`，先应用 `ucore-2026a-build.patch`。
+观测位置覆盖物理页分配与释放、成功的 `fork`、调度切换和 PTE 写入。
+用户程序使用参考构建的二进制文件，磁盘镜像也从同一初始副本复制。
+
+该观测补丁也适用于 2026A `ch7-api-impl` 提交
+`c6f384219f334280fd6a4acad2a58ad2222a9d25`。管道分配、关闭、读写和复制函数已有独立入口。
+
+2026A `ch8-api-impl` 提交 `9d4fa96b67b449bc72f6530286b5a438e9de3ce5` 使用
+`ucore-2026a-ch8-observation.patch`，先应用 `ucore-2026a-build.patch`。
+成功的 `fork` 记录父子 PID，线程创建记录当前进程内的父子 TID。调度记录使用线程
+对象地址和进程 PID。物理页计数与 PTE 写入记录沿用前章格式，线程和同步实现保持原样。
+
+`ucore-2026a-ch4-pagetable-experiment.patch` 在初始化内核页表之后运行独立实验：
+建立临时用户页表，映射自有物理页到 `0x4000`，查询页内偏移，再分别用
+`do_free=0` 和 `do_free=1` 解除映射。结束时移除 trampoline 映射并回收页表。
+它与上面的观测补丁配合使用，实验结束后继续运行原有用户批次。
 
 ```sh
 git apply --check /path/to/nodefusion/nodefusion/integrations/ucore-nodefusion.patch

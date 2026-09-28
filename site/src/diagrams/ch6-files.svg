@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 450" role="img" aria-labelledby="title desc">
+  <title id="title">打开文件与 fork 后的引用关系</title>
+  <desc id="desc">父进程两次打开同一文件，fd 3 指向打开对象 A，fd 4 指向打开对象 B。fork 后，子进程的 fd 3 和 fd 4 分别引用原来的 A 和 B。两个对象分别保存偏移，都指向同一索引节点。索引节点保存文件大小、类型与数据块地址。</desc>
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#637a6a" stroke-width="1.5"/></marker></defs>
+  <rect x="1" y="1" width="838" height="448" rx="4" fill="#faf9f6" stroke="#d8d6ce"/>
+  <g font-family="system-ui, sans-serif" font-size="17" fill="#292c28">
+    <text x="26" y="36" font-size="20" font-weight="600">两次 open，随后 fork</text>
+    <text x="28" y="78" font-weight="600">进程的描述符表</text>
+    <text x="320" y="78" font-weight="600">打开的文件对象</text>
+    <text x="647" y="78" font-weight="600">磁盘文件</text>
+    <g fill="#efede6" stroke="#787e74" stroke-width="1.5" stroke-linejoin="round">
+      <path d="M27 94 L215 95 L216 209 L28 208 Z"/>
+      <path d="M28 238 L216 236 L215 352 L27 351 Z"/>
+    </g>
+    <text x="44" y="122" font-weight="600">父进程</text>
+    <text x="44" y="157">fd 3</text><text x="44" y="190">fd 4</text>
+    <text x="44" y="266" font-weight="600">子进程</text>
+    <text x="44" y="300">fd 3</text><text x="44" y="333">fd 4</text>
+    <g fill="#e5eee8" stroke="#637a6a" stroke-width="1.5" stroke-linejoin="round">
+      <path d="M320 106 L550 105 L551 205 L319 206 Z"/>
+      <path d="M319 250 L551 252 L550 352 L320 350 Z" fill="#e8ebef" stroke="#667787"/>
+    </g>
+    <text x="338" y="135" font-weight="600">A</text>
+    <text x="338" y="164">offset：父子共享</text>
+    <text x="338" y="192">读写权限、inode 引用</text>
+    <text x="338" y="280" font-weight="600">B</text>
+    <text x="338" y="310">offset：父子共享</text>
+    <text x="338" y="338">读写权限、inode 引用</text>
+    <path d="M639 166 L812 165 L813 297 L638 299 Z" fill="#efede6" stroke="#787e74" stroke-width="1.5" stroke-linejoin="round"/>
+    <text x="656" y="195" font-weight="600">同一 inode</text>
+    <text x="656" y="225">文件大小</text>
+    <text x="656" y="254">数据块地址</text>
+    <text x="656" y="282">文件类型</text>
+    <g fill="none" stroke-width="1.7" marker-end="url(#arrow)">
+      <path d="M102 152 Q229 131 312 143" stroke="#637a6a"/>
+      <path d="M103 295 C246 295 225 174 312 177" stroke="#637a6a"/>
+      <path d="M103 185 C230 185 222 280 312 283" stroke="#667787"/>
+      <path d="M103 329 Q231 345 312 320" stroke="#667787"/>
+      <path d="M557 156 Q601 162 633 207" stroke="#637a6a"/>
+      <path d="M557 301 Q602 295 633 257" stroke="#667787"/>
+    </g>
+    <text x="28" y="390">A 与 B 分别保存偏移；对 A 的读写不会推进 B 的偏移。</text>
+    <text x="28" y="422">fork 复制描述符引用。关闭一份描述符后，其他引用仍可继续使用该对象。</text>
+  </g>
+</svg>

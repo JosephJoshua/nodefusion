@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 540" role="img" aria-labelledby="title desc">
+  <title id="title">用户上下文与内核切换上下文</title>
+  <desc id="desc">异常入口保存用户寄存器；上下文切换保存内核的 ra、sp 和 s0 到 s11。恢复时先继续内核调用，再返回用户态。</desc>
+  <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M1 1 L8 5 L1 9" fill="none" stroke="#365b51" stroke-width="1.8"/></marker></defs>
+  <rect width="900" height="540" fill="#fafbf8" rx="8"/>
+  <g font-family="'PingFang SC','Microsoft YaHei',sans-serif" fill="#273c35">
+    <text x="34" y="40" font-size="22" font-weight="600">同一任务的两种上下文</text>
+    <text x="34" y="70" font-size="15">保存位置随实现不同，恢复顺序保持一致</text>
+    <g fill="none" stroke="#365b51" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M35 105 L394 106 L395 238 L36 237 Z M38 108 L391 104 L397 235"/>
+      <path d="M503 104 L861 106 L864 238 L504 237 Z M506 107 L860 103 L862 234"/>
+      <path d="M35 343 L395 341 L396 482 L34 483 Z M37 346 L393 345 L398 480"/>
+      <path d="M505 342 L864 343 L862 482 L502 483 Z M507 345 L860 340 L864 479"/>
+      <path d="M215 247 Q213 278 216 327" marker-end="url(#arrow)"/>
+      <path d="M684 247 Q687 283 682 327" marker-end="url(#arrow)"/>
+      <path d="M405 414 Q450 417 490 411" marker-end="url(#arrow)"/>
+    </g>
+    <text x="55" y="142" font-size="20" font-weight="600">用户程序执行</text>
+    <text x="55" y="177" font-size="17">用户寄存器、用户栈、程序位置</text>
+    <text x="55" y="211" font-size="16">系统调用或时钟中断进入内核</text>
+    <text x="525" y="142" font-size="20" font-weight="600">内核处理请求</text>
+    <text x="525" y="177" font-size="17">内核函数调用与内核栈</text>
+    <text x="525" y="211" font-size="16">调度时暂停这条内核执行流</text>
+    <text x="232" y="289" font-size="15">异常入口保存</text>
+    <text x="702" y="289" font-size="15">切换汇编保存</text>
+    <text x="55" y="378" font-size="20" font-weight="600">用户态上下文</text>
+    <text x="55" y="412" font-size="17">rCore：内核栈中的 TrapContext</text>
+    <text x="55" y="446" font-size="17">uCore：静态分配的 trapframe</text>
+    <text x="525" y="378" font-size="20" font-weight="600">内核切换上下文</text>
+    <text x="525" y="412" font-size="17">控制块中的 ra、sp、s0—s11</text>
+    <text x="525" y="446" font-size="17">uCore 另有 idle.context</text>
+    <text x="36" y="519" font-size="16">恢复顺序：恢复内核上下文 → 完成内核处理 → 恢复用户上下文 → sret</text>
+  </g>
+</svg>

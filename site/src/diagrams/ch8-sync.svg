@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 480" role="img" aria-labelledby="title desc">
+  <title id="title">阻塞锁交接与条件变量唤醒</title>
+  <desc id="desc">左侧示意阻塞锁由持有者解锁后交给等待队首线程，锁保持占用。右侧示意条件变量通知只使等待线程就绪，该线程仍需再次取得互斥锁。</desc>
+  <rect width="900" height="480" fill="#fcfaf4"/>
+  <g font-family="sans-serif" fill="#24453f">
+    <text x="42" y="51" font-size="23" font-weight="700">阻塞互斥锁</text><text x="473" y="51" font-size="23" font-weight="700">条件变量</text>
+  </g>
+  <path d="M31 69 Q29 65 39 65 L425 66 Q434 65 433 75 L434 439 Q434 449 424 449 L39 448 Q31 448 31 439 Z" fill="#edf4ef" stroke="#548578" stroke-width="2.2"/>
+  <path d="M463 69 Q462 65 472 65 L862 66 Q870 65 869 76 L870 439 Q870 449 860 448 L472 448 Q463 449 463 438 Z" fill="#edf4ef" stroke="#548578" stroke-width="2.2"/>
+  <g fill="#fffefa" stroke="#648b80" stroke-width="2.2">
+    <path d="M62 105 Q60 95 71 95 L394 96 Q405 96 404 107 L405 171 Q405 181 393 180 L71 181 Q61 181 62 171 Z"/>
+    <path d="M62 222 Q61 212 72 212 L392 213 Q404 212 404 223 L405 285 Q405 296 393 296 L73 296 Q61 295 62 285 Z"/>
+    <path d="M492 105 Q490 95 502 96 L828 96 Q840 95 839 107 L839 170 Q840 181 828 181 L501 181 Q491 181 492 170 Z"/>
+    <path d="M492 223 Q492 212 504 213 L828 212 Q839 213 839 224 L839 287 Q840 297 829 297 L503 297 Q491 297 492 285 Z"/>
+  </g>
+  <g font-family="sans-serif" fill="#24453f" text-anchor="middle">
+    <text x="233" y="128" font-size="19" font-weight="700">A 持锁</text><text x="233" y="157" font-size="15">locked = 1</text>
+    <text x="233" y="246" font-size="19" font-weight="700">等待队列：B → C</text><text x="233" y="275" font-size="15">B、C 暂停运行</text>
+    <text x="665" y="129" font-size="19" font-weight="700">A 在条件变量队列等待</text><text x="665" y="157" font-size="15">进入 wait 时已释放互斥锁</text>
+    <text x="665" y="246" font-size="19" font-weight="700">B 修改条件并 signal</text><text x="665" y="275" font-size="15">A 就绪；B 仍可能持锁</text>
+  </g>
+  <g fill="none" stroke="#346a60" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M232 185 Q224 198 233 205 L231 210"/><path d="M666 185 Q658 198 667 205 L666 210"/></g>
+  <path d="M63 339 Q62 327 74 327 L392 328 Q405 328 405 340 L405 411 Q405 422 393 421 L73 421 Q61 421 62 409 Z" fill="#d9eadc" stroke="#548578" stroke-width="2.2"/>
+  <path d="M492 339 Q492 327 504 328 L828 328 Q839 328 839 340 L839 409 Q840 422 828 422 L503 421 Q492 421 492 409 Z" fill="#d9eadc" stroke="#548578" stroke-width="2.2"/>
+  <g font-family="sans-serif" fill="#24453f" text-anchor="middle">
+    <text x="233" y="359" font-size="19" font-weight="700">A 解锁 → B 持锁</text><text x="233" y="389" font-size="15">locked 仍为 1</text>
+    <text x="665" y="359" font-size="19" font-weight="700">A 重新取得互斥锁</text><text x="665" y="389" font-size="15">然后从 wait 返回并检查条件</text>
+  </g>
+</svg>

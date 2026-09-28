@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 430" role="img" aria-labelledby="title desc">
+  <title id="title">文件偏移到磁盘数据块的索引路径</title>
+  <desc id="desc">文件偏移除以块大小得到逻辑块号。直接索引从 inode 取地址，一级间接索引经一个索引块，二级间接索引经两个索引块。rCore 的块大小为512字节，有27个直接地址和每块128个间接地址。uCore 的块大小为1024字节，有12个直接地址和每块256个间接地址，没有二级间接索引。</desc>
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#637a6a" stroke-width="1.5"/></marker></defs>
+  <rect x="1" y="1" width="838" height="428" rx="4" fill="#faf9f6" stroke="#d8d6ce"/>
+  <g font-family="system-ui, sans-serif" font-size="17" fill="#292c28">
+    <text x="24" y="34" font-size="20" font-weight="600">逻辑块号 = offset / 块大小；块内偏移 = offset % 块大小</text>
+    <g fill="#e5eee8" stroke="#637a6a" stroke-width="1.5" stroke-linejoin="round">
+      <path d="M25 65 L240 64 L241 122 L24 123 Z"/><path d="M650 65 L814 64 L815 123 L649 122 Z"/>
+      <path d="M25 151 L240 152 L239 211 L24 210 Z"/><path d="M331 152 L539 151 L540 211 L330 210 Z"/><path d="M650 151 L814 152 L815 211 L649 210 Z"/>
+      <path d="M25 238 L195 239 L194 297 L24 296 Z"/><path d="M238 239 L407 238 L408 297 L237 296 Z"/><path d="M451 238 L621 239 L620 297 L450 296 Z"/><path d="M664 239 L815 238 L814 297 L663 296 Z"/>
+    </g>
+    <text x="41" y="100">inode 的直接地址</text><text x="674" y="101">数据块</text>
+    <text x="40" y="187">inode 的一级间接地址</text><text x="350" y="187">一级间接块中的地址</text><text x="674" y="188">数据块</text>
+    <text x="40" y="263">inode 的</text><text x="40" y="286">二级间接地址</text><text x="253" y="274">二级间接块</text><text x="466" y="274">一级间接块</text><text x="686" y="274">数据块</text>
+    <g fill="none" stroke="#637a6a" stroke-width="1.7" marker-end="url(#arrow)">
+      <path d="M247 94 Q438 91 642 95"/><path d="M247 182 Q285 179 323 181"/><path d="M547 181 Q591 184 642 181"/>
+      <path d="M200 266 Q215 263 231 266"/><path d="M414 267 Q428 264 444 266"/><path d="M628 267 Q642 270 657 267"/>
+    </g>
+    <text x="24" y="340">rCore：512 字节 / 块，27 个直接地址，128 个地址 / 间接块。</text>
+    <text x="24" y="374">uCore：1024 字节 / 块，12 个直接地址，256 个地址 / 间接块。</text>
+    <text x="24" y="408">uCore 使用前两条路径；rCore 还通过二级间接块扩展文件容量。</text>
+  </g>
+</svg>

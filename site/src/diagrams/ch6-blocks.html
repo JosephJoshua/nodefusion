@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>文件偏移与块索引</title>
+  <link rel="stylesheet" href="switch.css">
+  <link rel="stylesheet" href="blocks.css">
+</head>
+<body>
+  <main>
+    <header>
+      <a id="return-to-lesson" href="../ch6/index.html">返回第六章正文</a>
+      <h1>文件偏移与块索引</h1><span class="example-label">布局计算</span>
+    </header>
+    <section id="controls" hidden aria-label="文件偏移计算">
+      <div class="toolbar">
+        <label>内核 <select id="kernel"><option value="rcore">rCore</option><option value="ucore">uCore</option></select></label>
+        <label class="offset-input">字节偏移 <input id="offset" type="number" min="0" step="1" value="13824" aria-describedby="capacity"></label>
+      </div>
+      <p id="capacity"></p>
+      <div id="boundaries" aria-label="索引边界"></div>
+      <div id="block-path" aria-label="索引查找路径"></div>
+      <p id="result" role="status"></p>
+      <p>索引块保存磁盘块号。图中标出需要访问的地址项；实际磁盘块号由文件 inode 和这些地址项的内容决定。</p>
+    </section>
+    <details id="static-diagram" open>
+      <summary>静态图</summary>
+      <img src="ch6-blocks.svg" width="840" height="430" alt="直接索引从 inode 取得数据块地址；一级间接索引读取一个索引块；二级间接索引依次读取二级与一级索引块。rCore 有三种路径，uCore 有前两种路径。">
+    </details>
+    <p class="source">按第六章参考实现的块大小和索引布局计算。<a href="../ch6/rcore.html#数据块与磁盘布局">rCore 源码分析</a> · <a href="../ch6/ucore.html#数据块与磁盘布局">uCore 源码分析</a></p>
+  </main>
+  <script src="blocks.js"></script>
+</body>
+</html>

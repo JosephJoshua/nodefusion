@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>锁与条件变量</title>
+  <link rel="stylesheet" href="switch.css">
+  <link rel="stylesheet" href="sync.css">
+</head>
+<body>
+  <main>
+    <header><a id="return-to-lesson" href="../ch8/index.html">返回第八章正文</a><h1>锁与条件变量</h1><span class="example-label">按源码模拟</span></header>
+    <section id="controls" hidden aria-label="同步机制模拟">
+      <div class="toolbar">
+        <label>机制 <select id="scenario"><option value="mutex">阻塞锁交接</option><option value="condvar">条件变量唤醒</option><option value="semaphore">信号量许可</option></select></label>
+        <div class="navigation"><button id="previous" type="button">上一步</button><output id="position" aria-label="步骤位置"></output><button id="next" type="button">下一步</button><button id="reset" type="button">重置</button></div>
+      </div>
+      <div class="sync-workspace">
+        <section class="scene" aria-label="线程与同步对象">
+          <div class="thread-row"><div id="thread-a" class="thread-card"><strong>线程 A</strong><span></span></div><div id="thread-b" class="thread-card"><strong>线程 B</strong><span></span></div><div id="thread-c" class="thread-card"><strong>线程 C</strong><span></span></div></div>
+          <div class="flow" aria-hidden="true"><span></span><span></span><span></span></div>
+          <div class="resource-row"><div class="resource-card"><span id="resource-name"></span><strong id="resource-value"></strong></div><div class="resource-card"><span id="queue-name"></span><strong id="queue-value"></strong></div></div>
+        </section>
+        <aside class="step-panel" aria-label="当前步骤"><span class="eyebrow" id="step-label"></span><h2 id="step-title"></h2><p id="step-description" role="status"></p><dl><div><dt>锁或许可</dt><dd id="lock-state"></dd></div><div><dt>等待队列</dt><dd id="wait-state"></dd></div><div><dt>就绪线程</dt><dd id="ready-state"></dd></div></dl></aside>
+      </div>
+    </section>
+    <details id="static-diagram" open><summary>静态图</summary><img src="ch8-sync.svg" width="900" height="480" alt="阻塞锁解锁后把锁交给等待队首线程；条件变量通知只唤醒线程，该线程还需重新获得互斥锁"></details>
+    <p class="source">模型对应第八章两个参考实现的阻塞锁、信号量和条件变量路径。逐步推进的是源码中的状态变化，运行时的实际交错见各章报告。<a href="https://github.com/LearningOS/rCore-Tutorial-Code-2026A/blob/00b2a84360710640fbde595c194a7f2447e755f2/os/src/sync/mutex.rs">rCore 锁</a> · <a href="https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/9d4fa96b67b449bc72f6530286b5a438e9de3ce5/os/sync.c">uCore 同步对象</a></p>
+  </main>
+  <script src="sync.js"></script>
+</body>
+</html>

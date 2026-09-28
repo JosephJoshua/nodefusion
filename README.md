@@ -4,6 +4,8 @@ NodeFusion 记录 QEMU 中运行的操作系统内核，生成可离线打开的
 
 支持 xv6-riscv、rCore、ArceOS、StarryOS 和 uCoreOS。[运行报告](artifacts/)按内核存放。
 
+[操作系统内核分析](site/README.md)按 2026A 参考实现组织 rCore 与 uCore 的八章源码、运行记录和交互图。
+
 ## 开始使用
 
 需要 Python 3.11+、支持 TCG plugin 的 `qemu-system-riscv64`，以及目标内核的编译工具链。从仓库根目录执行：

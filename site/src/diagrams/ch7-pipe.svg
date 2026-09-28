@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 480" role="img" aria-labelledby="title desc">
+  <title id="title">管道端点、环形缓冲区与读写调度</title>
+  <desc id="desc">写端将数据放入共享环形缓冲区，读端按 FIFO 顺序取出。下标到达数组末尾后从零继续。rCore 用 head、tail 和 status，容量32字节；uCore 用 nread、nwrite 的余数作为下标，容量512字节。两者满时主动让出写进程；空且有写端时主动让出读进程。所有写端关闭且数据耗尽时，rCore 返回已读长度，uCore 在空管道上返回负一。</desc>
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#637a6a" stroke-width="1.5"/></marker></defs>
+  <rect x="1" y="1" width="838" height="478" rx="4" fill="#faf9f6" stroke="#d8d6ce"/>
+  <g font-family="system-ui, sans-serif" font-size="17" fill="#292c28">
+    <text x="24" y="35" font-size="20" font-weight="600">两个端点共享一个缓冲区，字节按写入顺序读出</text>
+    <g fill="#e5eee8" stroke="#637a6a" stroke-width="1.5" stroke-linejoin="round">
+      <path d="M25 64 L183 65 L184 124 L24 123 Z"/><path d="M656 65 L815 64 L814 123 L657 124 Z"/>
+      <path d="M273 74 L566 73 L567 128 L272 129 Z"/>
+    </g>
+    <text x="65" y="100">写端</text><text x="696" y="100">读端</text><text x="313" y="107">共享环形缓冲区</text>
+    <g fill="none" stroke="#637a6a" stroke-width="1.7" marker-end="url(#arrow)"><path d="M191 96 Q224 92 263 96"/><path d="M575 96 Q612 100 647 96"/></g>
+    <text x="24" y="163">数组下标</text><text x="24" y="211">0</text><text x="793" y="211">N−1</text>
+    <g stroke="#637a6a" stroke-width="1.5" fill="#faf9f6"><path d="M61 181 L227 182 L228 237 L60 238 Z"/><path d="M228 182 L591 181 L592 238 L227 237 Z" fill="#e5eee8" stroke-dasharray="5 3"/><path d="M592 181 L775 182 L776 237 L591 238 Z"/></g>
+    <text x="110" y="215">空闲</text><text x="365" y="215">未读数据</text><text x="652" y="215">空闲</text>
+    <g fill="none" stroke="#637a6a" stroke-width="1.7" marker-end="url(#arrow)"><path d="M228 278 L228 242"/><path d="M592 278 L592 242"/><path d="M775 242 Q829 285 721 295 L114 295 Q16 290 61 242"/></g>
+    <text x="133" y="277">下一读取位置</text><text x="607" y="277">下一写入位置</text><text x="265" y="324">到达末尾后回到下标 0</text>
+    <text x="24" y="361">rCore：N = 32，head / tail；status 区分下标相等时的空与满。</text>
+    <text x="24" y="392">uCore：N = 512，nread % N / nwrite % N；累计计数的差为未读量。</text>
+    <text x="24" y="427">缓冲区满：写进程让出。缓冲区空且有写端：读进程让出。</text>
+    <text x="24" y="458">写端全部关闭且读空：rCore 返回已读长度；uCore 空读返回 −1。</text>
+  </g>
+</svg>

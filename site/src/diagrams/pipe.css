@@ -1,0 +1,67 @@
+.toolbar { justify-content: start; gap: .5rem 1rem; }
+.toolbar .navigation { margin-left: auto; }
+header .example-label { display: inline-block; }
+#controls[hidden] { display: none; }
+.setup { margin: .75rem 0; }
+.embedded-diagram #return-to-lesson { display: none; }
+.embedded-diagram main { padding-top: .5rem; }
+.pipe-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 2rem; }
+.buffer, .processes { min-width: 0; }
+.buffer h2 { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .25rem; }
+output, #positions, #received { font-variant-numeric: tabular-nums; }
+output { font-size: 1rem; font-weight: 400; }
+.meter { height: 1rem; background: oklch(92% .012 160); border: 1px solid var(--line); }
+#used { height: 100%; display: block; background: var(--accent); }
+.scale { display: flex; justify-content: space-between; color: var(--muted); font-size: .8rem; }
+#ring { display: flex; gap: 2px; margin-top: 1rem; min-height: 3rem; }
+.range { flex-basis: 0; min-width: 3.25rem; display: grid; place-content: center; background: oklch(94% .008 160); border: 1px solid var(--line); font-size: .85rem; }
+.range.occupied { background: var(--selected); border-style: dashed; }
+.legend { font-size: .8rem; color: var(--muted); }
+.occupied-key { display: inline-block; height: .8rem; width: 1rem; border: 1px dashed var(--accent); background: var(--selected); }
+#positions, #received { overflow-wrap: anywhere; }
+.buffer p { margin: .5rem 0; }
+.buffer-details summary { font-size: .875rem; padding: .25rem 0; }
+.process + .process { border-top: 1px solid var(--line); margin-top: 1rem; padding-top: .5rem; }
+.process-tabs { display: none; }
+.process h2 { margin: .5rem 0; }
+.process p { margin: .25rem 0 .75rem; }
+.process label { display: flex; justify-content: space-between; }
+input { width: 7rem; min-width: 0; min-height: 44px; padding: .5rem; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: .3rem; font: inherit; }
+.actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .5rem; }
+#result { margin: 1rem 0 0; padding: .75rem 0; border-block: 1px solid var(--line); min-height: 4rem; }
+@media (max-width: 720px) {
+  .pipe-workspace { grid-template-columns: 1fr; gap: .75rem; }
+  .buffer h2 { margin-top: .5rem; }
+  .toolbar label { min-width: 0; }
+  .toolbar select { min-width: 0; flex: 1; }
+  .toolbar .navigation { width: auto; }
+  .toolbar { position: static; }
+  .example-label { margin: 0 0 .5rem; }
+  .range { min-width: 2.5rem; }
+  .process-tabs { display: flex; gap: .5rem; }
+  .process-tabs button { flex: 1; }
+  .process-tabs button[aria-selected="true"] { background: var(--selected); border-color: var(--accent); font-weight: 600; }
+  .processes[data-actor="writer"] #reader-process, .processes[data-actor="reader"] #writer-process { display: none; }
+  .process { border: 0 !important; margin-top: .5rem !important; padding: 0 !important; }
+  .process h2 { display: none; }
+}
+@media (max-width: 440px) {
+  h1 { font-size: 1.3rem; margin-block: .25rem; }
+  header .example-label { display: block; margin: 0; font-size: .75rem; }
+  .toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; padding: .4rem 0; }
+  .toolbar label:nth-child(2) { grid-row: 2; grid-column: 1 / -1; }
+  .toolbar .navigation { grid-row: 1; grid-column: 2; gap: .3rem; }
+  .toolbar select { padding-inline: .35rem; }
+  .setup { font-size: .8rem; margin: .5rem 0; }
+  .pipe-workspace { gap: .5rem; }
+  .buffer h2 { font-size: 1rem; margin-top: 0; }
+  .buffer output, #positions, #resource, .process p { font-size: .8rem; }
+  .buffer p { margin: .25rem 0; }
+  #ring { margin-top: .5rem; min-height: 2.5rem; }
+  .legend { font-size: .7rem; }
+  .process p { margin-bottom: .5rem; }
+  .process label, .actions button { font-size: .875rem; }
+  .process label input { min-height: 40px; }
+  #result { font-size: .875rem; margin-top: .5rem; padding: .5rem 0; }
+}
+@media print { #controls { display: none; } #static-diagram > img { display: block; } }
