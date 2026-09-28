@@ -41,6 +41,10 @@ def demangle(sym: str) -> str | None:
     return _demangle_legacy(sym) or demangle_v0(sym)
 
 
+def display_name(sym: str) -> str:
+    return demangle(sym) or demangle_v0(sym, impls=True, generics=True) or sym
+
+
 def _demangle_legacy(sym: str) -> str | None:
     s = _LLVM_SUFFIX.sub("", sym)
     if not s.startswith("_ZN") or not s.endswith("E"):

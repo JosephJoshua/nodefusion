@@ -159,6 +159,8 @@ exact_case = { field_type = { type = "mykernel::task::Manager", field = "tasks",
 
 `type_exists` 查询类型。`field_exists` 先查询类型，再查询其直接字段。`field_type` 读取直接字段的类型名，并使用 `starts_with` 或 `equals` 判断。一个 `when` 只写一种谓词。
 
+实体来源的 `when` 还支持 `symbol_exists`、`symbol_missing` 和 `all`。符号谓词查询 ELF `.symtab` 中已定义的原始符号名；缺少符号表时，两种谓词均不成立。`all` 中的条件必须全部成立。例如，早期批处理内核可以同时检查进程类型、进程池和调度入口均未引入，再选择 `kind = "batch"`、`completeness = "none"` 的空来源。
+
 ## source steps
 
 每个 step 表只能有一个步骤名。可用的附加参数为 `via`、`key`、`children`、`link`、`next`、`terminator` 和 `layout`；各步骤只读取下面列出的参数。
@@ -464,7 +466,13 @@ unit unsafecell upsafecell usize variant vec vecdeque weak
 skip_when = { field = "state", equals = "UNUSED" }
 ```
 
-当前只实现 `skip_when.field` 与 `skip_when.equals`。字段读取成功且值等于目标值时排除该实体。字段缺失、为空或无法解码时保留实体。
+`field` 指定判定字段，`equals` 指定单个空槽值。不同版本使用不同名称时，可以用 `one_of` 列出这些值：
+
+```toml
+skip_when = { field = "state", one_of = ["UNUSED", "P_UNUSED"] }
+```
+
+字段读取成功且值匹配时排除该实体。字段缺失、为空或无法解码时保留实体。
 
 ## `[entity.table]`
 

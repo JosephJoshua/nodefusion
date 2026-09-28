@@ -8,13 +8,14 @@ import zlib
 from collections import Counter
 from pathlib import Path
 
-from ..model.symbols import demangle, demangle_v0
+from ..model.symbols import display_name
 from . import guest as guest_mod
 from .analyze import Analysis
 
 MAX_EVENTS = 150_000
 
 MIN_SPARE_EVENTS = 25_000
+MIN_KIND_EVENTS = 64
 
 DIAGNOSTIC_PREFIXES = ("func.",)
 
@@ -57,6 +58,25 @@ class Interner:
         return i
 
 
+def _kind_budgets(counts: dict[str, int], budget: int) -> tuple[dict[str, int], int]:
+    if not counts:
+        return {}, 0
+    floor = min(MIN_KIND_EVENTS, budget // len(counts))
+    if floor == 0:
+        return {kind: int(index < budget) for index, kind in enumerate(counts)}, 0
+    quotas = {kind: min(count, floor) for kind, count in counts.items()}
+    remaining = budget - sum(quotas.values())
+    residual_total = sum(counts.values()) - sum(quotas.values())
+    cumulative = 0
+    if residual_total:
+        for kind, count in counts.items():
+            residual = count - quotas[kind]
+            quotas[kind] += ((cumulative + residual) * remaining // residual_total
+                             - cumulative * remaining // residual_total)
+            cumulative += residual
+    return quotas, floor
+
+
 def _event_selection(events: list, *, materialize: bool) -> tuple[list, dict]:
     """Bound the interactive event stream while auditing the full raw trace."""
     raw_kinds = Counter(e.kind for e in events)
@@ -65,7 +85,7 @@ def _event_selection(events: list, *, materialize: bool) -> tuple[list, dict]:
     if len(events) <= MAX_EVENTS:
         return (events if materialize else []), {
             "applied": False,
-            "policy": "kind-preserving/systematic-v3",
+            "policy": "kind-preserving/systematic-v5",
             "raw": len(events), "retained": len(events), "dropped": 0,
             "target_limit": MAX_EVENTS, "minimum_spare": MIN_SPARE_EVENTS,
             "always_keep": "all events when the raw stream fits",
@@ -77,37 +97,32 @@ def _event_selection(events: list, *, materialize: bool) -> tuple[list, dict]:
         }
 
     spare_raw = len(events) - priority_raw
-    semantic_kinds = {k for k in raw_kinds if _is_semantic(k)}
-    reserved_spare = min(MIN_SPARE_EVENTS, spare_raw)
+    semantic_counts = {k: count for k, count in raw_kinds.items() if _is_semantic(k)}
+    reserved_spare = min(MIN_SPARE_EVENTS, spare_raw, MAX_EVENTS)
     priority_budget = min(priority_raw, MAX_EVENTS - reserved_spare)
+    quotas, kind_floor = _kind_budgets(semantic_counts, priority_budget)
     room = MAX_EVENTS - priority_budget
-    step = max(1, spare_raw // room) if room > 0 and spare_raw else 1
+    diagnostic_counts = {k: count for k, count in raw_kinds.items() if not _is_semantic(k)}
+    diagnostic_quotas, diagnostic_floor = _kind_budgets(diagnostic_counts, min(room, spare_raw))
+    quotas.update(diagnostic_quotas)
     chosen: list = []
     retained_kinds: Counter = Counter()
     dropped_kinds: dict[str, int] = {}
-    spare_seen = 0
-    spare_kept = 0
     semantic_seen = 0
-    first_kinds: set[str] = set()
-    nonfirst_seen = 0
-    nonfirst_total = priority_raw - len(semantic_kinds)
-    nonfirst_budget = max(0, priority_budget - len(semantic_kinds))
+    seen_by_kind: Counter = Counter()
     for e in events:
         if _is_semantic(e.kind):
             semantic_seen += 1
-            if e.kind not in first_kinds:
-                first_kinds.add(e.kind)
-                retain = len(first_kinds) <= priority_budget
-            else:
-                retain = (nonfirst_total > 0 and
-                          (nonfirst_seen + 1) * nonfirst_budget // nonfirst_total
-                          > nonfirst_seen * nonfirst_budget // nonfirst_total)
-                nonfirst_seen += 1
+        seen = seen_by_kind[e.kind]
+        seen_by_kind[e.kind] += 1
+        quota = quotas[e.kind]
+        total = raw_kinds[e.kind]
+        if seen == 0:
+            retain = quota > 0
         else:
-            retain = room > 0 and spare_kept < room and spare_seen % step == 0
-            spare_seen += 1
-            if retain:
-                spare_kept += 1
+            retain = (quota > 1 and
+                      seen * (quota - 1) // (total - 1)
+                      > (seen - 1) * (quota - 1) // (total - 1))
         if retain:
             retained_kinds[e.kind] += 1
             if materialize:
@@ -120,15 +135,19 @@ def _event_selection(events: list, *, materialize: bool) -> tuple[list, dict]:
 
     return chosen, {
         "applied": True,
-        "policy": "kind-preserving/systematic-v3",
+        "policy": "kind-preserving/systematic-v5",
         "raw": len(events), "retained": retained, "dropped": dropped,
         "target_limit": MAX_EVENTS, "minimum_spare": MIN_SPARE_EVENTS,
-        "always_keep": "first event of each normalized kind within budget",
+        "always_keep": "all events of kinds whose count fits their per-kind budget",
         "priority_raw": priority_raw, "spare_raw": spare_raw,
         "semantic_budget": priority_budget,
+        "minimum_per_kind": kind_floor,
+        "semantic_kind_budgets": {k: quotas[k] for k in sorted(semantic_counts)},
+        "diagnostic_kind_budgets": dict(sorted(diagnostic_quotas.items())),
+        "minimum_per_diagnostic_kind": diagnostic_floor,
         "semantic_retained": semantic_seen - sum(v for k, v in dropped_kinds.items()
                                                 if _is_semantic(k)),
-        "spare_budget": room, "stride": step if room > 0 and spare_raw else None,
+        "spare_budget": room, "stride": None,
         "retained_kinds": dict(sorted(retained_kinds.items())),
         "dropped_kinds": dict(sorted(dropped_kinds.items())),
     }
@@ -493,7 +512,11 @@ def build(a: Analysis) -> dict:
         a.events, getattr(a.trace, "function_returns", ()), a.elf,
         retained_ids={id(e) for e in events})
     metrics = a.metrics()
-    caller_cache: dict[str, str] = {}
+    display_cache: dict[str, str] = {}
+    def display(raw):
+        if raw not in display_cache:
+            display_cache[raw] = display_name(raw)
+        return display_cache[raw]
 
     ev = {
         "insn": [], "cpu": [], "kind": [], "res": [], "pid": [],
@@ -508,19 +531,14 @@ def build(a: Analysis) -> dict:
         ev["res"].append(res_i(e.resource))
         ev["pid"].append(e.pid if e.pid is not None else -1)
         ev["pc"].append(e.pc or 0)
-        ev["func"].append(fn(e.func))
+        ev["func"].append(fn(display(e.func)) if e.func else fn(None))
         ev["entry"].append(1 if e.function_entry else 0)
-        ev["entry_name"].append(fn(e.entry_name) if e.entry_name else -1)
+        ev["entry_name"].append(fn(display(e.entry_name)) if e.entry_name else -1)
         caller = None
         if e.function_entry and e.return_address and a.elf is not None:
             raw, _ = a.elf.resolve_pc(e.return_address)
             if raw:
-                caller = caller_cache.get(raw)
-                if caller is None:
-                    caller = (demangle(raw)
-                              or demangle_v0(raw, impls=True, generics=True)
-                              or raw)
-                    caller_cache[raw] = caller
+                caller = display(raw)
         ev["caller"].append(fn(caller) if caller else -1)
         path = stack_paths.get(id(e))
         ev["stack"].append([fn(label) for label in path] if path else None)
@@ -657,10 +675,15 @@ def build(a: Analysis) -> dict:
 
 def _samples(a: Analysis) -> dict:
     fn = Interner()
+    labels = {}
     out = {"insn": [], "cpu": [], "pc": [], "priv": [], "func": []}
     step = max(1, len(a.trace.samples) // 20000)
     for s in a.trace.samples[::step]:
         name, _ = a.elf.resolve_pc(s.pc)
+        if name:
+            if name not in labels:
+                labels[name] = display_name(name)
+            name = labels[name]
         out["insn"].append(s.insn)
         out["cpu"].append(s.cpu)
         out["pc"].append(s.pc)

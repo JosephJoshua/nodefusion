@@ -40,6 +40,49 @@ def test_rcore_booted_needs_the_kernel_marker(console, booted):
     assert K.by_kind('rcore').booted(console) is booted
 
 
+@pytest.mark.parametrize("marker", ["ALL DONE", "all app are over!", "all apps over"])
+def test_ucore_batch_completion(marker):
+    assert K.by_kind('ucore').classify(f"[PANIC 5] os/loader.c:14: {marker}\n") == 'completed'
+
+
+@pytest.mark.parametrize("console, booted", [
+    ("\x1b[34m[INFO 0]start scheduler!\x1b[0m\n", True),
+    ("C user shell\n>> ", True),
+    ("OpenSBI v1.7\n", False),
+])
+def test_ucore_shell_and_scheduler_boot_markers(console, booted):
+    assert K.by_kind('ucore').booted(console) is booted
+
+
+def test_ucore_batch_without_completion_is_not_complete():
+    assert K.by_kind('ucore').classify("start scheduler!\nTest write A OK!\n") == 'qemu_exited'
+
+
+@pytest.mark.parametrize('diagnostic', ['IllegalInstruction in application, core dumped.',
+                                      '[PANIC 0] user assertion failed'])
+def test_ucore_user_diagnostics_are_not_kernel_stop_markers(diagnostic):
+    profile = K.by_kind('ucore')
+    assert profile.booted('hello wrold!\n')
+    assert profile.classify(diagnostic) == 'qemu_exited'
+    assert profile.classify(diagnostic + '\nALL DONE\n') == 'completed'
+
+
+def test_ucore_headless_keeps_recording_after_user_fault(monkeypatch):
+    from types import SimpleNamespace
+    from nodefusion.host.record import Recorder
+
+    reader = SimpleNamespace(eof=False)
+    consoles = iter(['hello wrold!\nIllegalInstruction in application, core dumped.\n',
+                     'hello wrold!\nIllegalInstruction in application, core dumped.\nALL DONE\n'])
+    reader.text = lambda: next(consoles)
+    monkeypatch.setattr('nodefusion.host.record.time.sleep', lambda seconds: None)
+    recorder = Recorder.__new__(Recorder)
+    recorder.cfg = SimpleNamespace(timeout=10, boot_timeout=5)
+    recorder.profile = K.by_kind('ucore')
+    process = SimpleNamespace(poll=lambda: None)
+    assert recorder._drive_headless(process, reader) == 'completed'
+
+
 # ----------------------------------------------------------------- xv6 classify
 
 def test_xv6_panic():

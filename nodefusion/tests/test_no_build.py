@@ -48,7 +48,7 @@ def test_it_records_without_building(tmp_path):
     assert "跳过构建" in out
 
 
-def test_it_says_out_loud_that_nothing_was_built(tmp_path):
+def test_warning_identifies_the_existing_build_and_checksum_record(tmp_path):
     r = _recorder(tmp_path, _tree(tmp_path))
     r.build_kernel()
     assert len(r.warnings) == 1
@@ -56,7 +56,8 @@ def test_it_says_out_loud_that_nothing_was_built(tmp_path):
     assert "--no-build" in w
     assert "kernel.elf" in w
     assert "UTC" in w
-    assert "没人验证过" in w
+    assert "这次没有编译" in w
+    assert "kernel_elf_identity" in w
 
 
 def test_a_missing_elf_is_fatal(tmp_path):

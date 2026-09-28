@@ -399,6 +399,10 @@ class Recorder:
                     f"内核自己按顺序跑完所有应用，没有地方喂命令。")
 
 
+    @property
+    def interactive_workload(self) -> bool:
+        return self.profile.interactive and bool(self.cfg.program) and self.cfg.program != NO_PROGRAM
+
     def effective_lab_stage(self) -> int | None:
         if self.cfg.lab_stage is not None:
             return self.cfg.lab_stage
@@ -445,8 +449,7 @@ class Recorder:
                 f"--no-build：这次没有编译，直接用了现成的 "
                 f"{self.kernel_elf_path}（修改时间 "
                 f"{mt.strftime('%Y-%m-%d %H:%M UTC')}）。"
-                "也就是说**没人验证过这份二进制是当前源码编出来的**；"
-                "它可能是任何时候留下的。ELF 指纹见 kernel_elf_identity。")
+                "ELF 校验和见 kernel_elf_identity。")
             return "(--no-build：跳过构建)"
 
         mv = self._make_var_string()
@@ -571,7 +574,7 @@ class Recorder:
 
         outcome = "unknown"
         try:
-            if not self.profile.interactive:
+            if not self.interactive_workload:
                 outcome = self._drive_headless(proc, reader)
             else:
                 outcome = self._drive_shell(proc, reader)
@@ -738,7 +741,7 @@ class Recorder:
             # An interactive shell's exec sequence cannot identify the host
             # command without a dedicated marker.
             prog_start = _program_start_from_trace(
-                tr, wl_json, interactive=self.profile.interactive)
+                tr, wl_json, interactive=self.interactive_workload)
             tmp_trace.unlink(missing_ok=True)
         if total <= 0:
             raise RecordError(
@@ -835,7 +838,7 @@ class Recorder:
                 calibration_path, calibration_wl.to_json())
 
         focus_start = _snapshot_focus_start(
-            prog_start, calibrated_total, interactive=self.profile.interactive)
+            prog_start, calibrated_total, interactive=self.interactive_workload)
 
         if c.snap_insns is not None:
             snap_insns = c.snap_insns
@@ -909,7 +912,7 @@ class Recorder:
             "snap_start_insn": snap_start,
             "program_start_insn": prog_start,
             "snapshot_focus": ("interactive_tail_15pct" if
-                               self.profile.interactive and not prog_start and
+                               self.interactive_workload and not prog_start and
                                c.snap_start is None and calibrated_total else
                                "program_boundary" if prog_start else "uniform"),
             "calibrated_total_insns": calibrated_total,

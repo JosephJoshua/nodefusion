@@ -1,9 +1,46 @@
 from pathlib import Path
 from types import SimpleNamespace
 
-from nodefusion.host.record import (Recorder, RunConfig, _calibration_watchlist,
+import pytest
+
+from nodefusion.host.record import (NO_PROGRAM, Recorder, RunConfig, _calibration_watchlist,
                                     _program_start_from_trace,
                                     _snapshot_focus_start)
+
+
+@pytest.mark.parametrize('capability,program,expected', [
+    (True, NO_PROGRAM, 'headless'),
+    (True, '', 'headless'),
+    (True, 'usertest', 'shell'),
+    (False, 'usertest', 'headless'),
+])
+def test_driver_uses_workload_mode_not_only_kernel_capability(monkeypatch, tmp_path,
+                                                             capability, program, expected):
+    class Reader:
+        def __init__(self, *args):
+            pass
+
+        def start(self):
+            pass
+
+        def join(self, **kwargs):
+            pass
+
+        def text(self):
+            return ''
+
+    monkeypatch.setattr('nodefusion.host.record._ConsoleReader', Reader)
+    recorder = Recorder.__new__(Recorder)
+    recorder.cfg = SimpleNamespace(program=program)
+    recorder.profile = SimpleNamespace(interactive=capability)
+    process = SimpleNamespace(stdout=None, stderr=None, poll=lambda: 0)
+    recorder.sh = SimpleNamespace(popen=lambda cmd: process)
+    recorder._qemu_cmd = lambda *args: 'qemu'
+    recorder._drive_headless = lambda *args: 'headless'
+    recorder._drive_shell = lambda *args: 'shell'
+    outcome, _, _ = recorder._drive(tmp_path / 'trace.nfb', None, 100,
+                                    tmp_path / 'console.log', tmp_path / 'qemu.log')
+    assert outcome == expected
 from nodefusion.host.watchlist import NFTRACE_COMMIT, WatchEntry, WatchList
 
 

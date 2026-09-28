@@ -17,7 +17,7 @@ KINDS: frozenset[str] = frozenset({
     "inode.write",
     "interrupt.clock", "interrupt.dispatch", "interrupt.external",
     "interrupt.other", "interrupt.software", "interrupt.timer",
-    "kernel.alloc_error", "kernel.panic",
+    "kernel.alloc_error", "kernel.panic", "kernel.shutdown",
     "log.begin", "log.commit", "log.end", "log.install", "log.recover",
     "log.write", "log.write_blocks",
     "pagetable.freewalk", "pagetable.map", "pagetable.new", "pagetable.unmap",

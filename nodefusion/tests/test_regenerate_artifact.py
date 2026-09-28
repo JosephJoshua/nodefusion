@@ -17,6 +17,27 @@ EXPECTED_RUNS = {
     *{f"rcore-ch{n}" for n in range(1, 9)},
     *{f"ucore-ch{n}" for n in range(1, 9)},
 }
+COURSE_RUNS = {"rcore-2026A-ch3-observed", "ucore-2026A-ch3-batch",
+               "rcore-2026A-ch1-verified", "ucore-2026A-ch1-verified",
+               "rcore-2026A-ch2-reference", "ucore-2026A-ch2-reference",
+               "ucore-2026A-ch2-stack-fixed", "ucore-2026A-ch2-faults",
+               "rcore-2026A-ch4-observed", "ucore-2026A-ch4-observed",
+               "ucore-2026A-ch4-pagetable",
+               "rcore-2026A-ch5-basic-observed-v2",
+               "rcore-2026A-ch5-extended-observed-v2",
+               "ucore-2026A-ch5-observed",
+               "rcore-2026A-ch6-basic-observed",
+               "rcore-2026A-ch6-extended-observed",
+               "ucore-2026A-ch6-basic-observed",
+               "rcore-2026A-ch7-basic-observed",
+               "rcore-2026A-ch7-signals-peer-observed",
+               "rcore-2026A-ch7-signals-all-observed",
+               "rcore-2026A-ch7-redirect-observed",
+               "ucore-2026A-ch7-basic-observed",
+               "ucore-2026A-ch7-pipe-probe-observed",
+               "rcore-2026A-ch8-basic-observed-v3",
+               "rcore-2026A-ch8-extended-observed-v3",
+               "ucore-2026A-ch8-basic-observed"}
 
 
 def report_sidecars():
@@ -43,12 +64,39 @@ def record_from(path):
 
 def test_all_chapter_and_app_artifacts_are_present():
     entries = report_sidecars()
-    assert len(entries) == 24
+    assert len(entries) == len(EXPECTED_RUNS) + len(COURSE_RUNS)
     runs = {record_from(path)["run"] for path, _ in entries}
-    assert len(runs) == 24
+    assert len(runs) == len(entries)
+    assert COURSE_RUNS <= runs
     normalized = {name if not name.startswith(("rcore-", "ucore-"))
                   else "-".join(name.split("-")[:2]) for name in runs}
     assert EXPECTED_RUNS <= normalized
+
+
+def test_course_artifacts_keep_commands_source_identity_and_raw_counts():
+    records = [record for path, _ in report_sidecars()
+               if (record := json.loads(path.read_text())).get("schema") == "nodefusion.education-recording/1"]
+    assert {record["run"] for record in records} == COURSE_RUNS
+    for record in records:
+        assert record["schema"] == "nodefusion.education-recording/1"
+        expected = {"rcore-2026A-ch1-verified": "qemu_exited",
+                    "ucore-2026A-ch2-reference": "timeout"}.get(record["run"], "completed")
+        assert record["outcome"] == expected and record["trace_complete"]
+        assert len(record["source"]["kernel_commit"]) == 40
+        assert len(record["source"]["plugin_sha256"]) == 64
+        assert "--watch-all" in record["record_command"]
+        assert "--function-returns" in record["record_command"]
+        observations = record["observations"]
+        if observations.get("schema") == "nodefusion.thread-observations/1":
+            assert observations["inputs"]["trace.nfb"] == record["report"]["source_sha256"]["trace.nfb"]
+            assert observations["inputs"]["manifest.json"] == record["report"]["source_sha256"]["manifest.json"]
+            assert observations["record_counts"]["nftrace"] == sum(observations["nftrace_counts"].values())
+        elif observations.get("schema") == "nodefusion.process-observations/1":
+            assert observations["trace_sha256"] == record["report"]["source_sha256"]["trace.nfb"]
+            assert observations["manifest_sha256"] == record["report"]["source_sha256"]["manifest.json"]
+            assert record["analysis_source"]["event_selection"] == record["report"]["event_selection"]
+        else:
+            assert observations["raw_events"] == record["report"]["event_selection"]["raw"]
 
 
 def test_tracecomplete_reuses_its_recording_folder():

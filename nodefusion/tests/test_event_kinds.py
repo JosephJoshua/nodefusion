@@ -104,6 +104,23 @@ def test_a_manifest_without_the_section_still_loads(tmp_path):
     assert _load(tmp_path, "").events == {}
 
 
+def test_ucore_shutdown_is_not_a_panic_or_an_argument_bearing_call():
+    man = M.load(DRAFTS / "ucore.toml")
+    event = man.events["shutdown"]
+    assert event.kind == "kernel.shutdown"
+    assert event.args == []
+    watches = [w for w in man.watches if "shutdown" in w.match.get("fn", [])]
+    assert watches and all(w.args == 0 for w in watches)
+    for name, symbol in [("xv6", "panic"), ("rcore", "os::lang_items::panic")]:
+        assert M.load(DRAFTS / f"{name}.toml").events[symbol].kind == "kernel.panic"
+
+
+def test_new_manifest_does_not_relabel_a_historical_recording():
+    events = M.load(DRAFTS / "ucore.toml").events
+    assert event_shape("shutdown", {"kind": "kernel.panic", "params": ["reason"]},
+                       kernel_kind="ucore", events=events)[0] == "kernel.panic"
+
+
 
 def _shape(name, *, kind="", resource="kernel", params=(), kernel):
     entry = {"resource": resource, "params": list(params)}

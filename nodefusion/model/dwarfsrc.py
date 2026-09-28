@@ -99,6 +99,10 @@ class DwarfSource:
         if not elf.has_dwarf_info():
             raise RuntimeError(f"{self.path} 里没有调试信息（.debug_info）")
         self.e_machine = elf.header["e_machine"]
+        symtab = elf.get_section_by_name('.symtab')
+        self.defined_symbols = (None if symtab is None else
+                                {s.name for s in symtab.iter_symbols()
+                                 if s.name and s['st_shndx'] != 'SHN_UNDEF'})
         self._exec_ranges = self._exec_sections(elf)
         self._parse(elf.get_dwarf_info())
         self._index_short()

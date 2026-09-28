@@ -1,5 +1,6 @@
 
 import sys
+from collections import Counter
 from pathlib import Path
 from types import SimpleNamespace as NS
 
@@ -73,6 +74,23 @@ def test_caller_names_demangle_rust_trait_impls():
         "starry_kernel::mm::aspace::backend::cow::CowBackend::clone_map"
 
 
+def test_raw_function_entry_and_pc_names_share_readable_labels():
+    raw = '_ZN2os4root17h1234567890abcdefE'
+    a = _analysis(_state())
+    event = Event(1, 0, 'func.root', 'function', func=raw,
+                  function_entry=True, entry_name=raw, return_address=0x80001000)
+    a.elf = NS(resolve_pc=lambda addr: (raw, 0))
+    a.events = [event]
+    a.trace.samples = [NS(insn=1, cpu=0, pc=0x80001000, priv=1)]
+    result = B.build(a)
+    funcs = result['dict']['funcs']
+    for key in ['func', 'entry_name', 'caller']:
+        assert funcs[result['events'][key][0]] == 'os::root'
+    assert event.entry_name == raw
+    assert event.func == raw
+    assert result['samples']['funcs'][result['samples']['func'][0]] == 'os::root'
+
+
 def test_resources_is_always_there_even_when_empty():
     b = B.build(_analysis(_state(reason="没声明")))
     assert b["states"][0]["resources"] == []
@@ -144,7 +162,8 @@ def test_event_selection_metadata_accounts_for_every_raw_event(monkeypatch):
     assert audit["priority_raw"] == 4
     assert audit["spare_raw"] == 26
     assert audit["spare_budget"] == 6
-    assert audit["stride"] == 4
+    assert audit["stride"] is None
+    assert audit['diagnostic_kind_budgets'] == {'func.hot_path': 6}
     assert sum(audit["retained_kinds"].values()) == audit["retained"]
     assert sum(audit["dropped_kinds"].values()) == audit["dropped"]
     assert [e.insn for e in selected[:4]] == [0, 1, 2, 3]
@@ -156,10 +175,9 @@ def test_bounded_selector_preserves_order_and_systematic_sample(monkeypatch):
     events = [NS(kind=("proc.fork" if i in {2, 7} else "func.hot"), insn=i)
               for i in range(12)]
     selected, audit = B._select_events(events)
-    # Ten diagnostics, four spare slots => old spare[::2][:4], interleaved
-    # with both semantic events in original timeline order.
-    assert [event.insn for event in selected] == [0, 2, 3, 5, 7, 8]
-    assert audit["stride"] == 2
+    # Four per-kind positions include the first and last diagnostic entries.
+    assert [event.insn for event in selected] == [0, 2, 4, 7, 8, 11]
+    assert audit["stride"] is None
     assert audit["retained"] == 6
 
 
@@ -176,6 +194,79 @@ def test_large_semantic_stream_stays_browser_bounded(monkeypatch):
     assert audit["semantic_retained"] == 7
     assert audit["dropped_kinds"]["syscall.enter"] == 74
     assert audit["raw"] == audit["retained"] + audit["dropped"]
+
+
+def test_rare_semantic_events_survive_hot_kinds_without_kernel_allowlists(monkeypatch):
+    monkeypatch.setattr(B, 'MAX_EVENTS', 200)
+    monkeypatch.setattr(B, 'MIN_SPARE_EVENTS', 25)
+    events = [NS(kind='pagetable.map', insn=i) for i in range(5000)]
+    events += [NS(kind='future_namespace.branch', insn=5000 + i) for i in range(13)]
+    events += [NS(kind='trap.page_fault', insn=5013 + i) for i in range(4)]
+    events += [NS(kind='func.loop', insn=5017 + i) for i in range(1000)]
+    selected, audit = B._select_events(events)
+    assert len(selected) == audit['retained'] == 200
+    assert audit['retained_kinds']['future_namespace.branch'] == 13
+    assert audit['retained_kinds']['trap.page_fault'] == 4
+    assert audit['retained_kinds']['func.loop'] == 25
+    assert audit['semantic_retained'] == 175
+    assert audit['semantic_kind_budgets']['pagetable.map'] == 158
+    hot = [item.insn for item in selected if item.kind == 'pagetable.map']
+    assert hot[0] == 0 and hot[-1] == 4999
+    assert [item.insn for item in selected] == sorted(item.insn for item in selected)
+    assert B._select_events(events)[0] == selected
+    empty, accounting = B._event_selection(events, materialize=False)
+    assert empty == [] and accounting == audit
+    for kind, count in Counter(item.kind for item in events).items():
+        assert audit['retained_kinds'].get(kind, 0) + audit['dropped_kinds'].get(kind, 0) == count
+
+
+def test_more_semantic_kinds_than_slots_is_still_bounded(monkeypatch):
+    monkeypatch.setattr(B, 'MAX_EVENTS', 7)
+    monkeypatch.setattr(B, 'MIN_SPARE_EVENTS', 2)
+    events = [NS(kind=f'new.kind{i}', insn=i) for i in range(20)]
+    events += [NS(kind='func.noise', insn=20 + i) for i in range(20)]
+    selected, audit = B._select_events(events)
+    assert len(selected) == 7
+    assert audit['semantic_retained'] == 5 and audit['retained_kinds']['func.noise'] == 2
+    assert sum(audit['semantic_kind_budgets'].values()) == 5
+    assert [item.kind for item in selected[:5]] == [f'new.kind{i}' for i in range(5)]
+    assert sum(audit['dropped_kinds'].values()) == 33
+    assert B._event_selection(events, materialize=False)[1] == audit
+
+
+def test_rare_function_entries_survive_hot_diagnostic_functions(monkeypatch):
+    monkeypatch.setattr(B, 'MAX_EVENTS', 100)
+    monkeypatch.setattr(B, 'MIN_SPARE_EVENTS', 25)
+    events = [NS(kind='syscall.enter', insn=i) for i in range(1000)]
+    events += [NS(kind='func.format', insn=1000 + i) for i in range(2000)]
+    events += [NS(kind='func.unmap', insn=3000 + i) for i in range(2)]
+    selected, audit = B._select_events(events)
+    assert len(selected) == 100
+    assert audit['retained_kinds']['func.unmap'] == 2
+    assert audit['retained_kinds']['func.format'] == 23
+    assert not audit['dropped_kinds'].get('func.unmap')
+    assert selected[-1] is events[-1]
+
+
+def test_kind_quotas_use_the_budget_without_exceeding_raw_counts():
+    for counts in [{'one': 1}, {'a': 2, 'b': 1000, 'c': 9},
+                   {str(index): index + 1 for index in range(100)}]:
+        total = sum(counts.values())
+        for budget in range(min(total, 300) + 1):
+            quotas, floor = B._kind_budgets(counts, budget)
+            assert sum(quotas.values()) == budget
+            assert all(0 <= quotas[kind] <= count for kind, count in counts.items())
+            assert all(quotas[kind] == count for kind, count in counts.items() if count <= floor)
+
+
+def test_diagnostic_reservation_cannot_exceed_total_budget(monkeypatch):
+    monkeypatch.setattr(B, 'MAX_EVENTS', 4)
+    monkeypatch.setattr(B, 'MIN_SPARE_EVENTS', 25)
+    events = [NS(kind='syscall.enter', insn=0)]
+    events += [NS(kind='func.hot', insn=i) for i in range(1, 30)]
+    selected, audit = B._select_events(events)
+    assert len(selected) == 4 and audit['semantic_budget'] == 0
+    assert audit['dropped_kinds']['syscall.enter'] == 1
 
 
 def test_interactive_sampling_does_not_erase_raw_semantic_coverage(monkeypatch):

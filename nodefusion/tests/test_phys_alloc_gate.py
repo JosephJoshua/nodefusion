@@ -128,6 +128,51 @@ def test_sched_semantic_record_fills_both_endpoints_without_snapshots():
     assert event.detail["from_proc"] == "kernel-task#41"
     assert event.detail["to_task_id"] == 42
     assert event.detail["to_pid"] == 7
+    assert event.pid == 7
+    assert a._attribute(0, -1, {}) == (7, "task#7")
+
+
+def test_semantic_switch_attribution_survives_missing_and_reused_snapshot_slots():
+    a = object.__new__(A.Analysis)
+    a._pid_by_slot_at = lambda *_: (99, "stale slot")
+    slots = {0: 3, 1: 4}
+    assert a._attribute(0, 0, slots) == (99, "stale slot")
+    a._nftrace_event(NfTraceRec(insn=100, cpu=0, type=a.NFT_SCHED_SWITCH,
+                              a=(10, 20, a.NFT_NO_TASK, 7)), -1, slots)
+    assert a._attribute(0, -1, {}) == (7, "task#7")
+    assert a._attribute(0, 200, slots) == (7, "task#7")
+    assert a._attribute(1, 0, slots) == (99, "stale slot")
+    alloc = a._nftrace_event(NfTraceRec(insn=101, cpu=0, type=a.NFT_KALLOC,
+                                      a=(0x81234000, 1, 9, 1)), -1, {})
+    assert alloc.pid == 7
+
+
+def test_semantic_switches_track_each_cpu_and_distinguish_pid_zero_from_idle():
+    a = object.__new__(A.Analysis)
+    for cpu, pid in [(0, 0), (1, 7)]:
+        a._nftrace_event(NfTraceRec(insn=100 + cpu, cpu=cpu, type=a.NFT_SCHED_SWITCH,
+                                  a=(10 + cpu, 20 + cpu, a.NFT_NO_TASK, pid)), -1, {})
+    assert a._attribute(0, -1, {}) == (0, "task#0")
+    assert a._attribute(1, -1, {}) == (7, "task#7")
+    a._nftrace_event(NfTraceRec(insn=102, cpu=0, type=a.NFT_SCHED_SWITCH,
+                              a=(20, 10, 0, a.NFT_NO_TASK)), -1, {})
+    assert a._attribute(0, -1, {}) == (None, "kernel-task#10")
+    assert a._attribute(1, -1, {}) == (7, "task#7")
+
+
+def test_rebuilding_events_resets_semantic_ownership_without_using_future_switches():
+    a = object.__new__(A.Analysis)
+    a.ncpu = 1
+    a.states = []
+    a.events = []
+    a._semantic_current = {0: (99, "previous analysis")}
+    a.trace = NS(discons=[], watch_hits=[], nftrace=[
+        NfTraceRec(insn=1, cpu=0, type=a.NFT_KALLOC, a=(0x81234000, 1, 9, 1)),
+        NfTraceRec(insn=2, cpu=0, type=a.NFT_SCHED_SWITCH, a=(10, 20, a.NFT_NO_TASK, 7)),
+        NfTraceRec(insn=3, cpu=0, type=a.NFT_KALLOC, a=(0x81235000, 1, 8, 2)),
+    ])
+    a.build_events()
+    assert [event.pid for event in a.events] == [None, 7, 7]
 
 
 def test_kfree_semantic_record_has_physical_range():

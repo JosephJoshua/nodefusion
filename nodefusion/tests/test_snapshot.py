@@ -235,6 +235,19 @@ def test_liveness_only_skips_on_an_exact_match():
     assert is_live(E(2149793408), spec)
 
 
+def test_liveness_supports_declared_state_names_across_kernel_versions():
+    from nodefusion.model.snapshot import Entity
+
+    spec = {"skip_when": {"field": "state", "one_of": ["UNUSED", "P_UNUSED"]}}
+    for value, live in (("UNUSED", False), ("P_UNUSED", False),
+                        ("RUNNABLE", True), ("P_RUNNING", True), (0, True)):
+        entity = Entity("process", 0, fields={"state": Field("state", PRESENT, value)})
+        assert is_live(entity, spec) is live
+    for state in (ABSENT, EMPTY, UNDECODABLE):
+        entity = Entity("process", 0, fields={"state": Field("state", state)})
+        assert is_live(entity, spec)
+
+
 @needs_elf
 def test_entity_count_comes_from_dwarf_not_a_constant(xv6):
     dw, m, res, syms = xv6

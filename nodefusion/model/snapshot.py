@@ -68,6 +68,8 @@ def is_live(entity: Entity, liveness: dict | None) -> bool:
         return True
     if "equals" in sw:
         return f.value != sw["equals"]
+    if "one_of" in sw:
+        return f.value not in sw["one_of"]
     return True
 
 

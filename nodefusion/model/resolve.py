@@ -127,6 +127,24 @@ def resolve_path(dw: DwarfSource, start: StructLayout, path: str,
 def eval_when(dw: DwarfSource, pred: dict | None) -> tuple[bool, str]:
     if not pred:
         return True, "无条件"
+    if not isinstance(pred, dict) or len(pred) != 1:
+        return False, "when 需要一种谓词"
+    if 'all' in pred:
+        children = pred['all']
+        if not isinstance(children, list) or not children or any(not isinstance(p, dict) or not p for p in children):
+            return False, "all 需要非空的谓词数组"
+        results = [eval_when(dw, child) for child in children]
+        return all(hit for hit, _ in results), '；'.join(reason for _, reason in results)
+    if 'symbol_exists' in pred or 'symbol_missing' in pred:
+        key = next(iter(pred))
+        name = pred[key]
+        if not isinstance(name, str) or not name.strip():
+            return False, "符号名不能为空"
+        symbols = getattr(dw, 'defined_symbols', None)
+        if symbols is None:
+            return False, "没有完整 ELF 符号表"
+        exists = name in symbols
+        return (exists if key == 'symbol_exists' else not exists), f"符号 {name} {'在' if exists else '不在'}"
 
     if "type_exists" in pred:
         want = pred["type_exists"]

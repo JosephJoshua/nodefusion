@@ -55,3 +55,27 @@ def test_unretained_entries_still_shape_retained_stack():
                                     Elf(), retained_ids={id(child)})
     assert paths == {id(child): ("root", "child")}
     assert counts["matched"] == 1
+
+
+def test_rust_raw_symbols_match_and_display_as_function_names():
+    raw_root = '_ZN2os4root17h1234567890abcdefE'
+    raw_child = '_ZN2os5child17h1234567890abcdefE'
+    root = entry(1, raw_root, 0x99, 100)
+    child = entry(2, raw_child, 0x10, 80)
+    elf = type('RustElf', (), {'resolve_pc': lambda self, pc: (raw_root, 0) if pc == 0x10 else (None, 0)})()
+    paths, counts = observed_stacks([root, child], [ret(3, 0x10, 80)], elf)
+    assert paths[id(child)] == ('os::root', 'os::child')
+    assert counts['nested_entries'] == 1
+    assert root.entry_name == raw_root
+    assert child.entry_name == raw_child
+
+
+def test_decoded_names_do_not_merge_distinct_raw_rust_symbols():
+    raw_root = '_ZN2os4root17h1234567890abcdefE'
+    other_root = '_ZN2os4root17hfedcba0987654321E'
+    root = entry(1, raw_root, 0x99, 100)
+    child = entry(2, 'child', 0x10, 80)
+    elf = type('RustElf', (), {'resolve_pc': lambda self, pc: (other_root, 0) if pc == 0x10 else (None, 0)})()
+    paths, counts = observed_stacks([root, child], [ret(3, 0x10, 80)], elf)
+    assert paths[id(child)] == ('child',)
+    assert counts['nested_entries'] == 0

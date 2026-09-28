@@ -28,6 +28,7 @@ const NF = {
   selPage: null,
   selPid: null,
   filters: { text: '', kind: '', res: '', pid: '', cpu: '', group: '', from: '', to: '' },
+  functionFilters: {text: '', cpu: '', limit: '80', grouping: null},
 };
 
 /* ------------------------------------------------------------------ 工具 */
@@ -1641,6 +1642,10 @@ function renderFunctions() {
   if (returns.nested_entries) grouping.appendChild(new Option('观测调用链', 'stack'));
   if (returns.nested_entries) grouping.value = 'stack';
   else if (!entries.some((e) => e.caller)) grouping.value = 'namespace';
+  search.value = NF.functionFilters.text;
+  cpu.value = NF.functionFilters.cpu;
+  limit.value = NF.functionFilters.limit;
+  if ([...grouping.options].some(option => option.value === NF.functionFilters.grouping)) grouping.value = NF.functionFilters.grouping;
   controls.appendChild(search); controls.appendChild(cpu); controls.appendChild(grouping);
   controls.appendChild(limit); p.appendChild(controls);
 
@@ -1658,6 +1663,7 @@ function renderFunctions() {
   grid.appendChild(treePanel); grid.appendChild(sequencePanel); p.appendChild(grid);
 
   function paint() {
+    NF.functionFilters = {text: search.value, cpu: cpu.value, limit: limit.value, grouping: grouping.value};
     const q = search.value.trim().toLowerCase();
     const selectedCpu = cpu.value;
     const filtered = entries.filter((e) => (!q || e.fn.toLowerCase().includes(q) || e.caller.toLowerCase().includes(q) || (e.path || []).some((name) => name.toLowerCase().includes(q))) && (selectedCpu === '' || String(e.cpu) === selectedCpu));

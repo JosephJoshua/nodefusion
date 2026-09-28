@@ -642,6 +642,12 @@ class Analysis:
         from ..model.manifest import _COMPLETENESS
         from ..model.snapshot import _completeness
         got = _completeness(res.sources)["completeness"]
+        if got == "total":
+            from ..model.resolve import PRESENT
+            contexts = [field for entity in ents.res.entities if entity.sources
+                        for field in entity.fields if field.role == "sched_context"]
+            if not any(field.state == PRESENT for field in contexts):
+                return None
         return _COMPLETENESS.get(got)
 
     def _task_by_ctx(self, state_idx: int, ctx: int):
@@ -745,6 +751,7 @@ class Analysis:
             return self.states[i].ticks if i >= 0 else None
 
         cur_slot: dict[int, int | None] = {c: None for c in range(self.ncpu)}
+        self._semantic_current: dict[int, tuple[int | None, str | None]] = {}
 
         merged = heapq.merge(
             ((d.insn, 0, "discon", d) for d in tr.discons),
@@ -889,7 +896,6 @@ class Analysis:
                 unknown=[] if outcome is not None else ["outcome"])
 
         if r.type == self.NFT_SCHED_SWITCH:
-            pid, proc = self._attribute(r.cpu, si, cur_slot)
             detail = {"source": "nftrace"}
             for end, task_id, visible_id in (
                     ("from", r.a[0], r.a[2]), ("to", r.a[1], r.a[3])):
@@ -900,6 +906,12 @@ class Analysis:
                 else:
                     detail[f"{end}_pid"] = visible_id
                     detail[f"{end}_proc"] = f"task#{visible_id}"
+            # Entry-based switches are suppressed when this channel exists.
+            # Retain its authoritative destination independently of snapshot slots.
+            if not hasattr(self, "_semantic_current"):
+                self._semantic_current = {}
+            pid, proc = detail["to_pid"], detail["to_proc"]
+            self._semantic_current[r.cpu] = (pid, proc)
             return Event(
                 insn=r.insn, cpu=r.cpu, kind=SWITCH_EVENT,
                 resource="scheduler", pid=pid, proc=proc, pc=None,
@@ -924,6 +936,9 @@ class Analysis:
                     "source": "nftrace"}, unknown=[])
 
     def _attribute(self, cpu: int, si: int, cur_slot: dict) -> tuple[int | None, str | None]:
+        current = getattr(self, "_semantic_current", {})
+        if cpu in current:
+            return current[cpu]
         slot = cur_slot.get(cpu)
         if slot is None:
             return None, None

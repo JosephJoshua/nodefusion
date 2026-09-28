@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import heapq
 
-from ..model.symbols import demangle, demangle_v0
+from ..model.symbols import display_name
 from . import nftrace
 
 
@@ -20,6 +20,11 @@ def observed_stacks(events, returns, elf, retained_ids=None):
     matched = 0
     nested = 0
     caller_cache = {}
+    label_cache = {}
+    def label(name):
+        if name not in label_cache:
+            label_cache[name] = display_name(name)
+        return label_cache[name]
     if not returns:
         return paths, {"raw": 0, "matched": 0, "nested_entries": 0}
     entries = ((e.insn, 0, e.cpu, e) for e in events
@@ -49,10 +54,13 @@ def observed_stacks(events, returns, elf, retained_ids=None):
         parent = frames[-1] if frames else None
         if obj.return_address not in caller_cache:
             raw = elf.resolve_pc(obj.return_address)[0] if elf else None
-            caller_cache[obj.return_address] = (
-                demangle(raw) or demangle_v0(raw) or raw) if raw else None
+            caller_cache[obj.return_address] = raw
         caller = caller_cache[obj.return_address]
-        if (parent is None or parent.entry_name != caller or
+        # Raw symbols distinguish Rust instantiations with the same display
+        # name. Older producers may already supply a decoded entry name.
+        caller_matches = (parent is not None and caller is not None and
+                          (parent.entry_name == caller or parent.entry_name == label(caller)))
+        if (not caller_matches or
                 parent.address_space != obj.address_space or
                 obj.stack_pointer > parent.stack_pointer):
             frames.clear()
@@ -60,7 +68,7 @@ def observed_stacks(events, returns, elf, retained_ids=None):
             frames.clear()
         frames.append(obj)
         if retained_ids is None or id(obj) in retained_ids:
-            paths[id(obj)] = tuple(f.entry_name or f.func or f.kind for f in frames[-16:])
+            paths[id(obj)] = tuple(label(f.entry_name or f.func or f.kind) for f in frames[-16:])
         if len(frames) > 1:
             nested += 1
     return paths, {"raw": len(returns), "matched": matched,

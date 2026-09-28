@@ -97,6 +97,30 @@ def test_missing_field_is_absent_not_a_failure():
     assert resolve_path(dw, tcb, "inner.priority").state == ABSENT
 
 
+def test_rcore_priority_spellings_resolve_without_kernel_branches():
+    from nodefusion.model.manifest import builtin_dir, load
+    from nodefusion.model.snapshot import Entity, Field
+
+    manifest = load(builtin_dir() / "rcore.toml")
+    specs = [field for entity in manifest.entities if entity.name == "task"
+             for field in entity.fields if field.role == "priority"]
+    assert {field.path for field in specs} == {"inner.prio", "inner.priority"}
+    assert all(field.optional for field in specs)
+    for spelling in ("prio", "priority", None):
+        dw, tcb = chain()
+        if spelling:
+            dw._s[6].fields[spelling] = 136
+        fields = {}
+        for spec in specs:
+            resolved = resolve_path(dw, tcb, spec.path)
+            fields[spec.name] = Field(spec.name, resolved.state,
+                                      value=16 if resolved.state == PRESENT else None,
+                                      role=spec.role)
+        entity = Entity("task", 0x1000, fields=fields)
+        assert entity.role("priority") == (16 if spelling else None)
+        assert sum(field.ok for field in fields.values()) == (1 if spelling else 0)
+
+
 def test_missing_field_names_the_payload_type_not_just_the_wrapper():
     dw, tcb = chain()
     why = resolve_path(dw, tcb, "inner.priority").reason or ""
