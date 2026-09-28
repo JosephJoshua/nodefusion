@@ -33,17 +33,29 @@ steps = [
   { iter = "array" },
 ]
 
+[[entity.source]]
+kind = "batch"
+completeness = "none"
+when = { all = [{ type_missing = "proc" }, { symbol_exists = "clean_bss" }, { symbol_missing = "pool" }, { symbol_missing = "allocproc" }, { symbol_missing = "scheduler" }] }
+steps = []
+
 [entity.liveness]
-skip_when = { field = "state", equals = "P_UNUSED" }
+skip_when = { field = "state", one_of = ["UNUSED", "P_UNUSED"] }
 
 [entity.fields]
 pid         = { path = "pid",         reader = "i32",  role = "id" }
 state       = { path = "state",       reader = "enum", enum = "procstate", role = "state" }
 
 [entity.optional_fields]
+kstack      = { path = "kstack",      reader = "u64" }
+trapframe   = { path = "trapframe",   reader = "ptr", role = "trap_context" }
+context     = { path = "context",    reader = "struct", role = "sched_context" }
 pagetable   = { path = "pagetable",   reader = "ptr", role = "address_space_root" }
 max_page    = { path = "max_page",    reader = "u64" }
 ustack_base = { path = "ustack_base", reader = "u64" }
+ustack      = { path = "ustack",      reader = "u64" }
+heap_bottom = { path = "heap_bottom", reader = "u64" }
+program_brk = { path = "program_brk", reader = "u64" }
 exit_code   = { path = "exit_code",   reader = "u64", role = "exit_code" }
 files       = { path = "files",       reader = "array<ptr>" }
 
@@ -111,6 +123,53 @@ empty = "当前没有活跃线程。"
   label = "退出码"
 
 # -------------------------------------------------------------- resources
+
+[[entity]]
+name = "batch_context"
+type = "trapframe"
+label = "用户上下文"
+
+[[entity.source]]
+kind = "table"
+completeness = "total"
+when = { all = [{ type_exists = "trapframe" }, { symbol_exists = "trap_page" }, { symbol_missing = "pool" }] }
+steps = [{ static = "trap_page" }]
+
+[[entity.source]]
+kind = "batch"
+completeness = "none"
+when = { all = [{ type_exists = "proc" }, { symbol_exists = "pool" }, { symbol_missing = "trap_page" }] }
+steps = []
+
+[entity.fields]
+epc = { path = "epc", reader = "u64" }
+user_sp = { path = "sp", reader = "u64" }
+kernel_sp = { path = "kernel_sp", reader = "u64" }
+a0 = { path = "a0", reader = "u64" }
+a1 = { path = "a1", reader = "u64" }
+a2 = { path = "a2", reader = "u64" }
+a7 = { path = "a7", reader = "u64" }
+
+[entity.table]
+empty = "本构建没有独立的批处理上下文。"
+  [[entity.table.column]]
+  key = "epc"
+  label = "返回地址"
+  format = "hex"
+  [[entity.table.column]]
+  key = "user_sp"
+  label = "用户栈"
+  format = "hex"
+  [[entity.table.column]]
+  key = "kernel_sp"
+  label = "内核栈"
+  format = "hex"
+  [[entity.table.column]]
+  key = "a7"
+  label = "a7"
+  [[entity.table.column]]
+  key = "a0"
+  label = "a0"
 
 [[entity]]
 name  = "bcache"
@@ -264,11 +323,19 @@ empty = "当前没有活跃 inode。"
 # --------------------------------------------------------------- watches
 
 [[watch]]
-subsystem = "panic"
+subsystem = "kernel"
 match     = { fn = ["shutdown"] }
 snapshot  = "always"
-args      = 2
+args      = 0
 throttle  = 0
+
+[[watch]]
+subsystem = "trap"
+match = { fn = ["usertrap", "usertrapret"] }
+when = { type_missing = "proc" }
+snapshot = "always"
+args = 2
+throttle = 0
 
 [[watch]]
 subsystem = "nftrace"
@@ -453,7 +520,7 @@ piperead = { kind = "pipe.read", resource = "pipe" }
 pipewrite = { kind = "pipe.write", resource = "pipe" }
 pipeclose = { kind = "pipe.close", resource = "pipe" }
 
-shutdown = { kind = "kernel.panic", args = ["reason"] }
+shutdown = { kind = "kernel.shutdown" }
 
 # ----------------------------------------------------------------- profile
 
@@ -471,12 +538,11 @@ machine_opts = [
 ]
 interactive = true
 prompt = ">> "
-ready_markers = ["C user shell"]
-# User-space assertions deliberately print the same ``[PANIC ...]`` prefix as
-# the kernel logger and then return a non-zero test status.  Treating that text
-# as a kernel panic truncates aggregate suites halfway through; the shell's
-# exit line and QEMU termination provide unambiguous outcomes instead.
-panic_markers = ["core dumped"]
+ready_markers = ["hello wrold!", "C user shell", "start scheduler!"]
+done_markers = ["ALL DONE", "all app are over!", "all apps over"]
+# User faults and assertions share the kernel's diagnostic text. Completion
+# markers, process exit lines and QEMU termination determine the outcome.
+panic_markers = []
 halt_markers = []
 stdin_preload = true
 stdin_pad = "\n"

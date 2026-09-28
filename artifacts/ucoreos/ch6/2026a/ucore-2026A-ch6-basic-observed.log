@@ -1,0 +1,312 @@
+
+OpenSBI v1.7
+   ____                    _____ ____ _____
+  / __ \                  / ____|  _ \_   _|
+ | |  | |_ __   ___ _ __ | (___ | |_) || |
+ | |  | | '_ \ / _ \ '_ \ \___ \|  _ < | |
+ | |__| | |_) |  __/ | | |____) | |_) || |_
+  \____/| .__/ \___|_| |_|_____/|____/_____|
+        | |
+        |_|
+
+Platform Name               : riscv-virtio,qemu
+Platform Features           : medeleg
+Platform HART Count         : 1
+Platform IPI Device         : aclint-mswi
+Platform Timer Device       : aclint-mtimer @ 10000000Hz
+Platform Console Device     : uart8250
+Platform HSM Device         : ---
+Platform PMU Device         : ---
+Platform Reboot Device      : syscon-reboot
+Platform Shutdown Device    : syscon-poweroff
+Platform Suspend Device     : ---
+Platform CPPC Device        : ---
+Firmware Base               : 0x80000000
+Firmware Size               : 317 KB
+Firmware RW Offset          : 0x40000
+Firmware RW Size            : 61 KB
+Firmware Heap Offset        : 0x46000
+Firmware Heap Size          : 37 KB (total), 2 KB (reserved), 11 KB (used), 23 KB (free)
+Firmware Scratch Size       : 4096 B (total), 1400 B (used), 2696 B (free)
+Runtime SBI Version         : 3.0
+Standard SBI Extensions     : time,rfnc,ipi,base,hsm,srst,pmu,dbcn,fwft,legacy,dbtr,sse
+Experimental SBI Extensions : none
+
+Domain0 Name                : root
+Domain0 Boot HART           : 0
+Domain0 HARTs               : 0*
+Domain0 Region00            : 0x0000000000100000-0x0000000000100fff M: (I,R,W) S/U: (R,W)
+Domain0 Region01            : 0x0000000010000000-0x0000000010000fff M: (I,R,W) S/U: (R,W)
+Domain0 Region02            : 0x0000000002000000-0x000000000200ffff M: (I,R,W) S/U: ()
+Domain0 Region03            : 0x0000000080040000-0x000000008004ffff M: (R,W) S/U: ()
+Domain0 Region04            : 0x0000000080000000-0x000000008003ffff M: (R,X) S/U: ()
+Domain0 Region05            : 0x000000000c400000-0x000000000c5fffff M: (I,R,W) S/U: (R,W)
+Domain0 Region06            : 0x000000000c000000-0x000000000c3fffff M: (I,R,W) S/U: (R,W)
+Domain0 Region07            : 0x0000000000000000-0xffffffffffffffff M: () S/U: (R,W,X)
+Domain0 Next Address        : 0x0000000080200000
+Domain0 Next Arg1           : 0x0000000087e00000
+Domain0 Next Mode           : S-mode
+Domain0 SysReset            : yes
+Domain0 SysSuspend          : yes
+
+Boot HART ID                : 0
+Boot HART Domain            : root
+Boot HART Priv Version      : v1.12
+Boot HART Base ISA          : rv64imafdch
+Boot HART ISA Extensions    : sstc,zicntr,zihpm,zicboz,zicbom,sdtrig,svadu
+Boot HART PMP Count         : 16
+Boot HART PMP Granularity   : 2 bits
+Boot HART PMP Address Bits  : 54
+Boot HART MHPM Info         : 16 (0x0007fff8)
+Boot HART Debug Triggers    : 2 triggers
+Boot HART MIDELEG           : 0x0000000000001666
+Boot HART MEDELEG           : 0x0000000000f4b509
+hello world!
+[34m[INFO 0]enable pageing at 0x8000000000087fff[0m
+[34m[INFO 0]start scheduler![0m
+ch2b_exit
+ch2b_hello_wor
+ch2b_power
+ch3b_sleep
+ch3b_sleep1
+ch3b_yield0
+ch3b_yield1
+ch3b_yield2
+ch5b_exec_simp
+ch5b_exit
+ch5b_forktest0
+ch5b_forktest1
+ch5b_forktest2
+ch5b_getpid
+ch5b_usertest
+ch6b_args
+ch6b_assert
+ch6b_cat
+ch6b_exec
+ch6b_filetest
+ch6b_filetest_
+ch6b_panic
+ch6b_usertest
+usershell
+test starts!
+Usertests: Running ch2b_hello_world
+[34m[INFO 2]exec : ch2b_hello_world
+[0m
+Hello world from user mode program!
+Test hello_world OK!
+Usertests: Test ch2b_hello_world in Process 2 exited with code 0
+Usertests: Running ch2b_power
+[34m[INFO 3]exec : ch2b_power
+[0m
+3^10000=5079
+3^20000=8202
+3^30000=8824
+3^40000=5750
+3^50000=3824
+3^60000=8516
+3^70000=2510
+3^80000=9379
+3^90000=2621
+3^100000=2749
+Test power OK!
+Usertests: Test ch2b_power in Process 3 exited with code 0
+Usertests: Running ch3b_sleep
+[34m[INFO 4]exec : ch3b_sleep
+[0m
+get_time OK! 2669
+Test sleep OK!
+Usertests: Test ch3b_sleep in Process 4 exited with code 0
+Usertests: Running ch3b_sleep1
+[34m[INFO 5]exec : ch3b_sleep1
+[0m
+current time_msec = 5673
+time_msec = 5773 after sleeping 100 ticks, delta = 100ms!
+Test sleep1 passed!
+Usertests: Test ch3b_sleep1 in Process 5 exited with code 0
+Usertests: Running ch3b_yield0
+[34m[INFO 6]exec : ch3b_yield0
+[0m
+AAAAAAAAAA [1/5]
+AAAAAAAAAA [2/5]
+AAAAAAAAAA [3/5]
+AAAAAAAAAA [4/5]
+AAAAAAAAAA [5/5]
+Test write A OK!
+Usertests: Test ch3b_yield0 in Process 6 exited with code 0
+Usertests: Running ch3b_yield1
+[34m[INFO 7]exec : ch3b_yield1
+[0m
+CCCCCCCCCC [1/5]
+CCCCCCCCCC [2/5]
+CCCCCCCCCC [3/5]
+CCCCCCCCCC [4/5]
+CCCCCCCCCC [5/5]
+Test write C OK!
+Usertests: Test ch3b_yield1 in Process 7 exited with code 0
+Usertests: Running ch3b_yield2
+[34m[INFO 8]exec : ch3b_yield2
+[0m
+BBBBBBBBBB [1/5]
+BBBBBBBBBB [2/5]
+BBBBBBBBBB [3/5]
+BBBBBBBBBB [4/5]
+BBBBBBBBBB [5/5]
+Test write B OK!
+Usertests: Test ch3b_yield2 in Process 8 exited with code 0
+Usertests: Running ch5b_getpid
+[34m[INFO 9]exec : ch5b_getpid
+[0m
+Test getppid OK!
+Test getpid OK! pid = 9, ppid = 1
+Usertests: Test ch5b_getpid in Process 9 exited with code 0
+Usertests: Running ch5b_forktest0
+[34m[INFO 11]exec : ch5b_forktest0
+[0m
+sys_wait without child process test passed!
+parent start, pid = 11!
+ready waiting on parent process!
+hello child process!
+child process pid = 12, exit code = 100
+forktest0 pass.
+Usertests: Test ch5b_forktest0 in Process 11 exited with code 0
+Usertests: Running ch5b_forktest1
+[34m[INFO 13]exec : ch5b_forktest1
+[0m
+forked child pid = 14
+forked child pid = 15
+forked child pid = 16
+I am child 0
+I am child 1
+I am child 2
+I am child 3
+forked child pid = 17
+forked child pid = 18
+forked child pid = 19
+forked child pid = 20
+forked child pid = 21
+I am child 4
+I am child 5
+I am child 6
+I am child 7
+I am child 8
+forked child pid = 22
+forked child pid = 23
+forked child pid = 24
+forked child pid = 25
+I am child 9
+I am child 10
+I am child 11
+I am child 12
+forked child pid = 26
+forked child pid = 27
+forked child pid = 28
+forked child pid = 29
+forked child pid = 30
+I am child 13
+I am child 14
+I am child 15
+I am child 16
+I am child 17
+forked child pid = 31
+forked child pid = 32
+forked child pid = 33
+forked child pid = 34
+I am child 18
+I am child 19
+I am child 20
+I am child 21
+forked child pid = 35
+forked child pid = 36
+forked child pid = 37
+forked child pid = 38
+forked child pid = 39
+I am child 22
+I am child 23
+I am child 24
+I am child 25
+I am child 26
+forked child pid = 40
+forked child pid = 41
+forked child pid = 42
+forked child pid = 43
+I am child 27
+I am child 28
+I am child 29
+I am child 30
+forked child pid = 44
+forked child pid = 45
+forked child pid = 46
+forked child pid = 47
+forked child pid = 48
+I am child 31
+I am child 32
+I am child 33
+I am child 34
+I am child 35
+forked child pid = 49
+forked child pid = 50
+forked child pid = 51
+forked child pid = 52
+I am child 36
+I am child 37
+I am child 38
+I am child 39
+forked child pid = 53
+forktest1 pass.
+Usertests: Test ch5b_forktest1 in Process 13 exited with code 0
+Usertests: Running ch5b_forktest2
+[34m[INFO 54]exec : ch5b_forktest2
+[0m
+[34m[INFO 55]exec : ch2b_hello_world
+[0m
+Hello world from user mode program!
+Test hello_world OK!
+[34m[INFO 56]exec : ch2b_hello_world
+[0m
+Hello world from user mode program!
+Test hello_world OK!
+[34m[INFO 57]exec : ch2b_hello_world
+[0m
+Hello world from user mode program!
+[34m[INFO 58]exec : ch2b_hello_world
+[0m
+Hello world from user mode program!
+Test hello_world OK!
+[34m[INFO 59]exec : ch2b_hello_world
+[0m
+Hello world from user mode program!
+Test hello_world OK!
+Test hello_world OK!
+forktest2 test passed!
+Usertests: Test ch5b_forktest2 in Process 54 exited with code 0
+Usertests: Running ch5b_exit
+[34m[INFO 60]exec : ch5b_exit
+[0m
+I am the parent. Forking the child...
+I am the child.
+I am parent, fork a child pid 61
+I am the parent, waiting now..
+waitpid 61 ok.
+exit pass.
+Usertests: Test ch5b_exit in Process 60 exited with code 0
+Usertests: Running ch6b_filetest_simple
+[34m[INFO 62]exec : ch6b_filetest_simple
+[0m
+file_test passed!
+Usertests: Test ch6b_filetest_simple in Process 62 exited with code 0
+Usertests: Running ch6b_exec
+[34m[INFO 63]exec : ch6b_exec
+[0m
+[34m[INFO 63]exec : ch6b_args
+[0m
+argc = 6
+argv[0] = (*o*)
+argv[1] = (>.<)
+argv[2] = (O.O)
+argv[3] = (QwQ)
+argv[4] = orz
+argv[5] = 没有了呀
+Usertests: Test ch6b_exec in Process 63 exited with code 0
+ch6b Usertests passed!
+[31m[PANIC 1] os/proc.c:144: all app are over!
+[0m

@@ -1,0 +1,2540 @@
+{
+  "schema": "nodefusion.education-recording/1",
+  "course": "2026A",
+  "chapter": 2,
+  "variant": "reference",
+  "run": "ucore-2026A-ch2-reference",
+  "html": "ucore-2026A-ch2-reference.html",
+  "source": {
+    "kernel_commit": "729e1ad1632bb639dfe546f34765c0537b503990",
+    "kernel_patch": "diff --git a/Makefile b/Makefile\nindex 78ca828..d6fec57 100644\n--- a/Makefile\n+++ b/Makefile\n@@ -17,7 +17,7 @@ GDB = $(TOOLPREFIX)gdb\n CP = cp\n BUILDDIR = build\n C_SRCS = $(wildcard $K/*.c)\n-AS_SRCS = $(wildcard $K/*.S)\n+AS_SRCS := $(wildcard $K/*.S)\n C_OBJS = $(addprefix $(BUILDDIR)/, $(addsuffix .o, $(basename $(C_SRCS))))\n AS_OBJS = $(addprefix $(BUILDDIR)/, $(addsuffix .o, $(basename $(AS_SRCS))))\n OBJS = $(C_OBJS) $(AS_OBJS)\n",
+    "user_commit": "1733f460c596b013b1c509ad42afa428640783b0",
+    "user_patch": "diff --git a/CMakeLists.txt b/CMakeLists.txt\nindex f5a9fac..ab1986d 100644\n--- a/CMakeLists.txt\n+++ b/CMakeLists.txt\n@@ -15,12 +15,12 @@ set(ASM_DIR asm)\n set(BIN_DIR bin)\n \n # Toolchain\n-set(PREFIX ${ARCH}-linux-musl-)\n+set(PREFIX ${ARCH}-linux-musl- CACHE STRING \"Cross compiler prefix\")\n \n if (${ARCH} STREQUAL riscv32)\n-    set(CMAKE_C_FLAGS       \"-march=rv32imac -mabi=ilp32 -mcmodel=medany\")\n+    set(CMAKE_C_FLAGS       \"-march=rv32imac_zicsr_zifencei -mabi=ilp32 -mcmodel=medany\")\n elseif (${ARCH} STREQUAL riscv64)\n-    set(CMAKE_C_FLAGS       \"-march=rv64imac -mabi=lp64 -mcmodel=medany\")\n+    set(CMAKE_C_FLAGS       \"-march=rv64imac_zicsr_zifencei -mabi=lp64 -mcmodel=medany\")\n else()\n     message(\"Unsupported arch: ${ARCH}\")\n endif ()\ndiff --git a/Makefile b/Makefile\nindex be632ac..64f1ab6 100644\n--- a/Makefile\n+++ b/Makefile\n@@ -7,15 +7,16 @@ app_dir = src\n elf_dir := build/$(ARCH)\n bin_dir := build/bin\n out_dir := target\n-cmake_build_args := -DARCH=$(ARCH) -DCHAPTER=$(CHAPTER)\n+TOOLPREFIX ?= $(ARCH)-linux-musl-\n+cmake_build_args := -DARCH=$(ARCH) -DCHAPTER=$(CHAPTER) -DPREFIX=$(TOOLPREFIX)\n ifeq ($(MODE), release)\n cmake_build_args += -DCMAKE_BUILD_TYPE=Release\n else ifeq ($(MODE), debug)\n cmake_build_args += -DCMAKE_BUILD_TYPE=Debug\n endif\n \n-OBJCOPY := $(ARCH)-linux-musl-objcopy\n-OBJDUMP := $(ARCH)-linux-musl-objdump\n+OBJCOPY := $(TOOLPREFIX)objcopy\n+OBJDUMP := $(TOOLPREFIX)objdump\n CP := cp\n CH_TESTS :=  \n \ndiff --git a/src/ch6b_exec.c b/src/ch6b_exec.c\nindex 1a1d9c6..b67cf35 100644\n--- a/src/ch6b_exec.c\n+++ b/src/ch6b_exec.c\n@@ -5,7 +5,7 @@\n int main()\n {\n \tchar *_argv[] = {\n-\t\t\"(*o*)\", \"(>.<)\", \"(O.O)\", \"(QwQ)\", \"orz\", \"没有了呀\"\n+\t\t\"(*o*)\", \"(>.<)\", \"(O.O)\", \"(QwQ)\", \"orz\", \"没有了呀\", NULL\n \t};\n \texec(\"ch6b_args\", _argv);\n \treturn 0;\ndiff --git a/src/ch6b_filetest_simple.c b/src/ch6b_filetest_simple.c\nindex 062cecf..a27e982 100644\n--- a/src/ch6b_filetest_simple.c\n+++ b/src/ch6b_filetest_simple.c\n@@ -15,7 +15,9 @@ int main()\n \tfd = open(filea, O_RDONLY);\n \tassert(fd > 0);\n \tchar buf[16];\n-\tread(fd, buf, 16);\n+\tint nread = read(fd, buf, sizeof(buf) - 1);\n+\tassert_eq(nread, strlen(s));\n+\tbuf[nread] = '\\0';\n \tclose(fd);\n \tassert(strcmp(s, buf) == 0);\n \tputs(\"file_test passed!\");\ndiff --git a/src/ch6b_usertest.c b/src/ch6b_usertest.c\nindex cdd9fc8..1cb5f3a 100644\n--- a/src/ch6b_usertest.c\n+++ b/src/ch6b_usertest.c\n@@ -11,7 +11,7 @@ const char *TESTS[] = {\n \t\"ch3b_sleep1\\0\",      \"ch3b_yield0\\0\",\t  \"ch3b_yield1\\0\",\n \t\"ch3b_yield2\\0\",      \"ch5b_getpid\\0\",\t  \"ch5b_forktest0\\0\",\n \t\"ch5b_forktest1\\0\",   \"ch5b_forktest2\\0\", \"ch5b_exit\\0\",\n-\t\"ch6b_filetest\\0\",    \"ch6b_exec\\0\",\n+\t\"ch6b_filetest_simple\\0\",    \"ch6b_exec\\0\",\n };\n \n int main()\ndiff --git a/src/ch7b_usertest.c b/src/ch7b_usertest.c\nindex 1f634d4..8bfc7c8 100644\n--- a/src/ch7b_usertest.c\n+++ b/src/ch7b_usertest.c\n@@ -10,7 +10,7 @@ const char *TESTS[] = {\n \t\"ch3b_sleep1\\0\",      \"ch3b_yield0\\0\",\t  \"ch3b_yield1\\0\",\n \t\"ch3b_yield2\\0\",      \"ch5b_exit\\0\",\t  \"ch5b_getpid\\0\",\n \t\"ch5b_forktest0\\0\",   \"ch5b_forktest1\\0\", \"ch5b_forktest2\\0\",\n-\t\"ch5b_exit\\0\",\t      \"ch6b_filetest\\0\",  \"ch6b_exec\\0\",\n+\t\"ch5b_exit\\0\",\t      \"ch6b_filetest_simple\\0\",  \"ch6b_exec\\0\",\n \t\"ch7b_pipetest\\0\",\n };\n \ndiff --git a/src/ch8b_usertest.c b/src/ch8b_usertest.c\nindex 1cce5ce..f088c38 100644\n--- a/src/ch8b_usertest.c\n+++ b/src/ch8b_usertest.c\n@@ -10,9 +10,9 @@ const char *TESTS[] = {\n \t\"ch3b_sleep1\\0\",        \"ch3b_yield0\\0\",      \"ch3b_yield1\\0\",\n \t\"ch3b_yield2\\0\",        \"ch5b_getpid\\0\",      \"ch5b_forktest0\\0\",\n \t\"ch5b_forktest1\\0\",     \"ch5b_forktest2\\0\",   \"ch5b_exit\\0\",\n-\t\"ch6b_filetest\\0\",      \"ch6b_exec\\0\",        \"ch7b_pipetest\\0\",\n+\t\"ch6b_filetest_simple\\0\",      \"ch6b_exec\\0\",        \"ch7b_pipetest\\0\",\n \t\"ch8b_mpsc_sem\\0\",\n-\t\"ch8b_mut_phi_din.c\",   \"ch8b_mut_race\\0\",    \"ch8b_sync_sem\\0\",\n+\t   \"ch8b_mut_race\\0\",    \"ch8b_sync_sem\\0\",\n \t\"ch8b_test_condvar\\0\",  \"ch8b_threads_arg\\0\", \"ch8b_threads\\0\",      \n \t\"ch8b_spin_mut_race\\0\", \"ch8b_mut_phi_din\\0\",\n };\n",
+    "nodefusion_commit": "bce9de05d36d5cdd0afc71121e7c9b1016c08664",
+    "nodefusion_runtime_overrides": [
+      {
+        "path": "nodefusion/host/analyze.py",
+        "sha256": "b1c4a595a54058841630ba7b18818688efd00b8085b03ca91767208ec3b499e8",
+        "patch": "diff --git a/nodefusion/host/analyze.py b/nodefusion/host/analyze.py\nindex a6ca1e7..31b6599 100644\n--- a/nodefusion/host/analyze.py\n+++ b/nodefusion/host/analyze.py\n@@ -642,6 +642,12 @@ class Analysis:\n         from ..model.manifest import _COMPLETENESS\n         from ..model.snapshot import _completeness\n         got = _completeness(res.sources)[\"completeness\"]\n+        if got == \"total\":\n+            from ..model.resolve import PRESENT\n+            contexts = [field for entity in ents.res.entities if entity.sources\n+                        for field in entity.fields if field.role == \"sched_context\"]\n+            if not any(field.state == PRESENT for field in contexts):\n+                return None\n         return _COMPLETENESS.get(got)\n \n     def _task_by_ctx(self, state_idx: int, ctx: int):\n"
+      },
+      {
+        "path": "nodefusion/host/record.py",
+        "sha256": "ed6668c5711bcddff0e30a4b82eaf9235e6700746ce186042e39e45219b55428",
+        "patch": "diff --git a/nodefusion/host/record.py b/nodefusion/host/record.py\nindex ac7695e..93323e0 100644\n--- a/nodefusion/host/record.py\n+++ b/nodefusion/host/record.py\n@@ -399,6 +399,10 @@ class Recorder:\n                     f\"内核自己按顺序跑完所有应用，没有地方喂命令。\")\n \n \n+    @property\n+    def interactive_workload(self) -> bool:\n+        return self.profile.interactive and bool(self.cfg.program) and self.cfg.program != NO_PROGRAM\n+\n     def effective_lab_stage(self) -> int | None:\n         if self.cfg.lab_stage is not None:\n             return self.cfg.lab_stage\n@@ -445,8 +449,7 @@ class Recorder:\n                 f\"--no-build：这次没有编译，直接用了现成的 \"\n                 f\"{self.kernel_elf_path}（修改时间 \"\n                 f\"{mt.strftime('%Y-%m-%d %H:%M UTC')}）。\"\n-                \"也就是说**没人验证过这份二进制是当前源码编出来的**；\"\n-                \"它可能是任何时候留下的。ELF 指纹见 kernel_elf_identity。\")\n+                \"ELF 校验和见 kernel_elf_identity。\")\n             return \"(--no-build：跳过构建)\"\n \n         mv = self._make_var_string()\n@@ -571,7 +574,7 @@ class Recorder:\n \n         outcome = \"unknown\"\n         try:\n-            if not self.profile.interactive:\n+            if not self.interactive_workload:\n                 outcome = self._drive_headless(proc, reader)\n             else:\n                 outcome = self._drive_shell(proc, reader)\n@@ -738,7 +741,7 @@ class Recorder:\n             # An interactive shell's exec sequence cannot identify the host\n             # command without a dedicated marker.\n             prog_start = _program_start_from_trace(\n-                tr, wl_json, interactive=self.profile.interactive)\n+                tr, wl_json, interactive=self.interactive_workload)\n             tmp_trace.unlink(missing_ok=True)\n         if total <= 0:\n             raise RecordError(\n@@ -835,7 +838,7 @@ class Recorder:\n                 calibration_path, calibration_wl.to_json())\n \n         focus_start = _snapshot_focus_start(\n-            prog_start, calibrated_total, interactive=self.profile.interactive)\n+            prog_start, calibrated_total, interactive=self.interactive_workload)\n \n         if c.snap_insns is not None:\n             snap_insns = c.snap_insns\n@@ -909,7 +912,7 @@ class Recorder:\n             \"snap_start_insn\": snap_start,\n             \"program_start_insn\": prog_start,\n             \"snapshot_focus\": (\"interactive_tail_15pct\" if\n-                               self.profile.interactive and not prog_start and\n+                               self.interactive_workload and not prog_start and\n                                c.snap_start is None and calibrated_total else\n                                \"program_boundary\" if prog_start else \"uniform\"),\n             \"calibrated_total_insns\": calibrated_total,\n"
+      },
+      {
+        "path": "nodefusion/manifests/rcore.toml",
+        "sha256": "686eb2a0502ff95e386aa567e6f730375f2ff272949ea3687395e3e36daa25ec",
+        "patch": "diff --git a/nodefusion/manifests/rcore.toml b/nodefusion/manifests/rcore.toml\nindex 3579114..af0fd26 100644\n--- a/nodefusion/manifests/rcore.toml\n+++ b/nodefusion/manifests/rcore.toml\n@@ -1550,3 +1550,35 @@ opts = [\n [syscalls]\n files   = [\"os/src/syscall/mod.rs\"]\n pattern = 'const\\s+SYSCALL_(?P<name>\\w+)\\s*:\\s*usize\\s*=\\s*(?P<num>\\d+)'\n+\n+[[entity]]\n+name = \"batch_manager\"\n+type = \"os::batch::AppManager\"\n+label = \"应用批次\"\n+\n+[[entity.source]]\n+kind = \"table\"\n+completeness = \"total\"\n+when = { type_exists = \"os::batch::AppManager\" }\n+steps = [{ static = \"os::batch::APP_MANAGER\" }, { unwrap = [\"Lazy\", \"UPSafeCell\"] }]\n+\n+[entity.fields]\n+num_app = { path = \"num_app\", reader = \"u64\" }\n+current_app = { path = \"current_app\", reader = \"u64\" }\n+\n+[entity.table]\n+empty = \"当前没有应用批次。\"\n+  [[entity.table.column]]\n+  key = \"num_app\"\n+  label = \"应用数\"\n+  [[entity.table.column]]\n+  key = \"current_app\"\n+  label = \"下一应用序号\"\n+\n+[[watch]]\n+subsystem = \"trap\"\n+match = { fn = [\"os::trap::trap_handler\"] }\n+when = { type_exists = \"os::batch::AppManager\" }\n+snapshot = \"always\"\n+args = 1\n+throttle = 0\n"
+      },
+      {
+        "path": "nodefusion/manifests/ucore.toml",
+        "sha256": "b08a4f8edac1a7fbd40397ed8c21217cf8dfb03ba9fad496142892f59e4bd5f8",
+        "patch": "diff --git a/nodefusion/manifests/ucore.toml b/nodefusion/manifests/ucore.toml\nindex 4312842..ce8c88f 100644\n--- a/nodefusion/manifests/ucore.toml\n+++ b/nodefusion/manifests/ucore.toml\n@@ -33,14 +33,23 @@ steps = [\n   { iter = \"array\" },\n ]\n \n+[[entity.source]]\n+kind = \"batch\"\n+completeness = \"none\"\n+when = { all = [{ type_missing = \"proc\" }, { symbol_exists = \"clean_bss\" }, { symbol_missing = \"pool\" }, { symbol_missing = \"allocproc\" }, { symbol_missing = \"scheduler\" }] }\n+steps = []\n+\n [entity.liveness]\n-skip_when = { field = \"state\", equals = \"P_UNUSED\" }\n+skip_when = { field = \"state\", one_of = [\"UNUSED\", \"P_UNUSED\"] }\n \n [entity.fields]\n pid         = { path = \"pid\",         reader = \"i32\",  role = \"id\" }\n state       = { path = \"state\",       reader = \"enum\", enum = \"procstate\", role = \"state\" }\n \n [entity.optional_fields]\n+kstack      = { path = \"kstack\",      reader = \"u64\" }\n+trapframe   = { path = \"trapframe\",   reader = \"ptr\", role = \"trap_context\" }\n+context     = { path = \"context\",    reader = \"struct\", role = \"sched_context\" }\n pagetable   = { path = \"pagetable\",   reader = \"ptr\", role = \"address_space_root\" }\n max_page    = { path = \"max_page\",    reader = \"u64\" }\n ustack_base = { path = \"ustack_base\", reader = \"u64\" }\n@@ -112,6 +121,53 @@ empty = \"当前没有活跃线程。\"\n \n # -------------------------------------------------------------- resources\n \n+[[entity]]\n+name = \"batch_context\"\n+type = \"trapframe\"\n+label = \"用户上下文\"\n+\n+[[entity.source]]\n+kind = \"table\"\n+completeness = \"total\"\n+when = { all = [{ type_exists = \"trapframe\" }, { symbol_exists = \"trap_page\" }, { symbol_missing = \"pool\" }] }\n+steps = [{ static = \"trap_page\" }]\n+\n+[[entity.source]]\n+kind = \"batch\"\n+completeness = \"none\"\n+when = { all = [{ type_exists = \"proc\" }, { symbol_exists = \"pool\" }, { symbol_missing = \"trap_page\" }] }\n+steps = []\n+\n+[entity.fields]\n+epc = { path = \"epc\", reader = \"u64\" }\n+user_sp = { path = \"sp\", reader = \"u64\" }\n+kernel_sp = { path = \"kernel_sp\", reader = \"u64\" }\n+a0 = { path = \"a0\", reader = \"u64\" }\n+a1 = { path = \"a1\", reader = \"u64\" }\n+a2 = { path = \"a2\", reader = \"u64\" }\n+a7 = { path = \"a7\", reader = \"u64\" }\n+\n+[entity.table]\n+empty = \"本构建没有独立的批处理上下文。\"\n+  [[entity.table.column]]\n+  key = \"epc\"\n+  label = \"返回地址\"\n+  format = \"hex\"\n+  [[entity.table.column]]\n+  key = \"user_sp\"\n+  label = \"用户栈\"\n+  format = \"hex\"\n+  [[entity.table.column]]\n+  key = \"kernel_sp\"\n+  label = \"内核栈\"\n+  format = \"hex\"\n+  [[entity.table.column]]\n+  key = \"a7\"\n+  label = \"a7\"\n+  [[entity.table.column]]\n+  key = \"a0\"\n+  label = \"a0\"\n+\n [[entity]]\n name  = \"bcache\"\n type  = \"buf\"\n@@ -264,12 +320,20 @@ empty = \"当前没有活跃 inode。\"\n # --------------------------------------------------------------- watches\n \n [[watch]]\n-subsystem = \"panic\"\n+subsystem = \"kernel\"\n match     = { fn = [\"shutdown\"] }\n snapshot  = \"always\"\n-args      = 2\n+args      = 0\n throttle  = 0\n \n+[[watch]]\n+subsystem = \"trap\"\n+match = { fn = [\"usertrap\", \"usertrapret\"] }\n+when = { type_missing = \"proc\" }\n+snapshot = \"always\"\n+args = 2\n+throttle = 0\n+\n [[watch]]\n subsystem = \"nftrace\"\n match     = { fn = [\"nftrace_commit_point\"] }\n@@ -453,7 +517,7 @@ piperead = { kind = \"pipe.read\", resource = \"pipe\" }\n pipewrite = { kind = \"pipe.write\", resource = \"pipe\" }\n pipeclose = { kind = \"pipe.close\", resource = \"pipe\" }\n \n-shutdown = { kind = \"kernel.panic\", args = [\"reason\"] }\n+shutdown = { kind = \"kernel.shutdown\" }\n \n # ----------------------------------------------------------------- profile\n \n@@ -471,12 +535,11 @@ machine_opts = [\n ]\n interactive = true\n prompt = \">> \"\n-ready_markers = [\"C user shell\"]\n-# User-space assertions deliberately print the same ``[PANIC ...]`` prefix as\n-# the kernel logger and then return a non-zero test status.  Treating that text\n-# as a kernel panic truncates aggregate suites halfway through; the shell's\n-# exit line and QEMU termination provide unambiguous outcomes instead.\n-panic_markers = [\"core dumped\"]\n+ready_markers = [\"hello wrold!\", \"C user shell\", \"start scheduler!\"]\n+done_markers = [\"ALL DONE\", \"all app are over!\", \"all apps over\"]\n+# User faults and assertions share the kernel's diagnostic text. Completion\n+# markers, process exit lines and QEMU termination determine the outcome.\n+panic_markers = []\n halt_markers = []\n stdin_preload = true\n stdin_pad = \"\\n\"\n"
+      },
+      {
+        "path": "nodefusion/model/dwarfsrc.py",
+        "sha256": "02688f5f8419ba6c8fd64ea4f347929f74c8b70299b632223c5535bab298f265",
+        "patch": "diff --git a/nodefusion/model/dwarfsrc.py b/nodefusion/model/dwarfsrc.py\nindex 6716ea1..2dd0640 100644\n--- a/nodefusion/model/dwarfsrc.py\n+++ b/nodefusion/model/dwarfsrc.py\n@@ -99,6 +99,10 @@ class DwarfSource:\n         if not elf.has_dwarf_info():\n             raise RuntimeError(f\"{self.path} 里没有调试信息（.debug_info）\")\n         self.e_machine = elf.header[\"e_machine\"]\n+        symtab = elf.get_section_by_name('.symtab')\n+        self.defined_symbols = (None if symtab is None else\n+                                {s.name for s in symtab.iter_symbols()\n+                                 if s.name and s['st_shndx'] != 'SHN_UNDEF'})\n         self._exec_ranges = self._exec_sections(elf)\n         self._parse(elf.get_dwarf_info())\n         self._index_short()\n"
+      },
+      {
+        "path": "nodefusion/model/kinds.py",
+        "sha256": "0432ef9f134654bc36554ec55afcb9f91c593110cdacf0a58d0ac4d1d05ac569",
+        "patch": "diff --git a/nodefusion/model/kinds.py b/nodefusion/model/kinds.py\nindex c9da0ea..5551612 100644\n--- a/nodefusion/model/kinds.py\n+++ b/nodefusion/model/kinds.py\n@@ -17,7 +17,7 @@ KINDS: frozenset[str] = frozenset({\n     \"inode.write\",\n     \"interrupt.clock\", \"interrupt.dispatch\", \"interrupt.external\",\n     \"interrupt.other\", \"interrupt.software\", \"interrupt.timer\",\n-    \"kernel.alloc_error\", \"kernel.panic\",\n+    \"kernel.alloc_error\", \"kernel.panic\", \"kernel.shutdown\",\n     \"log.begin\", \"log.commit\", \"log.end\", \"log.install\", \"log.recover\",\n     \"log.write\", \"log.write_blocks\",\n     \"pagetable.freewalk\", \"pagetable.map\", \"pagetable.new\", \"pagetable.unmap\",\n"
+      },
+      {
+        "path": "nodefusion/model/resolve.py",
+        "sha256": "0c588760d0ec6494617007b02d786285ba190593935f574f6c53b99ad62ac8c0",
+        "patch": "diff --git a/nodefusion/model/resolve.py b/nodefusion/model/resolve.py\nindex 5c9b606..a655199 100644\n--- a/nodefusion/model/resolve.py\n+++ b/nodefusion/model/resolve.py\n@@ -127,6 +127,24 @@ def resolve_path(dw: DwarfSource, start: StructLayout, path: str,\n def eval_when(dw: DwarfSource, pred: dict | None) -> tuple[bool, str]:\n     if not pred:\n         return True, \"无条件\"\n+    if not isinstance(pred, dict) or len(pred) != 1:\n+        return False, \"when 需要一种谓词\"\n+    if 'all' in pred:\n+        children = pred['all']\n+        if not isinstance(children, list) or not children or any(not isinstance(p, dict) or not p for p in children):\n+            return False, \"all 需要非空的谓词数组\"\n+        results = [eval_when(dw, child) for child in children]\n+        return all(hit for hit, _ in results), '；'.join(reason for _, reason in results)\n+    if 'symbol_exists' in pred or 'symbol_missing' in pred:\n+        key = next(iter(pred))\n+        name = pred[key]\n+        if not isinstance(name, str) or not name.strip():\n+            return False, \"符号名不能为空\"\n+        symbols = getattr(dw, 'defined_symbols', None)\n+        if symbols is None:\n+            return False, \"没有完整 ELF 符号表\"\n+        exists = name in symbols\n+        return (exists if key == 'symbol_exists' else not exists), f\"符号 {name} {'在' if exists else '不在'}\"\n \n     if \"type_exists\" in pred:\n         want = pred[\"type_exists\"]\n"
+      },
+      {
+        "path": "nodefusion/model/snapshot.py",
+        "sha256": "e9c4ce76b858a9003e43d9eec363e1b88d4024338c3401b7a47a9871fe5dab7a",
+        "patch": "diff --git a/nodefusion/model/snapshot.py b/nodefusion/model/snapshot.py\nindex fa095ef..0bf7cb7 100644\n--- a/nodefusion/model/snapshot.py\n+++ b/nodefusion/model/snapshot.py\n@@ -68,6 +68,8 @@ def is_live(entity: Entity, liveness: dict | None) -> bool:\n         return True\n     if \"equals\" in sw:\n         return f.value != sw[\"equals\"]\n+    if \"one_of\" in sw:\n+        return f.value not in sw[\"one_of\"]\n     return True\n \n \n"
+      }
+    ],
+    "deployed_source_files": {
+      "nodefusion/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "nodefusion/_vendor/elftools/__init__.py": "9385fdca231d9ad83e27a59aa1bc59b252efad8c24cf08c9f39e0b543f675746",
+      "nodefusion/_vendor/elftools/common/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "nodefusion/_vendor/elftools/common/construct_utils.py": "d1de2461e60636b52cfc446d00f7a31f152f2ccc43c1a53bc2ba82187ca1e460",
+      "nodefusion/_vendor/elftools/common/exceptions.py": "bedd7aa994281100ba13a40dfaad8b03eec17a725a1c4cb23893572d99bbd1ef",
+      "nodefusion/_vendor/elftools/common/utils.py": "36a5f64bfb3aab0dba30d9fa05aa1b3f9fbbf86f297eee27c7c12652f5ac308b",
+      "nodefusion/_vendor/elftools/construct/__init__.py": "15104eb011a640e4268a9b9221d07201a0360ff0b1c8b49e252ef41fdfbb35de",
+      "nodefusion/_vendor/elftools/construct/adapters.py": "5745745b25eb849174ee5c3179b9867b03e0471633e9eac8276aa439fe4c8841",
+      "nodefusion/_vendor/elftools/construct/core.py": "df9719893de6454f5bc4c912afc892bcc278ef45ac1553bf4a409278ba347c9d",
+      "nodefusion/_vendor/elftools/construct/debug.py": "491486779e464e0f4a59cfd429d8e93c577a0f0d9b969847e69400a3c86acb1c",
+      "nodefusion/_vendor/elftools/construct/lib/__init__.py": "973420ec247c18b9e5488743bb099ae82f19c7287ef31dcb529a7283b6e42eb3",
+      "nodefusion/_vendor/elftools/construct/lib/binary.py": "f18e4161a11bc95732bd01c577cbe98373081afd5b4112b02fec51a0e1df2e11",
+      "nodefusion/_vendor/elftools/construct/lib/bitstream.py": "ee8081769bed1d00a086399c8749a847c1a48b8d08637506bf7d1229b6e1808a",
+      "nodefusion/_vendor/elftools/construct/lib/container.py": "0385a420febf5bac714153ceaadd192ff9d09862bc7e17c203bf759aa18b2bb4",
+      "nodefusion/_vendor/elftools/construct/lib/hex.py": "55f82dc36f273347c08e9e469fd497368241453b7a63e69e167ad6b316e5e2c7",
+      "nodefusion/_vendor/elftools/construct/macros.py": "0244e84cf4f598ac8da7c3d8f1f09b06112a508e71fb8d381b377f1c0472a4e3",
+      "nodefusion/_vendor/elftools/dwarf/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "nodefusion/_vendor/elftools/dwarf/abbrevtable.py": "d7d338a6eddd4c1fe02c66d9c2b1c202c36ebcfda28f438a0ac0546dc5a63eb1",
+      "nodefusion/_vendor/elftools/dwarf/aranges.py": "399d17d0e3cc18527337d60c1ffc0cfcfc8d5ddcf86af1ef6c359453538344e3",
+      "nodefusion/_vendor/elftools/dwarf/callframe.py": "6c77dd3c1b482434d8d86f35922f0c88b1a71c1c19055fa512224d44876a4b5a",
+      "nodefusion/_vendor/elftools/dwarf/compileunit.py": "2681263026c2bdd3fd9033e60230024e6b25ca90280df91c3ae0b0fe97bdb9d3",
+      "nodefusion/_vendor/elftools/dwarf/constants.py": "30377a1636c5ac41b7a09f7c79c6bae67b49696c4e9b9d904a1a0acaba7dabdb",
+      "nodefusion/_vendor/elftools/dwarf/datatype_cpp.py": "b3df1fc9ef56f941e0b38a9ad5da05a3c3821dd1cdc4b440c7c1934bee00a770",
+      "nodefusion/_vendor/elftools/dwarf/descriptions.py": "6692ed493344018f4d96fdb70e9b04bdb3ec1428df0448f17fc8ffab2a205851",
+      "nodefusion/_vendor/elftools/dwarf/die.py": "b653e8091a49f6926a955d8c05f26c36798ece3d902c00d2b5da10af637bfce7",
+      "nodefusion/_vendor/elftools/dwarf/dwarf_expr.py": "db6d4cb9f3f1ee7e85ac1f9286831093d1b65f8c472fe0f9331a7aa164782bcb",
+      "nodefusion/_vendor/elftools/dwarf/dwarf_util.py": "2e1cc3030a3cc669e0832e3cb5d4b1e3c82e22ff5a1164e6a878931f8531ce0d",
+      "nodefusion/_vendor/elftools/dwarf/dwarfinfo.py": "3cfff046c35f7b063ba4288f1d9bb5167be4f3fdda0af756a299d832d660b75f",
+      "nodefusion/_vendor/elftools/dwarf/enums.py": "10d18e4acabc383b8e8527cf4c011874dc9459c3bc30bd65b9212885a146bd7a",
+      "nodefusion/_vendor/elftools/dwarf/lineprogram.py": "d9472d85b8c62fe56a7d6371d8cdb8af6268416970bdf909898ccb2606fa850c",
+      "nodefusion/_vendor/elftools/dwarf/locationlists.py": "5167c3fb6208e3bafe0a52fc4d48eb164dc84dbd4980643acec19be26639a194",
+      "nodefusion/_vendor/elftools/dwarf/namelut.py": "4b62eb965afd3e099835eb8bb9112f2d1ec89cb42adc6b55c1f113b6068d17b3",
+      "nodefusion/_vendor/elftools/dwarf/ranges.py": "da3856ee646cf5b305751fa73a2d5fd9b0a21413377ca11cf93ce20e7040386e",
+      "nodefusion/_vendor/elftools/dwarf/structs.py": "dfb1d6d755bcc7cf9a0363620e470c5b4a74bf7499a32d82f261652ffe71bef8",
+      "nodefusion/_vendor/elftools/dwarf/typeunit.py": "c1bae01e11001941ebd0a10b72d569b4a0800600b3006b20a0b37f88536d1bc9",
+      "nodefusion/_vendor/elftools/ehabi/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "nodefusion/_vendor/elftools/ehabi/constants.py": "a386df95ebe53338db1cdfe498a06acf8e976007b5fab5c4eed2b8904932caa8",
+      "nodefusion/_vendor/elftools/ehabi/decoder.py": "3380c750ed972e33510a42a1d4de725f744cfc156e44a5d50ae199239cacb10e",
+      "nodefusion/_vendor/elftools/ehabi/ehabiinfo.py": "e442ea16826888c9903893db8ccd9cb47f9f634476c1837812c84b6ce4be1b4c",
+      "nodefusion/_vendor/elftools/ehabi/structs.py": "5ebdda74af71d7637d41eb0510403d8776d3b7ea70f715edc58aabc836aaae87",
+      "nodefusion/_vendor/elftools/elf/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "nodefusion/_vendor/elftools/elf/constants.py": "d805c36820815a58fce8593206a5527c46009756b9397298d086679b6a9d9f23",
+      "nodefusion/_vendor/elftools/elf/descriptions.py": "02771b6d1d4eb829b7334e417f580f78eb253c14f895c427c99b870537d363ef",
+      "nodefusion/_vendor/elftools/elf/dynamic.py": "13c2621f118f30c6a8b6a0d999bdf8a7d082f0c2b7713eb4203d7b877082f0f7",
+      "nodefusion/_vendor/elftools/elf/elffile.py": "0b8629b86828f0f05dea1200261ffaf1849ae675e52943e88a37e6a5e0b73d51",
+      "nodefusion/_vendor/elftools/elf/enums.py": "9beb3eb13c4dfe6e2e75ed5db7a75dbb6da7917ed7ea7ad9c2ab7b697c284256",
+      "nodefusion/_vendor/elftools/elf/gnuversions.py": "d22136e3242cf4ff379154b5c830706f3be1d77ee41ffab7efeed57e4876c740",
+      "nodefusion/_vendor/elftools/elf/hash.py": "538c9b253f89a4b200eeb9c7d82f9cd0c3ae08146b3295538363ba5fced3627a",
+      "nodefusion/_vendor/elftools/elf/notes.py": "17cf2c2a9ec9a0bf8f3415cbaeca42d3ab8f1102556251b290a2814e86f16f63",
+      "nodefusion/_vendor/elftools/elf/relocation.py": "b0fd391fe0e293ac7dc5bdad495a8d2e72454442c35291781952fa5016f77b0f",
+      "nodefusion/_vendor/elftools/elf/sections.py": "5acbfe427062f3f80cad1d556c4113d60136cbe526636e621a6e820ade5d6ab5",
+      "nodefusion/_vendor/elftools/elf/segments.py": "103f945c2c7d67eff713609ea189601e94c0e7122274110c6b20d038a5b8bf74",
+      "nodefusion/_vendor/elftools/elf/structs.py": "a0f439925915d7f1a69938673da2cebefd0d10860d60caddc81370ce017d8623",
+      "nodefusion/host/__init__.py": "eb4e72c7ca2b3242527b39bd840ced588631e97404cea0e72e3131406cdeec59",
+      "nodefusion/host/__main__.py": "13a1a5b340cdcfc1902b62be90e508c7c71886000d5bf087e7854aadf09fb35e",
+      "nodefusion/host/analyze.py": "b1c4a595a54058841630ba7b18818688efd00b8085b03ca91767208ec3b499e8",
+      "nodefusion/host/assets/app.css": "84035a9ddf0faf3ae1d4ebdd7049c142fcee11c20851afb16f636e7220c71949",
+      "nodefusion/host/assets/app.js": "ef4a9150df38c69cc2f382836b6e7ded63d58413e3b930d79b5db119548cc3f2",
+      "nodefusion/host/bundle.py": "6cc7fa9b185ffaf40c964bb2b8b90b1d144ef6cb987e85a386c1a14f332a9e2d",
+      "nodefusion/host/callstack.py": "a091f8123f33797a628ebcaabbeae721fe458b009b69cee6697221971b7f2fc0",
+      "nodefusion/host/cdp.py": "983be57750320be8265405b3fa4c3490288a34bba5b2f0c32820d51895210264",
+      "nodefusion/host/cli.py": "6a2f09d5d4ea15299e3f9cbc0f7a2312a322e9c43beb3837d61b2276787af9dd",
+      "nodefusion/host/dwarf.py": "158545b640bd312050c9cef773a19f0de839229cb08925a0298a5bb2751b5993",
+      "nodefusion/host/elfid.py": "43c44bed9a69fa2b92fc7520342843e71caf0c6a3849d2b23b54e9a22dfdcfa0",
+      "nodefusion/host/guest.py": "6871f08f11b9eda17b8a0618e8b8f43a544ddf05a37d7b530daa18d30d4c455a",
+      "nodefusion/host/kernels.py": "10dcd1d97aae33b5b389d4106bdf5867468df41a39ce769300448f6d1727b103",
+      "nodefusion/host/layout.py": "2f74bd4970af88fa38519c850fbcc494b8a1e4f5ddf7ed87897a442175f0ab82",
+      "nodefusion/host/nfelf.py": "5495b1bc5e3406268ba66054e831dfb3fc8857c47b881d95cd995bafa65c5315",
+      "nodefusion/host/nftrace.py": "d4fa97efd6527535ab90e4c623e8211bf8b9bf7d189beee47b56b216718c2f76",
+      "nodefusion/host/procview.py": "ae1874f57bafa6b694c50aa3c0185671e60fcf0f784d139ee5e807e2f98e9689",
+      "nodefusion/host/record.py": "ed6668c5711bcddff0e30a4b82eaf9235e6700746ce186042e39e45219b55428",
+      "nodefusion/host/render.py": "46d000d2f40eb934180fba10ec8d8ccb8cc5d1e53e558304fdba941bfcff7dd8",
+      "nodefusion/host/resources.py": "019a7be1fc7d86f221f2a67c3a5f7df271d1901500371a02a2113518483fb702",
+      "nodefusion/host/shell.py": "08a9b0318ab79c0642d9a0b29683dc65b86c4e529f547530baf4e60b1e67f0af",
+      "nodefusion/host/video.py": "1f49810a036f9388ae10153b8691504ed79c3e8b0e19a6bc2818de2ef1fe699d",
+      "nodefusion/host/watchlist.py": "1b820dd5d741a118b28959b44d95b886e5fe7518dd5beef3e5561e3cf39822d1",
+      "nodefusion/host/wslenv.py": "6b8f5d9e3f71b292e51c980f921dd498315c510d952ef90b24dfbf775b3afa6c",
+      "nodefusion/manifests/alien.toml": "da290fe1014168a7e8f44844f30430c3041a14550449c5d51fa06847f23f7aeb",
+      "nodefusion/manifests/arceos.toml": "cad48257d081aa1c660d3e7af2f4fbec79bbe232322c71453a9a5b1c9ac7be44",
+      "nodefusion/manifests/axvisor.toml": "d6cd2cc9d9662f74a5d25f29e8d02591ae5a205fe18166307ef430edbc7432b3",
+      "nodefusion/manifests/rcore.toml": "686eb2a0502ff95e386aa567e6f730375f2ff272949ea3687395e3e36daa25ec",
+      "nodefusion/manifests/rel4.toml": "ca43c2847a9ca757542ef3ed3e276dc7130c92b25150c73deb3e2a20faf8c37e",
+      "nodefusion/manifests/starry.toml": "8a3ce9735d4c948322962b8c532be334034ad608aac28a041bb58876012dcae8",
+      "nodefusion/manifests/ucore.toml": "b08a4f8edac1a7fbd40397ed8c21217cf8dfb03ba9fad496142892f59e4bd5f8",
+      "nodefusion/manifests/xv6.toml": "0f501a4441214a2de3b1b50d39665ee23faad6f93024b3b92d30f542bc9b7964",
+      "nodefusion/model/__init__.py": "9864ab2acb9890ed2fcbf815f30042fd97e3bd5ce069531f8c76fa2eed60b9d0",
+      "nodefusion/model/ctxbuild.py": "552c0d3d87d640e73bfb4c3fc237453c7b84298c721f2d37594c85d1ab5eb86d",
+      "nodefusion/model/dwarfsrc.py": "02688f5f8419ba6c8fd64ea4f347929f74c8b70299b632223c5535bab298f265",
+      "nodefusion/model/exec.py": "148e68fa1c7054716e4fcb3e7bddb7c0d384ab6a6bfcb00bd15f7a869f6d86ec",
+      "nodefusion/model/kinds.py": "0432ef9f134654bc36554ec55afcb9f91c593110cdacf0a58d0ac4d1d05ac569",
+      "nodefusion/model/layout.py": "cd2639282b0c4fac684d06309e11e95922213d3d32698f275e65dd060f677fd6",
+      "nodefusion/model/manifest.py": "d592aaac9ae308760cda947327c0d7c0e964a26d517740ed66838747e2334a22",
+      "nodefusion/model/plan.py": "374fbb225a6717c2c391ac8bdda54aa957638821a45b2865b40a7be9bcc808c6",
+      "nodefusion/model/probe.py": "30546d56bbd47ef12567826b49dd910de07e2af8fffc5c4350e04a57f70da5b8",
+      "nodefusion/model/readers/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "nodefusion/model/readers/containers.py": "6eec01bd4f30858e1eda2ee7de890a9d93f94eda25e02d0a1bdf3558d31a1610",
+      "nodefusion/model/readers/pointers.py": "72f989d643df6bdd477494023aac2da851f2d1f123d5e1e64b7629a0be6eae6b",
+      "nodefusion/model/readers/registry.py": "2c35cc0b1f8db857e67c08e9c7976bf47c6ab21faabb4e242d8a0be42f9634ee",
+      "nodefusion/model/readers/scalars.py": "a145fe5c4a250cc11fe44d0a4caabae908fbc44994335663955230296f695cbc",
+      "nodefusion/model/resolve.py": "0c588760d0ec6494617007b02d786285ba190593935f574f6c53b99ad62ac8c0",
+      "nodefusion/model/roles.py": "8d35b0497bd0b2d9abf639d9803fc6b7bd1e1ee5153c0f47ff53a26356dcc8c5",
+      "nodefusion/model/rt.py": "3d62e9c6169e89a2593b29ff49919e84a2dda1df1b6fc16d3e54c7cc5d1744af",
+      "nodefusion/model/snapshot.py": "e9c4ce76b858a9003e43d9eec363e1b88d4024338c3401b7a47a9871fe5dab7a",
+      "nodefusion/model/symbols.py": "05812b00228ba601209ec909213381d47272efdbcac3957914f4590a1d705cfe",
+      "nodefusion/model/watchsel.py": "bc3a9d6763950c265efaacce3f0c98194f54808d676b449c5b320b3a90cc7bf1",
+      "nodefusion/tests/conftest.py": "2dfa19b096e309beadff0df9a05761d412ec6234e74968854292d7bfecf1b7a5",
+      "nodefusion/tests/crosscheck_artifacts.py": "6ee173a31795c3875f93af0a0eaebcb27346c185c24e3f1d32846f5ca89d60a0",
+      "nodefusion/tests/fuzz_trace.py": "af6189a6538747d369f982dfb86016f5e48842da0ce73f651b63c0b482b1c37e",
+      "nodefusion/tests/kernelelf.py": "9a35d1389243849c6ed16f801a007568eb1304eee3d2cf3bcb8d1e38e12e2aed",
+      "nodefusion/tests/stress_pagetable.py": "5db6d3671739ad5d0a3f76908049126185ea000726d0044d4d87ef215f26f737",
+      "nodefusion/tests/test_absent_declaration.py": "535d4ace194fc5f923ba989e18634b55cffd0660eaefdfc7a59dcb4377eac266",
+      "nodefusion/tests/test_analysis_lookup_cache.py": "aa4fbc0b8f06c64278bc5b11edf21cfe3ec737e3f0d88901b52478aca29765f3",
+      "nodefusion/tests/test_analyze_alias.py": "345f6cbd8fae2a7c7729130460112a08a23599461234865f2da72055c3621064",
+      "nodefusion/tests/test_arg_names.py": "a0f4cd7c7017da1926fc317d6c73bcb6bd4bacde579e3818fa277079991a4af4",
+      "nodefusion/tests/test_artifact_guard.py": "8b53fababf688ceaf4afd1556d3c1352d3a13c60ea43fe14e3d3eae24698d1d0",
+      "nodefusion/tests/test_artifact_output_safety.py": "cbed1bfa5928e7b12edc85b506f8018dd3216f017c43461525daf0a299bea9aa",
+      "nodefusion/tests/test_bundle_shape.py": "0767cb84c8ccea309e70cdfc6e6f7cb5f3d6be09c7c9065a1119c142e1519892",
+      "nodefusion/tests/test_cache_hit_contract.py": "087277fe75bf38d8e83453b3671da4825f7586382fc1fa5300b3dc79272fbee7",
+      "nodefusion/tests/test_calibration_failure_reason.py": "02449f59da919dc09781a66ad57789a98775b3888d1480f4f3064b4d8a1139da",
+      "nodefusion/tests/test_callstack.py": "f81c2f42b453d26287f1cbab835cff47a2722d8c62b486529fbbcfc20c94c872",
+      "nodefusion/tests/test_capability_notes.py": "a2fb61afdc826c0c5408ea3b385761f896b27191e54881c3e10b10a2f01cc272",
+      "nodefusion/tests/test_compact_capability_ui.py": "07542f2beb95353f3dd3861ca3ffcec93d1f46c966c3dd74c82d27fc3b6427ad",
+      "nodefusion/tests/test_consolidate_artifacts.py": "5ffa4d01f5adb051f2153c3097d2264dfa7c63533f4cf6c09159fc50cd843cdd",
+      "nodefusion/tests/test_context_switch_snapshot.py": "db5c77b5ab4ad93d34a96266386dbeec80694db7482bfa5856c1547f773ccb9d",
+      "nodefusion/tests/test_corpus_selection.py": "1717ce9682ecde7a05675b790914a8e5a590e1d83556944ddbfff1e38918d050",
+      "nodefusion/tests/test_coverage_evidence.py": "fdbb041e7339f8d94a52a1833b01e315657a749e9bc7d21fee6a2724f23a86f3",
+      "nodefusion/tests/test_demangle_v0.py": "9f91c7ab6d2f681368c63d2bde9109cb4dd501f4d5df3e1f728a7b8975a0b061",
+      "nodefusion/tests/test_dwarf_generic_base.py": "f9204c883a298151406288885c32c04fd1e7db423fe6cb0747f0f4392ba0fef5",
+      "nodefusion/tests/test_dwarf_tombstones.py": "ed608be359e8180a5355cafe93e64d417543cc014461710f55fcd5997bef7295",
+      "nodefusion/tests/test_dwarfsrc_location.py": "bcd7c6e8cf00a086fd9c712ffa35aebfbb4e09aaf20ddaedc4f2f5b41604cad9",
+      "nodefusion/tests/test_elf_archive.py": "573747576adf2bf4daf66d5f99b6a149eff663ebcd6743b79b4b39d57d20dda5",
+      "nodefusion/tests/test_elfid.py": "3efd46b3688e79f7ccc376abb32f20b495b7c074dbd84c5181d67fade3db729c",
+      "nodefusion/tests/test_event_kind_pairs_measured_from_runs.py": "ef1a4ce55dc22b8f1073f3d4ac9120b30c68cf0877ba6e4dc5788f81217cdf55",
+      "nodefusion/tests/test_event_kind_registry.py": "276bb984ee002622d0284558df13234328a3779853c5b1681d71d827069bfd9d",
+      "nodefusion/tests/test_event_kinds.py": "7d066f949905b4df866f0ebfa3ead6cc3b78c7d8416d8b0a5660332dd2f6ef47",
+      "nodefusion/tests/test_event_snapshot_throttle.py": "2709d806da483ef8bcdb57ddb6c59a73da83a859b793d7cd5d15891ccfcedd87",
+      "nodefusion/tests/test_event_when_branches.py": "0b866c908cbc40deca18830293d161eb9b1f3401792d3fed1b1041e7e9b5e2de",
+      "nodefusion/tests/test_exec_iter_map.py": "026e1e908df1884c4d241902c845dd72a43c095e5ab28e94fb7069f621698562",
+      "nodefusion/tests/test_exec_walk.py": "67fc662f5b36cff81c1c1ab6a1dfe842081a05a1c3f69a64e8d212da0b7cb985",
+      "nodefusion/tests/test_func_events_scope.py": "de9f69b6673c312537ce72cfd6c91baa4355749558609ca0b696c21d8f790198",
+      "nodefusion/tests/test_kernel_elf_fixture.py": "ada3976b4b49734884bdb9b3844886e92251240671fe8ae219ed1f70c32c935b",
+      "nodefusion/tests/test_kernel_image_fit.py": "32c7bd1bf3b66c7071b36582ca32838af2777157f1ae999a46785e6a39675476",
+      "nodefusion/tests/test_kernel_integrations.py": "ec42c43dca4a41d6456915b698cd688097fda34438a57057faa74bf10236ee86",
+      "nodefusion/tests/test_kernel_view.py": "4cc544296573cab8df9858947e6d7040fb22aba4b29aac1b43a565b39d9e7ab5",
+      "nodefusion/tests/test_kind_three_states.py": "64764f687af895b3b37bc69179f2729f49efe2fb5fc5a24ecc09c41ea38e70ed",
+      "nodefusion/tests/test_layout_routing.py": "14631aae85b75dcb1c1c5cec92c344f1c01433e2ae6eb90a3c105ac583372a5c",
+      "nodefusion/tests/test_list_arceos.py": "22dbff8051cf7076ad5be6f919ed6d9a0c7a70bd1b6e09ca2f6589b5fb94493f",
+      "nodefusion/tests/test_list_wiring.py": "e5f187b746738a5ca027936468df8ab7d2e48e32fe550eca3fa57f217c60d5cb",
+      "nodefusion/tests/test_manifest_docs.py": "9be0200ca41d0f0512519356c81911cbbaf2aca63530d99e2aba53de9a1eea37",
+      "nodefusion/tests/test_manifest_lint.py": "ad03a1e3519feb79fbeacdbe6576f90b05e7c6c9cb3034c44bd1032163b69888",
+      "nodefusion/tests/test_manifest_roles.py": "b1a8fca196f9b37b614f3cd39abe33ad64c58894d1c933996d553c8f573d147e",
+      "nodefusion/tests/test_manifest_vocabulary.py": "834eb61d446df47b1c6ebcd4e8a7347eabc24486da052b4be8f5b0660b0f631d",
+      "nodefusion/tests/test_metric_deps_are_kinds_not_xv6_names.py": "07f411bb3fcbb14c2eb6c222f4a4928426a86a45d82f11cb242130c49eb6c717",
+      "nodefusion/tests/test_no_build.py": "f831e3504531cdd9f8f588428e7a7e86fa420bdee27cbf74522fac05bb27d6fa",
+      "nodefusion/tests/test_pagetable_arch.py": "9946ed7788d72107d6c6ea81fa4204843e1a0ae291add95259f3e96a0f661eb2",
+      "nodefusion/tests/test_path_index_gate.py": "8486e4f1d0d8f91800321a7907ae6797a59d6576cae0614c8db6f91c8ecee9ae",
+      "nodefusion/tests/test_percpu_layout.py": "4ecfcf97552e678173bca5fe81eb661bc7f417ba2f4ea4de3c540ba956152495",
+      "nodefusion/tests/test_percpu_runtime_layout.py": "ba54784385c6a6716eb3f3317635c8b2dd09b40e5e3e5e6112ca5b92d4e7c62c",
+      "nodefusion/tests/test_phys_alloc_gate.py": "a9a2a0b654cc803871d3702c25d2cfae95f8b1d3d8a881f00579fb3a0ef2fd02",
+      "nodefusion/tests/test_plan_iter_map.py": "58fcacc67e31cf6638ce4d846dccf32312ae17caed1d9470d0ba468fd95a4b5a",
+      "nodefusion/tests/test_plan_percpu.py": "5ece34163ede167484cc5edd5d3255d8514935af7a385b171b1b64c6e928140e",
+      "nodefusion/tests/test_plan_steps.py": "0241755b6c85983779fad700e2eba5332ab595cc64e6297e8358ba4d15f9dfb7",
+      "nodefusion/tests/test_procs_gate.py": "8acd3d3e2398fcd008dd4f5bae735183008eb4cecf6f4c09d0fffaefdf50cd8d",
+      "nodefusion/tests/test_procview.py": "9f48157ccc96833a83a42f2f3c3eb26a82bd7f6918c0c3c91a6052c5d9657428",
+      "nodefusion/tests/test_profile_from_manifest.py": "9f7cf3aa6cb931445e9e6c763bf2c30b1505e4b728f759514033994b5b60b16c",
+      "nodefusion/tests/test_rcore_fs_vocabulary.py": "48c49c9f091d4c964715cf55216b8354ea59697a0ef58ec18850f5e8e89f80c5",
+      "nodefusion/tests/test_rcore_inlined_halves.py": "fd61e489c857fcaa5cdbe2466e74b1ba6a547eb7b18fd12fbda80ce927c6f516",
+      "nodefusion/tests/test_readers_containers.py": "b0f882dd388f9bc3796b8f5d8c29d72c7dd6b5d8b7866055f810a7bbb2295d2f",
+      "nodefusion/tests/test_readers_pointers.py": "e15d27e41ca320d960720f6760ffd0ff6216f658c74ab373148dc3307fa24fd8",
+      "nodefusion/tests/test_readers_registry.py": "b139bcca13c15f203e73a427d9d6dc5804b97fc76a28d14025325f191cc4a6a5",
+      "nodefusion/tests/test_readers_scalars.py": "3a15bf0648767fb8e7d24044aeb61eb312ace64ab51f834e0a2dfe39072b9cd5",
+      "nodefusion/tests/test_record_icount.py": "b84db1f0c55683e9ccf8eaafdcef09dd37bb67a5fa555814d4d750ff97f844df",
+      "nodefusion/tests/test_recording_tail.py": "833b8e33c6d111b49790beea1ba7ab81b23bd7ea907a2155f981967bcb61a614",
+      "nodefusion/tests/test_regenerate_artifact.py": "4b2046cdcc98219c4181ca174f4ca02b6e3b5cfbfdd7bb6506c85112007e21f3",
+      "nodefusion/tests/test_resolve.py": "7e26f572cfaa0576e626a7458a23fd8f911a3d766ecad3df7954ce6f78207230",
+      "nodefusion/tests/test_resources.py": "0860476f362a770bd04355592a83fdb15aa9df3787c6c740d407cb8ee4fc817e",
+      "nodefusion/tests/test_sampled_counts_are_not_exact.py": "7bd598eb07ef0b067cee3460ef0c61d18b8b918ae697d80b01617cf73eaf0a9a",
+      "nodefusion/tests/test_shell_verdict.py": "22baff1ad7cb43b5c5574b424812c40b194e30e3800921429659f7b31cbe20f4",
+      "nodefusion/tests/test_snapshot.py": "17ef07a10857516f2fd29186157b945ff67490d2cdac94166cf370e96171e034",
+      "nodefusion/tests/test_source_combine.py": "506ebb5c6dda153e92b854887fb671cf4aa08d33fd8305b359139a1d38ee4349",
+      "nodefusion/tests/test_spec_nftrace_registry.py": "c529a4ed1f86bee4951e4699b09d466d51a5bd0623accc49bff9abcfdf15e615",
+      "nodefusion/tests/test_split_rawvec.py": "e80f55fc42e246f3f638979500c7c40548eb0f630c512a93b8eaa00df312eac4",
+      "nodefusion/tests/test_switch_attribution.py": "c773376888e9dc2ce87ddbebc14ccb0649ea77da189319692e20aff16eddb73d",
+      "nodefusion/tests/test_symbols_static_wrapper.py": "cf634a6545564e8949b9129cee0c5f01f3dcf60effd49883c3b908aa28af7f82",
+      "nodefusion/tests/test_trace_complete.py": "ac33d1da9aba97c98c68502188522a253709e96cf3fbb8d3c94b85c661cea366",
+      "nodefusion/tests/test_trace_streaming.py": "6c972f95a790afac5b9aa84320038bf0eab41b926126334db7290d095f2b1e10",
+      "nodefusion/tests/test_units.py": "c5b167cca227c5620b958329f5461232bc73e22997e5fe58a02859bb3664feef",
+      "nodefusion/tests/test_unobservable_does_not_speak_for_the_kernel.py": "448c03147a2306d8205762bdc9a9e0d9e8d5eb0e0c5199d17d80c2f076f87547",
+      "nodefusion/tests/test_video_sections.py": "c84c17b471460ae45a25341a8f893768816f57a9eb94e9f9a90e7e20406c4a31",
+      "nodefusion/tests/test_watchlist_wire.py": "1e01dd4fde92169c0ab1296dbd249865cddde4173ec8de3c71c39f61356f74c3",
+      "nodefusion/tests/test_watchsel.py": "89c8bb635534d079e0502d1c118f32eaa806250d74195a9d99bb71d07aabcd2d",
+      "nodefusion/tools/crosscheck_decoder.py": "2f69a3f636d910f93f24939bcd03b41d9b0a17184ce4a4b15250e00f65b47a28",
+      "nodefusion/tools/crosscheck_dwarf.py": "b30ecfa371c6959b2522db6d9edabf7e0c7be238feef34ff9411d76a4b4fdf01",
+      "nodefusion/tools/crosscheck_layout.py": "d77ebd7aaa1ace070392eca0051f1b34dbf65d08c355edf87101b7e449aa7106",
+      "nodefusion/tools/crosscheck_offsetof.py": "732e30d19129e0a1f15e33a2c1f96d940abaa1a26829b8f0d7bc44bf873cdc87",
+      "nodefusion/tools/crosscheck_procinfo.py": "c3d6dd588b28d9252ddb712dea0ab8d3212dffed7f9256b9b936860fa0dfb8a9",
+      "nodefusion/tools/crosscheck_procs.py": "b497c8fd050c0d6d1e4154eda00c1eef05502d3826546b1165b8a740c6fee562",
+      "nodefusion/tools/crosscheck_resources.py": "98b04ac869e3c9e38020728473d480b8ed0b15385bc1d530e466919807ad1ac3",
+      "nodefusion/tools/crosscheck_watchsel.py": "52142d49e919f2f040371b404cabdef0d0edbbf977abdcb1af5063b910d0aad8",
+      "nodefusion/tools/survey_chapters.py": "6952dbdb8036916acd17bd5f642ea0b62aa10cbbec2bb4227e58f5132683589b",
+      "scripts/benchmark_trace.py": "0faf86ba735bc31a20ee8e7ae3d3aad8aef78f0f43cdd33e831658f4e2a71494",
+      "scripts/consolidate_artifacts.py": "31700c7f0a1f21fef653e061115b0091aa1a4ce539b9baa9cb48ad914889dadd",
+      "scripts/finalize_artifacts.py": "a10224f43e0554eeb347a201dfd29781fbe0a39b979f890cccbec65e76cea9eb",
+      "scripts/regenerate_artifact.py": "aed10d1eedc5689b6fd68e84a9bb8ae0c98f7bb8456fd8bd280e8bae470b8e9a"
+    },
+    "plugin_sha256": "f1d1d8e375ed789b57f0fa06285da182b90951324e09e3f0c3716a38353112f2",
+    "source_archive": {
+      "path": "/home/joseph/nf/education-2026A-20260927/ucore-2026A-ch2-reference-source.tar.gz",
+      "sha256": "aef2324dc47ce3b5ab8ad2c746b6236e3a24bc92a898df43e990f22b78a3c7b7",
+      "bytes": 670860
+    }
+  },
+  "workload": {
+    "mode": "official-base-programs",
+    "user_programs": {
+      "ch2b_exit": "d5f782b3a4c7c8868f1437640b1db6ecf8d1756528d2f30ca4790a64b44df87f",
+      "ch2b_hello_world": "c85f28841c584cea2f36cb5c25505194c5ad9e4c95f1f162af4b5a3ede3aaf10",
+      "ch2b_power": "cef5bdbdddea4db273948d7f0c3bfd476dab08a31ae18afb8b06da44c095face"
+    }
+  },
+  "versions": {
+    "riscv64-unknown-elf-gcc": "riscv64-unknown-elf-gcc (Debian 14.2.0-19) 14.2.0",
+    "cmake": "cmake version 3.31.6",
+    "qemu-system-riscv64": "QEMU emulator version 10.2.2"
+  },
+  "build_context": {
+    "chapter": 2,
+    "mode": "positive",
+    "test_commit": "1733f460c596b013b1c509ad42afa428640783b0",
+    "bios": "default",
+    "status": "FAIL",
+    "kernel_commit": "729e1ad1632bb639dfe546f34765c0537b503990",
+    "test_patch_sha256": "d553d1307bd8e75060b09c403666435731d053075cee9e54b16396975380e6c6",
+    "riscv64-unknown-elf-gcc": "riscv64-unknown-elf-gcc (Debian 14.2.0-19) 14.2.0",
+    "qemu-system-riscv64": "QEMU emulator version 10.2.2",
+    "base": 1,
+    "kernel_sha256": "c1f9fd52efc7b4c11a70e0c03788cb61dc3db304d62e60c31957ebb49c171c64",
+    "qemu_command": [
+      "qemu-system-riscv64",
+      "-nographic",
+      "-machine",
+      "virt",
+      "-m",
+      "128M",
+      "-smp",
+      "1",
+      "-bios",
+      "default",
+      "-kernel",
+      "build/kernel"
+    ],
+    "qemu_exit": 0,
+    "stopped_after_suite": false,
+    "error": "exit count 1 does not match 3 selected apps; application exits ['1234'] differ from [1234, 0, 0]; missing 'ALL DONE'"
+  },
+  "build_command": [
+    "/home/joseph/nf/venv313/bin/python",
+    "tools/run_lab.py",
+    "--mode",
+    "positive"
+  ],
+  "build_cwd": "/home/joseph/nf/education-2026A-20260927/ucore-ch2",
+  "record_command": [
+    "/home/joseph/nf/venv313/bin/python",
+    "-m",
+    "nodefusion.host.cli",
+    "record",
+    "--kernel",
+    "/home/joseph/nf/education-2026A-20260927/ucore-ch2",
+    "--kernel-kind",
+    "ucore",
+    "--runs",
+    "/home/joseph/nf/education-2026A-20260927/runs",
+    "--name",
+    "ucore-2026A-ch2-reference",
+    "--no-build",
+    "--function-returns",
+    "--watch-all",
+    "--profile",
+    "uniform",
+    "--snapshots",
+    "80",
+    "--max-ram-bytes",
+    "268435456",
+    "--timeout",
+    "20",
+    "--no-render",
+    "--event-stream",
+    "never"
+  ],
+  "record_cwd": "/home/joseph/nf/education-2026A-20260927/tool",
+  "analysis_command": [
+    "/home/joseph/nf/venv313/bin/python",
+    "-m",
+    "scripts.regenerate_artifact",
+    "--run",
+    "/home/joseph/nf/education-2026A-20260927/runs/ucore-2026A-ch2-reference",
+    "--out",
+    "/home/joseph/nf/education-2026A-20260927/runs/ucore-2026A-ch2-reference/ucore-2026A-ch2-reference.html"
+  ],
+  "analysis_cwd": "/home/joseph/nf/education-2026A-20260927/tool",
+  "record_driver_sha256": "a82660089754404380abac65dc3d7a4eb0b7af43bef6d371329f67442763819a",
+  "batch_analysis_command": [
+    "/home/joseph/nf/venv313/bin/python",
+    "/home/joseph/nf/education-2026A-20260927/inspect-ch2.py",
+    "ucore-2026A-ch2-reference",
+    "batch-observations-kernel.json"
+  ],
+  "batch_analysis_script_sha256": "52d2bf2f0c9a84d595ac2da739f154cde215ab44a239a49f6e525f9463b51c01",
+  "batch_analysis_sha256": "a36421f19d9ceef032803a966346451876303a5585765a24a045079256c7c374",
+  "started_utc": "2026-09-27T12:16:16.574150+00:00",
+  "outcome": "timeout",
+  "trace_complete": true,
+  "qemu_command": "cd \"/home/joseph/nf/education-2026A-20260927/ucore-ch2\" && exec qemu-system-riscv64 -machine virt -bios default -kernel build/kernel -m 128M -smp 1 -nographic -qmp tcp:127.0.0.1:58075,server=on,wait=off -plugin /home/joseph/nf/education-2026A-20260927/tool/nodefusion/plugin/libnf.so,out=/home/joseph/nf/education-2026A-20260927/runs/ucore-2026A-ch2-reference/trace.nfb,sample=200000,snap=10095225,maxram=268435456,returns=1,snapstart=0,bootsnap=0,ramsize=134217728,watch=/home/joseph/nf/education-2026A-20260927/runs/ucore-2026A-ch2-reference/watchlist.txt -icount shift=3",
+  "archive": {
+    "run_path": "/home/joseph/nf/education-2026A-20260927/runs/ucore-2026A-ch2-reference",
+    "trace_sha256": "5b609693876d16c0f9655dd44d70fe7220fc3a378c45ce7b5f835367de4d5fe5",
+    "trace_bytes": 968230275
+  },
+  "observations": {
+    "run": "ucore-2026A-ch2-reference",
+    "outcome": "timeout",
+    "trace_complete": true,
+    "symbols": {
+      "app_info_ptr": {
+        "address": 2149691392,
+        "size": 8
+      },
+      "app_cur": {
+        "address": 2149691404,
+        "size": 4
+      },
+      "app_num": {
+        "address": 2149691400,
+        "size": 4
+      },
+      "boot_stack_top": {
+        "address": 2149683200,
+        "size": 0
+      },
+      "user_stack": {
+        "address": 2149687296,
+        "size": 4096
+      },
+      "trap_page": {
+        "address": 2149683200,
+        "size": 4096
+      },
+      "boot_stack": {
+        "address": 2149617664,
+        "size": 0
+      }
+    },
+    "function_counts": {
+      "main": 1,
+      "clean_bss": 1,
+      "memset": 5,
+      "printf": 6,
+      "consputc": 259,
+      "console_putchar": 259,
+      "trap_init": 1,
+      "loader_init": 1,
+      "run_next_app": 2,
+      "threadid": 5,
+      "printint": 13,
+      "load_app": 2,
+      "memmove": 2,
+      "usertrapret": 1,
+      "usertrap": 1,
+      "syscall": 1,
+      "dummy": 1,
+      "sys_exit": 1
+    },
+    "entries": {
+      "memset": [
+        {
+          "insn": 10762863,
+          "pc": 2149582170,
+          "sp": 2149683168,
+          "ra": 2149581380,
+          "a": [
+            2149683200,
+            0,
+            12288,
+            1,
+            0,
+            1,
+            5,
+            7
+          ],
+          "priv": 1
+        },
+        {
+          "insn": 10820278,
+          "pc": 2149582170,
+          "sp": 2149683120,
+          "ra": 2149581042,
+          "a": [
+            2151677952,
+            0,
+            131072,
+            2149682913,
+            0,
+            2149585012,
+            2149585632,
+            1
+          ],
+          "priv": 1
+        },
+        {
+          "insn": 11283767,
+          "pc": 2149582170,
+          "sp": 2149683152,
+          "ra": 2149581266,
+          "a": [
+            2149683200,
+            0,
+            4096,
+            2149682913,
+            2149683136,
+            2149585061,
+            2149585632,
+            1
+          ],
+          "priv": 1
+        },
+        {
+          "insn": 11324892,
+          "pc": 2149582170,
+          "sp": 2149687120,
+          "ra": 2149581042,
+          "a": [
+            2151677952,
+            0,
+            131072,
+            2149686913,
+            1,
+            2149585012,
+            2149585632,
+            1
+          ],
+          "priv": 1
+        },
+        {
+          "insn": 11788381,
+          "pc": 2149582170,
+          "sp": 2149687152,
+          "ra": 2149581266,
+          "a": [
+            2149683200,
+            0,
+            4096,
+            2149686913,
+            2149687136,
+            2149585061,
+            2149585632,
+            1
+          ],
+          "priv": 1
+        }
+      ],
+      "run_next_app": [
+        {
+          "insn": 10805215,
+          "pc": 2149581078,
+          "sp": 2149683184,
+          "ra": 2149581444,
+          "a": [
+            0,
+            0,
+            0,
+            3,
+            2149691528,
+            3,
+            5,
+            1
+          ],
+          "priv": 1
+        },
+        {
+          "insn": 11309829,
+          "pc": 2149581078,
+          "sp": 2149687184,
+          "ra": 2149582838,
+          "a": [
+            0,
+            0,
+            0,
+            2149686948,
+            1,
+            2149585228,
+            2149585632,
+            1
+          ],
+          "priv": 1
+        }
+      ],
+      "load_app": [
+        {
+          "insn": 10820263,
+          "pc": 2149581000,
+          "sp": 2149683152,
+          "ra": 2149581196,
+          "a": [
+            2149589000,
+            0,
+            0,
+            2149682913,
+            0,
+            2149585012,
+            2149585632,
+            1
+          ],
+          "priv": 1
+        },
+        {
+          "insn": 11324877,
+          "pc": 2149581000,
+          "sp": 2149687152,
+          "ra": 2149581196,
+          "a": [
+            2149589008,
+            0,
+            0,
+            2149686913,
+            1,
+            2149585012,
+            2149585632,
+            1
+          ],
+          "priv": 1
+        }
+      ],
+      "usertrapret": [
+        {
+          "insn": 11296080,
+          "pc": 2149583508,
+          "sp": 2149683152,
+          "ra": 2149581308,
+          "a": [
+            2149683200,
+            2149683200,
+            4096,
+            2149682913,
+            2149687296,
+            2149691392,
+            2149585632,
+            1
+          ],
+          "priv": 1
+        }
+      ],
+      "usertrap": [
+        {
+          "insn": 11296200,
+          "pc": 2149583580,
+          "sp": 2149687296,
+          "ra": 2151678142,
+          "a": [
+            2149683200,
+            0,
+            0,
+            0,
+            0,
+            2151683122,
+            0,
+            93
+          ],
+          "priv": 1
+        }
+      ],
+      "syscall": [
+        {
+          "insn": 11296218,
+          "pc": 2149582862,
+          "sp": 2149687264,
+          "ra": 2149583754,
+          "a": [
+            2149683200,
+            0,
+            0,
+            0,
+            0,
+            2151678152,
+            0,
+            93
+          ],
+          "priv": 1
+        }
+      ],
+      "sys_exit": [
+        {
+          "insn": 11296400,
+          "pc": 2149582778,
+          "sp": 2149687216,
+          "ra": 2149583478,
+          "a": [
+            1234,
+            93,
+            1234,
+            0,
+            0,
+            93,
+            0,
+            2151683122
+          ],
+          "priv": 1
+        }
+      ]
+    },
+    "syscall_counts": {
+      "93": 1
+    },
+    "syscall_samples": {
+      "93": [
+        {
+          "insn": 11296159,
+          "cpu": 0,
+          "flags": 0,
+          "discon_type": 2,
+          "priv": 1,
+          "from_pc": 2151678148,
+          "to_pc": 2149583952,
+          "scause": 8,
+          "sepc": 2151678148,
+          "stval": 0,
+          "satp": 0,
+          "sstatus": 9223372045444735008,
+          "a": [
+            1234,
+            0,
+            0,
+            0,
+            0,
+            2151683122,
+            0,
+            93
+          ],
+          "sp": 2149691344,
+          "mcause": 9,
+          "mepc": 2149582104,
+          "mtval": 0
+        }
+      ]
+    },
+    "faults": [
+      {
+        "insn": 11800681,
+        "cpu": 0,
+        "flags": 0,
+        "discon_type": 2,
+        "priv": 3,
+        "from_pc": 0,
+        "to_pc": 2147484920,
+        "scause": 8,
+        "sepc": 2151678148,
+        "stval": 0,
+        "satp": 0,
+        "sstatus": 9223372045444735008,
+        "a": [
+          2149683200,
+          0,
+          4096,
+          2149686913,
+          2149687296,
+          2149687296,
+          2149585632,
+          1
+        ],
+        "sp": 2149687152,
+        "mcause": 1,
+        "mepc": 0,
+        "mtval": 0
+      },
+      {
+        "insn": 11800976,
+        "cpu": 0,
+        "flags": 0,
+        "discon_type": 2,
+        "priv": 3,
+        "from_pc": 2149583956,
+        "to_pc": 2147484920,
+        "scause": 1,
+        "sepc": 0,
+        "stval": 0,
+        "satp": 0,
+        "sstatus": 9223372045444735232,
+        "a": [
+          1234,
+          0,
+          4096,
+          2149686913,
+          2149687296,
+          2149687296,
+          2149585632,
+          1
+        ],
+        "sp": 2149687152,
+        "mcause": 7,
+        "mepc": 2149583956,
+        "mtval": 1274
+      },
+      {
+        "insn": 11801413,
+        "cpu": 0,
+        "flags": 0,
+        "discon_type": 2,
+        "priv": 3,
+        "from_pc": 0,
+        "to_pc": 2147484920,
+        "scause": 7,
+        "sepc": 2149583956,
+        "stval": 1274,
+        "satp": 0,
+        "sstatus": 9223372045444735232,
+        "a": [
+          2149683200,
+          0,
+          4096,
+          2149686913,
+          2149687296,
+          2149687296,
+          2149585632,
+          1
+        ],
+        "sp": 0,
+        "mcause": 1,
+        "mepc": 0,
+        "mtval": 0
+      },
+      {
+        "insn": 11801708,
+        "cpu": 0,
+        "flags": 0,
+        "discon_type": 2,
+        "priv": 3,
+        "from_pc": 2149583956,
+        "to_pc": 2147484920,
+        "scause": 1,
+        "sepc": 0,
+        "stval": 0,
+        "satp": 0,
+        "sstatus": 9223372045444735232,
+        "a": [
+          1234,
+          0,
+          4096,
+          2149686913,
+          2149687296,
+          2149687296,
+          2149585632,
+          1
+        ],
+        "sp": 0,
+        "mcause": 7,
+        "mepc": 2149583956,
+        "mtval": 1274
+      },
+      {
+        "insn": 11802145,
+        "cpu": 0,
+        "flags": 0,
+        "discon_type": 2,
+        "priv": 3,
+        "from_pc": 0,
+        "to_pc": 2147484920,
+        "scause": 7,
+        "sepc": 2149583956,
+        "stval": 1274,
+        "satp": 0,
+        "sstatus": 9223372045444735232,
+        "a": [
+          2149683200,
+          0,
+          4096,
+          2149686913,
+          2149687296,
+          2149687296,
+          2149585632,
+          1
+        ],
+        "sp": 0,
+        "mcause": 1,
+        "mepc": 0,
+        "mtval": 0
+      },
+      {
+        "insn": 11802440,
+        "cpu": 0,
+        "flags": 0,
+        "discon_type": 2,
+        "priv": 3,
+        "from_pc": 2149583956,
+        "to_pc": 2147484920,
+        "scause": 1,
+        "sepc": 0,
+        "stval": 0,
+        "satp": 0,
+        "sstatus": 9223372045444735232,
+        "a": [
+          1234,
+          0,
+          4096,
+          2149686913,
+          2149687296,
+          2149687296,
+          2149585632,
+          1
+        ],
+        "sp": 0,
+        "mcause": 7,
+        "mepc": 2149583956,
+        "mtval": 1274
+      },
+      {
+        "insn": 11802877,
+        "cpu": 0,
+        "flags": 0,
+        "discon_type": 2,
+        "priv": 3,
+        "from_pc": 0,
+        "to_pc": 2147484920,
+        "scause": 7,
+        "sepc": 2149583956,
+        "stval": 1274,
+        "satp": 0,
+        "sstatus": 9223372045444735232,
+        "a": [
+          2149683200,
+          0,
+          4096,
+          2149686913,
+          2149687296,
+          2149687296,
+          2149585632,
+          1
+        ],
+        "sp": 0,
+        "mcause": 1,
+        "mepc": 0,
+        "mtval": 0
+      },
+      {
+        "insn": 11803172,
+        "cpu": 0,
+        "flags": 0,
+        "discon_type": 2,
+        "priv": 3,
+        "from_pc": 2149583956,
+        "to_pc": 2147484920,
+        "scause": 1,
+        "sepc": 0,
+        "stval": 0,
+        "satp": 0,
+        "sstatus": 9223372045444735232,
+        "a": [
+          1234,
+          0,
+          4096,
+          2149686913,
+          2149687296,
+          2149687296,
+          2149585632,
+          1
+        ],
+        "sp": 0,
+        "mcause": 7,
+        "mepc": 2149583956,
+        "mtval": 1274
+      },
+      {
+        "insn": 11803609,
+        "cpu": 0,
+        "flags": 0,
+        "discon_type": 2,
+        "priv": 3,
+        "from_pc": 0,
+        "to_pc": 2147484920,
+        "scause": 7,
+        "sepc": 2149583956,
+        "stval": 1274,
+        "satp": 0,
+        "sstatus": 9223372045444735232,
+        "a": [
+          2149683200,
+          0,
+          4096,
+          2149686913,
+          2149687296,
+          2149687296,
+          2149585632,
+          1
+        ],
+        "sp": 0,
+        "mcause": 1,
+        "mepc": 0,
+        "mtval": 0
+      },
+      {
+        "insn": 11803904,
+        "cpu": 0,
+        "flags": 0,
+        "discon_type": 2,
+        "priv": 3,
+        "from_pc": 2149583956,
+        "to_pc": 2147484920,
+        "scause": 1,
+        "sepc": 0,
+        "stval": 0,
+        "satp": 0,
+        "sstatus": 9223372045444735232,
+        "a": [
+          1234,
+          0,
+          4096,
+          2149686913,
+          2149687296,
+          2149687296,
+          2149585632,
+          1
+        ],
+        "sp": 0,
+        "mcause": 7,
+        "mepc": 2149583956,
+        "mtval": 1274
+      },
+      {
+        "insn": 11804341,
+        "cpu": 0,
+        "flags": 0,
+        "discon_type": 2,
+        "priv": 3,
+        "from_pc": 0,
+        "to_pc": 2147484920,
+        "scause": 7,
+        "sepc": 2149583956,
+        "stval": 1274,
+        "satp": 0,
+        "sstatus": 9223372045444735232,
+        "a": [
+          2149683200,
+          0,
+          4096,
+          2149686913,
+          2149687296,
+          2149687296,
+          2149585632,
+          1
+        ],
+        "sp": 0,
+        "mcause": 1,
+        "mepc": 0,
+        "mtval": 0
+      },
+      {
+        "insn": 11804636,
+        "cpu": 0,
+        "flags": 0,
+        "discon_type": 2,
+        "priv": 3,
+        "from_pc": 2149583956,
+        "to_pc": 2147484920,
+        "scause": 1,
+        "sepc": 0,
+        "stval": 0,
+        "satp": 0,
+        "sstatus": 9223372045444735232,
+        "a": [
+          1234,
+          0,
+          4096,
+          2149686913,
+          2149687296,
+          2149687296,
+          2149585632,
+          1
+        ],
+        "sp": 0,
+        "mcause": 7,
+        "mepc": 2149583956,
+        "mtval": 1274
+      },
+      {
+        "insn": 11805073,
+        "cpu": 0,
+        "flags": 0,
+        "discon_type": 2,
+        "priv": 3,
+        "from_pc": 0,
+        "to_pc": 2147484920,
+        "scause": 7,
+        "sepc": 2149583956,
+        "stval": 1274,
+        "satp": 0,
+        "sstatus": 9223372045444735232,
+        "a": [
+          2149683200,
+          0,
+          4096,
+          2149686913,
+          2149687296,
+          2149687296,
+          2149585632,
+          1
+        ],
+        "sp": 0,
+        "mcause": 1,
+        "mepc": 0,
+        "mtval": 0
+      },
+      {
+        "insn": 11805368,
+        "cpu": 0,
+        "flags": 0,
+        "discon_type": 2,
+        "priv": 3,
+        "from_pc": 2149583956,
+        "to_pc": 2147484920,
+        "scause": 1,
+        "sepc": 0,
+        "stval": 0,
+        "satp": 0,
+        "sstatus": 9223372045444735232,
+        "a": [
+          1234,
+          0,
+          4096,
+          2149686913,
+          2149687296,
+          2149687296,
+          2149585632,
+          1
+        ],
+        "sp": 0,
+        "mcause": 7,
+        "mepc": 2149583956,
+        "mtval": 1274
+      },
+      {
+        "insn": 11805805,
+        "cpu": 0,
+        "flags": 0,
+        "discon_type": 2,
+        "priv": 3,
+        "from_pc": 0,
+        "to_pc": 2147484920,
+        "scause": 7,
+        "sepc": 2149583956,
+        "stval": 1274,
+        "satp": 0,
+        "sstatus": 9223372045444735232,
+        "a": [
+          2149683200,
+          0,
+          4096,
+          2149686913,
+          2149687296,
+          2149687296,
+          2149585632,
+          1
+        ],
+        "sp": 0,
+        "mcause": 1,
+        "mepc": 0,
+        "mtval": 0
+      },
+      {
+        "insn": 11806100,
+        "cpu": 0,
+        "flags": 0,
+        "discon_type": 2,
+        "priv": 3,
+        "from_pc": 2149583956,
+        "to_pc": 2147484920,
+        "scause": 1,
+        "sepc": 0,
+        "stval": 0,
+        "satp": 0,
+        "sstatus": 9223372045444735232,
+        "a": [
+          1234,
+          0,
+          4096,
+          2149686913,
+          2149687296,
+          2149687296,
+          2149585632,
+          1
+        ],
+        "sp": 0,
+        "mcause": 7,
+        "mepc": 2149583956,
+        "mtval": 1274
+      },
+      {
+        "insn": 11806537,
+        "cpu": 0,
+        "flags": 0,
+        "discon_type": 2,
+        "priv": 3,
+        "from_pc": 0,
+        "to_pc": 2147484920,
+        "scause": 7,
+        "sepc": 2149583956,
+        "stval": 1274,
+        "satp": 0,
+        "sstatus": 9223372045444735232,
+        "a": [
+          2149683200,
+          0,
+          4096,
+          2149686913,
+          2149687296,
+          2149687296,
+          2149585632,
+          1
+        ],
+        "sp": 0,
+        "mcause": 1,
+        "mepc": 0,
+        "mtval": 0
+      },
+      {
+        "insn": 11806832,
+        "cpu": 0,
+        "flags": 0,
+        "discon_type": 2,
+        "priv": 3,
+        "from_pc": 2149583956,
+        "to_pc": 2147484920,
+        "scause": 1,
+        "sepc": 0,
+        "stval": 0,
+        "satp": 0,
+        "sstatus": 9223372045444735232,
+        "a": [
+          1234,
+          0,
+          4096,
+          2149686913,
+          2149687296,
+          2149687296,
+          2149585632,
+          1
+        ],
+        "sp": 0,
+        "mcause": 7,
+        "mepc": 2149583956,
+        "mtval": 1274
+      },
+      {
+        "insn": 11807269,
+        "cpu": 0,
+        "flags": 0,
+        "discon_type": 2,
+        "priv": 3,
+        "from_pc": 0,
+        "to_pc": 2147484920,
+        "scause": 7,
+        "sepc": 2149583956,
+        "stval": 1274,
+        "satp": 0,
+        "sstatus": 9223372045444735232,
+        "a": [
+          2149683200,
+          0,
+          4096,
+          2149686913,
+          2149687296,
+          2149687296,
+          2149585632,
+          1
+        ],
+        "sp": 0,
+        "mcause": 1,
+        "mepc": 0,
+        "mtval": 0
+      },
+      {
+        "insn": 11807564,
+        "cpu": 0,
+        "flags": 0,
+        "discon_type": 2,
+        "priv": 3,
+        "from_pc": 2149583956,
+        "to_pc": 2147484920,
+        "scause": 1,
+        "sepc": 0,
+        "stval": 0,
+        "satp": 0,
+        "sstatus": 9223372045444735232,
+        "a": [
+          1234,
+          0,
+          4096,
+          2149686913,
+          2149687296,
+          2149687296,
+          2149585632,
+          1
+        ],
+        "sp": 0,
+        "mcause": 7,
+        "mepc": 2149583956,
+        "mtval": 1274
+      }
+    ],
+    "discontinuity_counts": [
+      {
+        "destination_privilege": 3,
+        "cause": 3,
+        "count": 1
+      },
+      {
+        "destination_privilege": 3,
+        "cause": 2,
+        "count": 18
+      },
+      {
+        "destination_privilege": 3,
+        "cause": 9,
+        "count": 259
+      },
+      {
+        "destination_privilege": 1,
+        "cause": 8,
+        "count": 1
+      },
+      {
+        "destination_privilege": 3,
+        "cause": 1,
+        "count": 766776
+      },
+      {
+        "destination_privilege": 3,
+        "cause": 7,
+        "count": 766775
+      }
+    ],
+    "states": [
+      {
+        "insn": 10095229,
+        "seq": 0,
+        "app_cur": 0,
+        "app_num": 0,
+        "app_info_ptr": 0,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 0,
+          "sp": 0,
+          "a0": 0,
+          "a1": 0,
+          "a2": 0,
+          "a7": 0
+        }
+      },
+      {
+        "insn": 11296080,
+        "seq": 1,
+        "app_cur": 0,
+        "app_num": 3,
+        "app_info_ptr": 2149589000,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2151677952,
+          "sp": 2149691392,
+          "a0": 0,
+          "a1": 0,
+          "a2": 0,
+          "a7": 0
+        }
+      },
+      {
+        "insn": 11296200,
+        "seq": 2,
+        "app_cur": 0,
+        "app_num": 3,
+        "app_info_ptr": 2149589000,
+        "trapframe": {
+          "kernel_sp": 2149687296,
+          "epc": 2151678148,
+          "sp": 2149691344,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 0,
+          "a7": 93
+        }
+      },
+      {
+        "insn": 11296400,
+        "seq": 3,
+        "app_cur": 0,
+        "app_num": 3,
+        "app_info_ptr": 2149589000,
+        "trapframe": {
+          "kernel_sp": 2149687296,
+          "epc": 2151678152,
+          "sp": 2149691344,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 0,
+          "a7": 93
+        }
+      },
+      {
+        "insn": 20190480,
+        "seq": 4,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 30285705,
+        "seq": 5,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 40380941,
+        "seq": 6,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 50476189,
+        "seq": 7,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 60571429,
+        "seq": 8,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 70666657,
+        "seq": 9,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 80761882,
+        "seq": 10,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 90857108,
+        "seq": 11,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 100952335,
+        "seq": 12,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 111047573,
+        "seq": 13,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 121142798,
+        "seq": 14,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 131238026,
+        "seq": 15,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 141333257,
+        "seq": 16,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 151428505,
+        "seq": 17,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 161523745,
+        "seq": 18,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 171618973,
+        "seq": 19,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 181714198,
+        "seq": 20,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 191809424,
+        "seq": 21,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 201904651,
+        "seq": 22,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 211999889,
+        "seq": 23,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 222095114,
+        "seq": 24,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 232190342,
+        "seq": 25,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 242285573,
+        "seq": 26,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 252380821,
+        "seq": 27,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 262476061,
+        "seq": 28,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 272571289,
+        "seq": 29,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 282666514,
+        "seq": 30,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 292761740,
+        "seq": 31,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 302856967,
+        "seq": 32,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 312952205,
+        "seq": 33,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 323047430,
+        "seq": 34,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 333142658,
+        "seq": 35,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 343237889,
+        "seq": 36,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 353333137,
+        "seq": 37,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 363428377,
+        "seq": 38,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 373523605,
+        "seq": 39,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 383618830,
+        "seq": 40,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 393714056,
+        "seq": 41,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 403809283,
+        "seq": 42,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 413904521,
+        "seq": 43,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 423999746,
+        "seq": 44,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 434094974,
+        "seq": 45,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 444190205,
+        "seq": 46,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 454285453,
+        "seq": 47,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 464380693,
+        "seq": 48,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 474475921,
+        "seq": 49,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 484571146,
+        "seq": 50,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 494666372,
+        "seq": 51,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 504761599,
+        "seq": 52,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 514856837,
+        "seq": 53,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 524952062,
+        "seq": 54,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 535047290,
+        "seq": 55,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 545142521,
+        "seq": 56,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 555237769,
+        "seq": 57,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      },
+      {
+        "insn": 565333009,
+        "seq": 58,
+        "app_cur": 1,
+        "app_num": 3,
+        "app_info_ptr": 2149589008,
+        "trapframe": {
+          "kernel_sp": 0,
+          "epc": 2149583956,
+          "sp": 0,
+          "a0": 1234,
+          "a1": 0,
+          "a2": 4096,
+          "a7": 1
+        }
+      }
+    ],
+    "last_samples": [
+      {
+        "insn": 570814056,
+        "cpu": 0,
+        "flags": 0,
+        "pc": 0,
+        "satp": 0,
+        "sstatus": 0,
+        "priv": 0
+      },
+      {
+        "insn": 571014061,
+        "cpu": 0,
+        "flags": 0,
+        "pc": 0,
+        "satp": 0,
+        "sstatus": 0,
+        "priv": 0
+      },
+      {
+        "insn": 571214068,
+        "cpu": 0,
+        "flags": 0,
+        "pc": 0,
+        "satp": 0,
+        "sstatus": 0,
+        "priv": 0
+      },
+      {
+        "insn": 571414085,
+        "cpu": 0,
+        "flags": 0,
+        "pc": 0,
+        "satp": 0,
+        "sstatus": 0,
+        "priv": 0
+      },
+      {
+        "insn": 571614096,
+        "cpu": 0,
+        "flags": 0,
+        "pc": 0,
+        "satp": 0,
+        "sstatus": 0,
+        "priv": 0
+      },
+      {
+        "insn": 571814096,
+        "cpu": 0,
+        "flags": 0,
+        "pc": 0,
+        "satp": 0,
+        "sstatus": 0,
+        "priv": 0
+      },
+      {
+        "insn": 572014096,
+        "cpu": 0,
+        "flags": 0,
+        "pc": 0,
+        "satp": 0,
+        "sstatus": 0,
+        "priv": 0
+      },
+      {
+        "insn": 572214100,
+        "cpu": 0,
+        "flags": 0,
+        "pc": 0,
+        "satp": 0,
+        "sstatus": 0,
+        "priv": 0
+      },
+      {
+        "insn": 572414101,
+        "cpu": 0,
+        "flags": 0,
+        "pc": 0,
+        "satp": 0,
+        "sstatus": 0,
+        "priv": 0
+      },
+      {
+        "insn": 572614104,
+        "cpu": 0,
+        "flags": 0,
+        "pc": 0,
+        "satp": 0,
+        "sstatus": 0,
+        "priv": 0
+      },
+      {
+        "insn": 572814104,
+        "cpu": 0,
+        "flags": 0,
+        "pc": 0,
+        "satp": 0,
+        "sstatus": 0,
+        "priv": 0
+      },
+      {
+        "insn": 573014104,
+        "cpu": 0,
+        "flags": 0,
+        "pc": 0,
+        "satp": 0,
+        "sstatus": 0,
+        "priv": 0
+      }
+    ],
+    "total_insns": 573080224,
+    "snapshots": 59,
+    "input_sha256": {
+      "trace.nfb": "5b609693876d16c0f9655dd44d70fe7220fc3a378c45ce7b5f835367de4d5fe5",
+      "manifest.json": "fb2a55654e14b5acb38e0417f8548a46d9e957273446c574d62132935c7ed33f",
+      "watchlist.json": "d3ce67729eef664e11825f7376b49c0aab0d8d32c03467188456857b23ccf77d",
+      "kernel_layout.json": "3a716cf144e1258b724a8107195322b9a7abe842c9acca6781525b1d3093c6f9"
+    },
+    "kernel_elf_sha256": "c1f9fd52efc7b4c11a70e0c03788cb61dc3db304d62e60c31957ebb49c171c64",
+    "script_sha256": "52d2bf2f0c9a84d595ac2da739f154cde215ab44a239a49f6e525f9463b51c01",
+    "layout_probe_sha256": "dd34176ed316416e259511b5e0395a20477b34475382b1766c53c5744ef72218",
+    "raw_events": 1534392,
+    "function_entries": {
+      "raw": 562,
+      "retained": 562
+    },
+    "function_returns": {
+      "raw": 12424130,
+      "matched": 554,
+      "nested_entries": 559
+    }
+  },
+  "report": {
+    "schema": "nodefusion.artifact-evidence/1",
+    "run": "ucore-2026A-ch2-reference",
+    "kernel_kind": "ucore",
+    "source_sha256": {
+      "trace.nfb": "5b609693876d16c0f9655dd44d70fe7220fc3a378c45ce7b5f835367de4d5fe5",
+      "manifest.json": "fb2a55654e14b5acb38e0417f8548a46d9e957273446c574d62132935c7ed33f",
+      "watchlist.json": "d3ce67729eef664e11825f7376b49c0aab0d8d32c03467188456857b23ccf77d",
+      "kernel_layout.json": "3a716cf144e1258b724a8107195322b9a7abe842c9acca6781525b1d3093c6f9"
+    },
+    "kernel_elf_sha256": "c1f9fd52efc7b4c11a70e0c03788cb61dc3db304d62e60c31957ebb49c171c64",
+    "archive_bytes": {
+      "trace.nfb": 968230275,
+      "kernel_elf": 67344
+    },
+    "html_sha256": "5e7f1f2044920f4badb2c6d93843fa99b3509adcb5601f9e3600bbddedeeb2c1",
+    "html_bytes": 1096477,
+    "function_trace": {
+      "kind": "return-matched observed frames",
+      "raw": 562,
+      "retained": 562,
+      "returns": 12424130,
+      "matched_returns": 554,
+      "nested_entries": 559
+    },
+    "event_selection": {
+      "applied": true,
+      "policy": "kind-preserving/systematic-v3",
+      "raw": 1534392,
+      "retained": 150000,
+      "dropped": 1384392,
+      "target_limit": 150000,
+      "minimum_spare": 25000,
+      "always_keep": "first event of each normalized kind within budget",
+      "priority_raw": 1533835,
+      "spare_raw": 557,
+      "semantic_budget": 149443,
+      "semantic_retained": 149443,
+      "spare_budget": 557,
+      "stride": 1,
+      "retained_kinds": {
+        "firmware.trap": 149411,
+        "func.clean_bss": 1,
+        "func.console_putchar": 259,
+        "func.consputc": 259,
+        "func.dummy": 1,
+        "func.load_app": 2,
+        "func.loader_init": 1,
+        "func.main": 1,
+        "func.memmove": 2,
+        "func.memset": 5,
+        "func.printf": 6,
+        "func.printint": 13,
+        "func.run_next_app": 2,
+        "func.threadid": 5,
+        "sbi.call": 26,
+        "syscall.dispatch": 1,
+        "syscall.enter": 1,
+        "syscall.exit": 1,
+        "trap.init": 1,
+        "trap.userret": 1,
+        "trap.usertrap": 1
+      },
+      "dropped_kinds": {
+        "firmware.trap": 1384159,
+        "sbi.call": 233
+      }
+    },
+    "coverage": {
+      "status": "complete",
+      "percent": 100.0,
+      "passed": 1533906,
+      "total": 1533906,
+      "metrics": {
+        "covered": 6,
+        "applicable": 6,
+        "not_applicable": [
+          "bcache_hit_rate",
+          "bcache_hits",
+          "bcache_reads",
+          "context_switches",
+          "disk_io",
+          "execs",
+          "forks",
+          "kalloc",
+          "kfree",
+          "log_commits",
+          "page_table_maps",
+          "vm_maps",
+          "vm_unmaps"
+        ],
+        "missing": [],
+        "sampled": []
+      },
+      "semantic_events": {
+        "raw": 1533835,
+        "unknown": 0,
+        "unknown_fields": {},
+        "dropped_from_interactive": 1384392
+      },
+      "snapshots": {
+        "checked": 59,
+        "incomplete": 0,
+        "physical_memory": 0,
+        "physical_counters": 0,
+        "processes": 0,
+        "resources": 0,
+        "pre_initialization": {
+          "physical_memory": 0,
+          "physical_counters": 0,
+          "processes": 0,
+          "resources": 0
+        }
+      },
+      "snapshot_not_applicable": [
+        "physical_counters",
+        "processes",
+        "resources"
+      ],
+      "manifest_fields": {
+        "cells": 0,
+        "states": {},
+        "not_applicable": 0,
+        "unresolved": 0
+      },
+      "full_watch_scope": true,
+      "function_watch_drops": 0,
+      "function_stacks_available": true,
+      "observation_points": {
+        "unresolved": [],
+        "reported_missing": 86,
+        "layout_missing": []
+      },
+      "blockers": []
+    }
+  },
+  "course_check": {
+    "chapter": 2,
+    "mode": "positive",
+    "test_commit": "1733f460c596b013b1c509ad42afa428640783b0",
+    "bios": "default",
+    "status": "FAIL",
+    "kernel_commit": "729e1ad1632bb639dfe546f34765c0537b503990",
+    "test_patch_sha256": "d553d1307bd8e75060b09c403666435731d053075cee9e54b16396975380e6c6",
+    "riscv64-unknown-elf-gcc": "riscv64-unknown-elf-gcc (Debian 14.2.0-19) 14.2.0",
+    "qemu-system-riscv64": "QEMU emulator version 10.2.2",
+    "base": 1,
+    "kernel_sha256": "c1f9fd52efc7b4c11a70e0c03788cb61dc3db304d62e60c31957ebb49c171c64",
+    "qemu_command": [
+      "qemu-system-riscv64",
+      "-nographic",
+      "-machine",
+      "virt",
+      "-m",
+      "128M",
+      "-smp",
+      "1",
+      "-bios",
+      "default",
+      "-kernel",
+      "build/kernel"
+    ],
+    "qemu_exit": 0,
+    "stopped_after_suite": false,
+    "error": "exit count 1 does not match 3 selected apps; application exits ['1234'] differ from [1234, 0, 0]; missing 'ALL DONE'"
+  }
+}

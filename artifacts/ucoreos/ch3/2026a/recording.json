@@ -1,0 +1,737 @@
+{
+  "schema": "nodefusion.education-recording/1",
+  "chapter": 3,
+  "course": "2026A",
+  "run": "ucore-2026A-ch3-batch",
+  "source": {
+    "kernel_commit": "6bb0c2e8d84eda0451092f24f907ed084299e6e6",
+    "kernel_patch": "diff --git a/Makefile b/Makefile\nindex de426d5..9446f05 100644\n--- a/Makefile\n+++ b/Makefile\n@@ -14,7 +14,7 @@ GDB = $(TOOLPREFIX)gdb\n CP = cp\n BUILDDIR = build\n C_SRCS = $(wildcard $K/*.c)\n-AS_SRCS = $(wildcard $K/*.S)\n+AS_SRCS := $(wildcard $K/*.S)\n C_OBJS = $(addprefix $(BUILDDIR)/, $(addsuffix .o, $(basename $(C_SRCS))))\n AS_OBJS = $(addprefix $(BUILDDIR)/, $(addsuffix .o, $(basename $(AS_SRCS))))\n OBJS = $(C_OBJS) $(AS_OBJS)\n",
+    "user_commit": "1733f460c596b013b1c509ad42afa428640783b0",
+    "user_patch_sha256": "d553d1307bd8e75060b09c403666435731d053075cee9e54b16396975380e6c6",
+    "nodefusion_commit": "bce9de05d36d5cdd0afc71121e7c9b1016c08664",
+    "plugin_sha256": "f1d1d8e375ed789b57f0fa06285da182b90951324e09e3f0c3716a38353112f2",
+    "qemu_version": "QEMU emulator version 10.2.2",
+    "nodefusion_runtime_overrides": [
+      {
+        "path": "nodefusion/host/record.py",
+        "sha256": "ba82b839ca8c50ba1959e4751ce24293095a052f00e6e080747c5718dc050be5",
+        "patch": "diff --git a/nodefusion/host/record.py b/nodefusion/host/record.py\nindex ac7695e..fafe088 100644\n--- a/nodefusion/host/record.py\n+++ b/nodefusion/host/record.py\n@@ -399,6 +399,10 @@ class Recorder:\n                     f\"内核自己按顺序跑完所有应用，没有地方喂命令。\")\n \n \n+    @property\n+    def interactive_workload(self) -> bool:\n+        return self.profile.interactive and bool(self.cfg.program) and self.cfg.program != NO_PROGRAM\n+\n     def effective_lab_stage(self) -> int | None:\n         if self.cfg.lab_stage is not None:\n             return self.cfg.lab_stage\n@@ -571,7 +575,7 @@ class Recorder:\n \n         outcome = \"unknown\"\n         try:\n-            if not self.profile.interactive:\n+            if not self.interactive_workload:\n                 outcome = self._drive_headless(proc, reader)\n             else:\n                 outcome = self._drive_shell(proc, reader)\n@@ -738,7 +742,7 @@ class Recorder:\n             # An interactive shell's exec sequence cannot identify the host\n             # command without a dedicated marker.\n             prog_start = _program_start_from_trace(\n-                tr, wl_json, interactive=self.profile.interactive)\n+                tr, wl_json, interactive=self.interactive_workload)\n             tmp_trace.unlink(missing_ok=True)\n         if total <= 0:\n             raise RecordError(\n@@ -835,7 +839,7 @@ class Recorder:\n                 calibration_path, calibration_wl.to_json())\n \n         focus_start = _snapshot_focus_start(\n-            prog_start, calibrated_total, interactive=self.profile.interactive)\n+            prog_start, calibrated_total, interactive=self.interactive_workload)\n \n         if c.snap_insns is not None:\n             snap_insns = c.snap_insns\n@@ -909,7 +913,7 @@ class Recorder:\n             \"snap_start_insn\": snap_start,\n             \"program_start_insn\": prog_start,\n             \"snapshot_focus\": (\"interactive_tail_15pct\" if\n-                               self.profile.interactive and not prog_start and\n+                               self.interactive_workload and not prog_start and\n                                c.snap_start is None and calibrated_total else\n                                \"program_boundary\" if prog_start else \"uniform\"),\n             \"calibrated_total_insns\": calibrated_total,\n"
+      },
+      {
+        "path": "nodefusion/manifests/ucore.toml",
+        "sha256": "1918de4aa98ac2fe7f88dbe7007090b81bda3f100886df6d8a921968e3c8464d",
+        "patch": "diff --git a/nodefusion/manifests/ucore.toml b/nodefusion/manifests/ucore.toml\nindex 4312842..70ee144 100644\n--- a/nodefusion/manifests/ucore.toml\n+++ b/nodefusion/manifests/ucore.toml\n@@ -471,7 +471,8 @@ machine_opts = [\n ]\n interactive = true\n prompt = \">> \"\n-ready_markers = [\"C user shell\"]\n+ready_markers = [\"C user shell\", \"start scheduler!\"]\n+done_markers = [\"ALL DONE\", \"all app are over!\", \"all apps over\"]\n # User-space assertions deliberately print the same ``[PANIC ...]`` prefix as\n # the kernel logger and then return a non-zero test status.  Treating that text\n # as a kernel panic truncates aggregate suites halfway through; the shell's\n"
+      }
+    ]
+  },
+  "workload": [
+    "ch2b_exit",
+    "ch2b_hello_world",
+    "ch2b_power",
+    "ch3_trace",
+    "ch3b_sleep",
+    "ch3b_sleep1",
+    "ch3b_yield0",
+    "ch3b_yield1",
+    "ch3b_yield2"
+  ],
+  "html": "ucore-2026A-ch3-batch.html",
+  "started_utc": "2026-09-27T10:57:11.902931+00:00",
+  "outcome": "completed",
+  "trace_complete": true,
+  "qemu_command": "cd \"/home/joseph/nf/education-2026A-20260927/ucore-ch3\" && exec qemu-system-riscv64 -machine virt -bios default -kernel build/kernel -m 128M -smp 1 -nographic -qmp tcp:127.0.0.1:35191,server=on,wait=off -plugin /home/joseph/nf/education-2026A-20260927/tool/nodefusion/plugin/libnf.so,out=/home/joseph/nf/education-2026A-20260927/runs/ucore-2026A-ch3-batch/trace.nfb,sample=200000,snap=2939428,maxram=268435456,returns=1,snapstart=0,bootsnap=0,ramsize=134217728,watch=/home/joseph/nf/education-2026A-20260927/runs/ucore-2026A-ch3-batch/watchlist.txt -icount shift=3",
+  "record_command": [
+    "/home/joseph/nf/venv313/bin/python",
+    "-m",
+    "nodefusion.host.cli",
+    "record",
+    "--kernel",
+    "/home/joseph/nf/education-2026A-20260927/ucore-ch3",
+    "--kernel-kind",
+    "ucore",
+    "--runs",
+    "/home/joseph/nf/education-2026A-20260927/runs",
+    "--name",
+    "ucore-2026A-ch3-batch",
+    "--no-build",
+    "--function-returns",
+    "--watch-all",
+    "--profile",
+    "uniform",
+    "--snapshots",
+    "160",
+    "--max-ram-bytes",
+    "268435456",
+    "--timeout",
+    "120",
+    "--no-render",
+    "--event-stream",
+    "never"
+  ],
+  "record_cwd": "/home/joseph/nf/education-2026A-20260927/tool",
+  "analysis_command": [
+    "/home/joseph/nf/venv313/bin/python",
+    "/home/joseph/nf/education-2026A-20260927/analyze-ch3.py",
+    "ucore-2026A-ch3-batch"
+  ],
+  "analysis_script_sha256": "67d569322b3fd7d616be3cf7bd8e6aae050920255f641965cd065cf0640b5949",
+  "analysis_apis": [
+    "nodefusion.host.analyze.analyze",
+    "nodefusion.host.render.render"
+  ],
+  "observations": {
+    "total_insns": 486181332,
+    "raw_events": 16344247,
+    "snapshots": 170,
+    "event_kinds": {
+      "firmware.trap": 19,
+      "func.main": 1,
+      "func.clean_bss": 1,
+      "func.memset": 62,
+      "proc.initproc": 1,
+      "func.loader_init": 1,
+      "trap.init": 1,
+      "func.timer_init": 1,
+      "func.set_next_timer": 302,
+      "interrupt.clock": 302,
+      "sbi.call": 1398,
+      "func.run_all_app": 1,
+      "proc.alloc": 9,
+      "func.allocpid": 9,
+      "func.load_app": 9,
+      "func.memmove": 9,
+      "func.dummy": 2334237,
+      "func.threadid": 2,
+      "func.printf": 11,
+      "func.consputc": 410,
+      "func.console_putchar": 1095,
+      "func.printint": 41,
+      "sched.enter": 1,
+      "sched.switch": 1167509,
+      "trap.userret": 1167250,
+      "func.curr_proc": 5835658,
+      "interrupt.timer": 301,
+      "trap.usertrap": 1167250,
+      "sched.yield": 583746,
+      "sched.yield_to_scheduler": 583754,
+      "syscall.enter": 1166949,
+      "syscall.dispatch": 1166949,
+      "syscall.write": 38,
+      "proc.exit": 9,
+      "func.finished": 9,
+      "func.sys_gettimeofday": 583444,
+      "func.get_cycle": 583444,
+      "func.sys_trace": 13,
+      "kernel.panic": 1
+    },
+    "function_entries": {
+      "scheduler": 1,
+      "swtch": 1167509,
+      "yield": 583746,
+      "sched": 583754,
+      "exit": 9
+    },
+    "scheduling_examples": {
+      "interrupt.timer": [
+        {
+          "insn": 15946665,
+          "cpu": 0,
+          "kind": "interrupt.timer",
+          "resource": "interrupt",
+          "pid": 1,
+          "pc": 2151677952,
+          "detail": {
+            "from_pc": 2151677952,
+            "to_pc": 2149585104,
+            "priv": 1,
+            "scause": 9223372036854775813,
+            "sepc": 2151677952,
+            "stval": 0,
+            "mcause": 9,
+            "mepc": 2149583002,
+            "mtval": 0,
+            "cause_code": 5,
+            "cause_name": "S 态时钟中断"
+          },
+          "entry_name": null
+        },
+        {
+          "insn": 15947114,
+          "cpu": 0,
+          "kind": "sched.yield",
+          "resource": "sched",
+          "pid": 1,
+          "pc": 2149582866,
+          "func": "yield",
+          "entry_name": "yield"
+        },
+        {
+          "insn": 15947124,
+          "cpu": 0,
+          "kind": "sched.yield_to_scheduler",
+          "resource": "sched",
+          "pid": 1,
+          "pc": 2149582760,
+          "func": "sched",
+          "entry_name": "sched"
+        },
+        {
+          "insn": 15947139,
+          "cpu": 0,
+          "kind": "sched.switch",
+          "resource": "sched",
+          "pc": 2149584990,
+          "func": "swtch",
+          "detail": {
+            "old_ctx": 2149945376,
+            "new_ctx": 2149744672,
+            "from_pid": 1,
+            "from_proc": null,
+            "from_slot": 0,
+            "to_pid": null,
+            "to_proc": "调度器",
+            "to_slot": null
+          },
+          "entry_name": "swtch"
+        },
+        {
+          "insn": 15947179,
+          "cpu": 0,
+          "kind": "sched.switch",
+          "resource": "sched",
+          "pid": 2,
+          "pc": 2149584990,
+          "func": "swtch",
+          "detail": {
+            "old_ctx": 2149744672,
+            "new_ctx": 2149948808,
+            "from_pid": null,
+            "from_proc": "调度器",
+            "from_slot": null,
+            "to_pid": 2,
+            "to_proc": null,
+            "to_slot": 1
+          },
+          "entry_name": "swtch"
+        }
+      ],
+      "proc.exit": [
+        {
+          "insn": 15971655,
+          "cpu": 0,
+          "kind": "proc.exit",
+          "resource": "lifecycle",
+          "pid": 2,
+          "pc": 2149582902,
+          "func": "exit",
+          "detail": {
+            "code": 0
+          },
+          "entry_name": "exit"
+        },
+        {
+          "insn": 15986750,
+          "cpu": 0,
+          "kind": "sched.yield_to_scheduler",
+          "resource": "sched",
+          "pid": 2,
+          "pc": 2149582760,
+          "func": "sched",
+          "entry_name": "sched"
+        },
+        {
+          "insn": 15986765,
+          "cpu": 0,
+          "kind": "sched.switch",
+          "resource": "sched",
+          "pc": 2149584990,
+          "func": "swtch",
+          "detail": {
+            "old_ctx": 2149948808,
+            "new_ctx": 2149744672,
+            "from_pid": 2,
+            "from_proc": null,
+            "from_slot": 1,
+            "to_pid": null,
+            "to_proc": "调度器",
+            "to_slot": null
+          },
+          "entry_name": "swtch"
+        },
+        {
+          "insn": 15986805,
+          "cpu": 0,
+          "kind": "sched.switch",
+          "resource": "sched",
+          "pid": 3,
+          "pc": 2149584990,
+          "func": "swtch",
+          "detail": {
+            "old_ctx": 2149744672,
+            "new_ctx": 2149952240,
+            "from_pid": null,
+            "from_proc": "调度器",
+            "from_slot": null,
+            "to_pid": 3,
+            "to_proc": null,
+            "to_slot": 2
+          },
+          "entry_name": "swtch"
+        }
+      ]
+    },
+    "console_success": {
+      "Test write A OK!": true,
+      "Test write B OK!": true,
+      "Test write C OK!": true,
+      "Test sleep1 passed!": true,
+      "Test trace OK!": true,
+      "Test sleep OK!": true
+    },
+    "syscalls": {
+      "run": "ucore-2026A-ch3-batch",
+      "counts": {
+        "64": {
+          "name": "write",
+          "count": 38
+        },
+        "93": {
+          "name": "exit",
+          "count": 9
+        },
+        "124": {
+          "name": "sched_yield",
+          "count": 583445
+        },
+        "169": {
+          "name": "gettimeofday",
+          "count": 583444
+        },
+        "410": {
+          "name": "trace",
+          "count": 13
+        }
+      },
+      "first_yield": [
+        {
+          "name": "sched_yield",
+          "insn": 17511329,
+          "pc": 2152077828,
+          "number": 124,
+          "args": [
+            0,
+            0,
+            2361183241434822607,
+            0,
+            112,
+            612
+          ]
+        },
+        {
+          "insn": 17511415,
+          "name": "syscall",
+          "kind": "syscall.dispatch",
+          "pc": 2149583894,
+          "args": [
+            2149955640,
+            8,
+            2361183241434822607,
+            8,
+            45137,
+            2152077832,
+            1000,
+            124
+          ]
+        },
+        {
+          "insn": 17511489,
+          "name": "yield",
+          "kind": "sched.yield",
+          "pc": 2149582866,
+          "args": [
+            2149956632,
+            124,
+            0,
+            0,
+            2361183241434822607,
+            124,
+            112,
+            612
+          ]
+        },
+        {
+          "insn": 17511499,
+          "name": "sched",
+          "kind": "sched.yield_to_scheduler",
+          "pc": 2149582760,
+          "args": [
+            2149956632,
+            124,
+            0,
+            0,
+            3,
+            2149955640,
+            112,
+            612
+          ]
+        },
+        {
+          "insn": 17511514,
+          "name": "swtch",
+          "kind": "sched.switch",
+          "pc": 2149584990,
+          "args": [
+            2149955672,
+            2149744672,
+            0,
+            0,
+            3,
+            4,
+            112,
+            612
+          ]
+        },
+        {
+          "insn": 17511554,
+          "name": "swtch",
+          "kind": "sched.switch",
+          "pc": 2149584990,
+          "args": [
+            2149744672,
+            2149959104,
+            0,
+            0,
+            3,
+            3,
+            112,
+            612
+          ]
+        }
+      ]
+    }
+  },
+  "state_examples": [
+    {
+      "insn": 15971655,
+      "snap_seq": 5,
+      "procs": [
+        {
+          "slot": 0,
+          "pid": 1,
+          "state": "RUNNABLE",
+          "sched_ctx": 2149945376,
+          "kstack": 2149879808
+        },
+        {
+          "slot": 1,
+          "pid": 2,
+          "state": "RUNNING",
+          "sched_ctx": 2149948808,
+          "kstack": 2149883904
+        },
+        {
+          "slot": 2,
+          "pid": 3,
+          "state": "RUNNABLE",
+          "sched_ctx": 2149952240,
+          "kstack": 2149888000
+        },
+        {
+          "slot": 3,
+          "pid": 4,
+          "state": "RUNNABLE",
+          "sched_ctx": 2149955672,
+          "kstack": 2149892096
+        },
+        {
+          "slot": 4,
+          "pid": 5,
+          "state": "RUNNABLE",
+          "sched_ctx": 2149959104,
+          "kstack": 2149896192
+        },
+        {
+          "slot": 5,
+          "pid": 6,
+          "state": "RUNNABLE",
+          "sched_ctx": 2149962536,
+          "kstack": 2149900288
+        },
+        {
+          "slot": 6,
+          "pid": 7,
+          "state": "RUNNABLE",
+          "sched_ctx": 2149965968,
+          "kstack": 2149904384
+        },
+        {
+          "slot": 7,
+          "pid": 8,
+          "state": "RUNNABLE",
+          "sched_ctx": 2149969400,
+          "kstack": 2149908480
+        },
+        {
+          "slot": 8,
+          "pid": 9,
+          "state": "RUNNABLE",
+          "sched_ctx": 2149972832,
+          "kstack": 2149912576
+        }
+      ],
+      "counts": {
+        "RUNNABLE": 8,
+        "RUNNING": 1
+      }
+    },
+    {
+      "insn": 97001290,
+      "snap_seq": 35,
+      "procs": [
+        {
+          "slot": 4,
+          "pid": 5,
+          "state": "RUNNING",
+          "sched_ctx": 2149959104,
+          "kstack": 2149896192
+        }
+      ],
+      "counts": {
+        "RUNNING": 1
+      }
+    },
+    {
+      "insn": 486180420,
+      "snap_seq": 169,
+      "procs": [],
+      "counts": {}
+    }
+  ],
+  "report": {
+    "schema": "nodefusion.artifact-evidence/1",
+    "run": "ucore-2026A-ch3-batch",
+    "kernel_kind": "ucore",
+    "source_sha256": {
+      "trace.nfb": "9ac74208c31f8b909185af50568fec9772e01e8fb7fa78a493ecc89852ce9f26",
+      "manifest.json": "3ea31e68c9cfa656d8d089438cff37d359f5e06fcb31bd33aac926bbb62392e8",
+      "watchlist.json": "31e857fbbae95ffe9e68b26f4f1b9132babf59260cdeea650168ae56cf65ad10",
+      "kernel_layout.json": "49c0e8ef24c450a2347584419db1dc6f3d3e8f8627ee59d6ec7d2ec85b8d37c1"
+    },
+    "kernel_elf_sha256": "3205969f8416b9a8ca106a1dfc8f610df8ced0906c354cf38ceeaf210a988224",
+    "archive_bytes": {
+      "trace.nfb": 2816996147,
+      "kernel_elf": 136728
+    },
+    "html_sha256": "b07f722330578b0fbd7ced0001539272333d008e68d192a0a8f9b15f4ddf228d",
+    "html_bytes": 1257641,
+    "function_trace": {
+      "kind": "return-matched observed frames",
+      "raw": 15175580,
+      "retained": 129189,
+      "returns": 14064332,
+      "matched_returns": 9922604,
+      "nested_entries": 12257370
+    },
+    "event_selection": {
+      "applied": true,
+      "policy": "kind-preserving/systematic-v3",
+      "raw": 16344247,
+      "retained": 150000,
+      "dropped": 16194247,
+      "target_limit": 150000,
+      "minimum_spare": 25000,
+      "always_keep": "first event of each normalized kind within budget",
+      "priority_raw": 7005487,
+      "spare_raw": 9338760,
+      "semantic_budget": 125000,
+      "semantic_retained": 125000,
+      "spare_budget": 25000,
+      "stride": 373,
+      "retained_kinds": {
+        "firmware.trap": 1,
+        "func.console_putchar": 4,
+        "func.curr_proc": 15622,
+        "func.dummy": 6249,
+        "func.get_cycle": 1562,
+        "func.main": 1,
+        "func.sys_gettimeofday": 1562,
+        "interrupt.clock": 7,
+        "interrupt.timer": 6,
+        "kernel.panic": 1,
+        "proc.alloc": 1,
+        "proc.exit": 1,
+        "proc.initproc": 1,
+        "sbi.call": 23,
+        "sched.enter": 1,
+        "sched.switch": 20832,
+        "sched.yield": 10429,
+        "sched.yield_to_scheduler": 10397,
+        "syscall.dispatch": 20813,
+        "syscall.enter": 20781,
+        "syscall.write": 2,
+        "trap.init": 1,
+        "trap.userret": 20869,
+        "trap.usertrap": 20834
+      },
+      "dropped_kinds": {
+        "firmware.trap": 18,
+        "func.allocpid": 9,
+        "func.clean_bss": 1,
+        "func.console_putchar": 1091,
+        "func.consputc": 410,
+        "func.curr_proc": 5820036,
+        "func.dummy": 2327988,
+        "func.finished": 9,
+        "func.get_cycle": 581882,
+        "func.load_app": 9,
+        "func.loader_init": 1,
+        "func.memmove": 9,
+        "func.memset": 62,
+        "func.printf": 11,
+        "func.printint": 41,
+        "func.run_all_app": 1,
+        "func.set_next_timer": 302,
+        "func.sys_gettimeofday": 581882,
+        "func.sys_trace": 13,
+        "func.threadid": 2,
+        "func.timer_init": 1,
+        "interrupt.clock": 295,
+        "interrupt.timer": 295,
+        "proc.alloc": 8,
+        "proc.exit": 8,
+        "sbi.call": 1375,
+        "sched.switch": 1146677,
+        "sched.yield": 573317,
+        "sched.yield_to_scheduler": 573357,
+        "syscall.dispatch": 1146136,
+        "syscall.enter": 1146168,
+        "syscall.write": 36,
+        "trap.userret": 1146381,
+        "trap.usertrap": 1146416
+      }
+    },
+    "coverage": {
+      "status": "complete",
+      "percent": 100.0,
+      "passed": 7008260,
+      "total": 7008260,
+      "metrics": {
+        "covered": 7,
+        "applicable": 7,
+        "not_applicable": [
+          "bcache_hit_rate",
+          "bcache_hits",
+          "bcache_reads",
+          "disk_io",
+          "execs",
+          "forks",
+          "kalloc",
+          "kfree",
+          "log_commits",
+          "page_table_maps",
+          "vm_maps",
+          "vm_unmaps"
+        ],
+        "missing": [],
+        "sampled": []
+      },
+      "semantic_events": {
+        "raw": 7005487,
+        "unknown": 0,
+        "unknown_fields": {},
+        "dropped_from_interactive": 6880487
+      },
+      "snapshots": {
+        "checked": 170,
+        "incomplete": 0,
+        "physical_memory": 0,
+        "physical_counters": 0,
+        "processes": 0,
+        "resources": 0,
+        "pre_initialization": {
+          "physical_memory": 0,
+          "physical_counters": 0,
+          "processes": 0,
+          "resources": 0
+        }
+      },
+      "snapshot_not_applicable": [
+        "physical_counters",
+        "resources"
+      ],
+      "manifest_fields": {
+        "cells": 2420,
+        "states": {
+          "absent": 1320,
+          "present": 1100
+        },
+        "not_applicable": 1320,
+        "unresolved": 0
+      },
+      "full_watch_scope": true,
+      "function_watch_drops": 0,
+      "function_stacks_available": true,
+      "observation_points": {
+        "unresolved": [],
+        "reported_missing": 74,
+        "layout_missing": []
+      },
+      "blockers": []
+    }
+  },
+  "analysis_runtime_overrides": [
+    {
+      "path": "nodefusion/manifests/ucore.toml",
+      "sha256": "815864bd884154dbf187b5192dd63e027c8ce74545b660936fa4ac345cc1c938",
+      "patch": "diff --git a/nodefusion/manifests/ucore.toml b/nodefusion/manifests/ucore.toml\nindex 4312842..408f71b 100644\n--- a/nodefusion/manifests/ucore.toml\n+++ b/nodefusion/manifests/ucore.toml\n@@ -34,13 +34,16 @@ steps = [\n ]\n \n [entity.liveness]\n-skip_when = { field = \"state\", equals = \"P_UNUSED\" }\n+skip_when = { field = \"state\", one_of = [\"UNUSED\", \"P_UNUSED\"] }\n \n [entity.fields]\n pid         = { path = \"pid\",         reader = \"i32\",  role = \"id\" }\n state       = { path = \"state\",       reader = \"enum\", enum = \"procstate\", role = \"state\" }\n \n [entity.optional_fields]\n+kstack      = { path = \"kstack\",      reader = \"u64\" }\n+trapframe   = { path = \"trapframe\",   reader = \"ptr\", role = \"trap_context\" }\n+context     = { path = \"context\",    reader = \"struct\", role = \"sched_context\" }\n pagetable   = { path = \"pagetable\",   reader = \"ptr\", role = \"address_space_root\" }\n max_page    = { path = \"max_page\",    reader = \"u64\" }\n ustack_base = { path = \"ustack_base\", reader = \"u64\" }\n@@ -471,7 +474,8 @@ machine_opts = [\n ]\n interactive = true\n prompt = \">> \"\n-ready_markers = [\"C user shell\"]\n+ready_markers = [\"C user shell\", \"start scheduler!\"]\n+done_markers = [\"ALL DONE\", \"all app are over!\", \"all apps over\"]\n # User-space assertions deliberately print the same ``[PANIC ...]`` prefix as\n # the kernel logger and then return a non-zero test status.  Treating that text\n # as a kernel panic truncates aggregate suites halfway through; the shell's\n"
+    },
+    {
+      "path": "nodefusion/model/snapshot.py",
+      "sha256": "e9c4ce76b858a9003e43d9eec363e1b88d4024338c3401b7a47a9871fe5dab7a",
+      "patch": "diff --git a/nodefusion/model/snapshot.py b/nodefusion/model/snapshot.py\nindex fa095ef..0bf7cb7 100644\n--- a/nodefusion/model/snapshot.py\n+++ b/nodefusion/model/snapshot.py\n@@ -68,6 +68,8 @@ def is_live(entity: Entity, liveness: dict | None) -> bool:\n         return True\n     if \"equals\" in sw:\n         return f.value != sw[\"equals\"]\n+    if \"one_of\" in sw:\n+        return f.value not in sw[\"one_of\"]\n     return True\n \n \n"
+    }
+  ],
+  "syscall_analysis_command": [
+    "/home/joseph/nf/venv313/bin/python",
+    "/home/joseph/nf/education-2026A-20260927/inspect-syscalls.py",
+    "ucore-2026A-ch3-batch"
+  ],
+  "syscall_analysis_script_sha256": "5df0638d2dea14492b88e6bf497178caaa795f75c551d93de8afa33a4e3b4f46",
+  "syscall_analysis_sha256": "1c79e2c2e83bc2402f5ba2e7d324a56b043e3c54510293429a822aa0dd5edb18",
+  "course_check": {
+    "chapter": 3,
+    "mode": "positive",
+    "test_commit": "1733f460c596b013b1c509ad42afa428640783b0",
+    "bios": "default",
+    "status": "PASS",
+    "kernel_commit": "6bb0c2e8d84eda0451092f24f907ed084299e6e6",
+    "test_patch_sha256": "d553d1307bd8e75060b09c403666435731d053075cee9e54b16396975380e6c6",
+    "riscv64-unknown-elf-gcc": "riscv64-unknown-elf-gcc (Debian 14.2.0-19) 14.2.0",
+    "qemu-system-riscv64": "QEMU emulator version 10.2.2",
+    "base": 2,
+    "kernel_sha256": "3205969f8416b9a8ca106a1dfc8f610df8ced0906c354cf38ceeaf210a988224",
+    "qemu_command": [
+      "qemu-system-riscv64",
+      "-nographic",
+      "-machine",
+      "virt",
+      "-m",
+      "128M",
+      "-smp",
+      "1",
+      "-bios",
+      "default",
+      "-kernel",
+      "build/kernel"
+    ],
+    "qemu_exit": 0,
+    "stopped_after_suite": false
+  },
+  "build_command": [
+    "/home/joseph/nf/venv313/bin/python",
+    "tools/run_lab.py",
+    "--mode",
+    "positive"
+  ],
+  "build_cwd": "/home/joseph/nf/education-2026A-20260927/ucore-ch3"
+}

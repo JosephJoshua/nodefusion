@@ -1,0 +1,71 @@
+diff --git a/os/main.c b/os/main.c
+index 714ab28..c620eca 100644
+--- a/os/main.c
++++ b/os/main.c
+@@ -4,6 +4,8 @@
+ #include "timer.h"
+ #include "trap.h"
+ 
++extern void nodefusion_pagetable_experiment(void);
++
+ void clean_bss()
+ {
+ 	extern char s_bss[];
+@@ -18,10 +20,11 @@ void main()
+ 	proc_init();
+ 	kinit();
+ 	kvm_init();
++	nodefusion_pagetable_experiment();
+ 	loader_init();
+ 	trap_init();
+ 	timer_init();
+ 	run_all_app();
+ 	infof("start scheduler!");
+ 	scheduler();
+-}
+\ No newline at end of file
++}
+diff --git a/os/nf_pagetable_experiment.c b/os/nf_pagetable_experiment.c
+new file mode 100644
+index 0000000..47e283b
+--- /dev/null
++++ b/os/nf_pagetable_experiment.c
+@@ -0,0 +1,38 @@
++#include "defs.h"
++#include "vm.h"
++
++extern void freewalk(pagetable_t pagetable);
++extern pte_t *walk(pagetable_t pagetable, uint64 va, int alloc);
++
++__attribute__((noinline))
++void nodefusion_pagetable_experiment(void)
++{
++	const uint64 va = 0x4000;
++	pagetable_t table = uvmcreate();
++	char *frame = kalloc();
++	if (table == 0 || frame == 0)
++		panic("page table experiment: allocation failed");
++	frame[0x123] = 0x5a;
++	if (mappages(table, va, PGSIZE, (uint64)frame, PTE_R | PTE_W | PTE_U) != 0)
++		panic("page table experiment: mapping failed");
++	pte_t *entry = walk(table, va, 0);
++	if (entry == 0 || walkaddr(table, va + 0x123) != (uint64)frame ||
++	    useraddr(table, va + 0x123) != (uint64)frame + 0x123 ||
++	    *(char *)useraddr(table, va + 0x123) != 0x5a)
++		panic("page table experiment: translation failed");
++	printf("[page table experiment] mapped va=%p pa=%p offset=0x123 pte=%p\n",
++	       va, (uint64)frame, *entry);
++	uvmunmap(table, va, 1, 0);
++	if (*entry != 0 || walkaddr(table, va) != 0 || frame[0x123] != 0x5a)
++		panic("page table experiment: retained frame check failed");
++	printf("[page table experiment] unmapped, frame retained, pte=%p\n", *entry);
++	if (mappages(table, va, PGSIZE, (uint64)frame, PTE_R | PTE_W | PTE_U) != 0)
++		panic("page table experiment: remapping failed");
++	uvmunmap(table, va, 1, 1);
++	if (*entry != 0 || walkaddr(table, va) != 0)
++		panic("page table experiment: released mapping check failed");
++	printf("[page table experiment] unmapped, frame released, pte=%p\n", *entry);
++	uvmunmap(table, TRAMPOLINE, 1, 0);
++	freewalk(table);
++	printf("[page table experiment] page table reclaimed\n");
++}

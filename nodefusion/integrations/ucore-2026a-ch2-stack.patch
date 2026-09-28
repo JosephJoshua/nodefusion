@@ -1,0 +1,12 @@
+diff --git a/os/trap.c b/os/trap.c
+--- a/os/trap.c
++++ b/os/trap.c
+@@ -59,7 +59,7 @@
+ void usertrapret(struct trapframe *trapframe, uint64 kstack)
+ {
+ 	trapframe->kernel_satp = r_satp(); // kernel page table
+-	trapframe->kernel_sp = kstack + PGSIZE; // process's kernel stack
++	trapframe->kernel_sp = kstack; // Batch callers pass boot_stack_top.
+ 	trapframe->kernel_trap = (uint64)usertrap;
+ 	trapframe->kernel_hartid = r_tp(); // hartid for cpuid()
+ 

@@ -1,0 +1,100 @@
+
+OpenSBI v1.7
+   ____                    _____ ____ _____
+  / __ \                  / ____|  _ \_   _|
+ | |  | |_ __   ___ _ __ | (___ | |_) || |
+ | |  | | '_ \ / _ \ '_ \ \___ \|  _ < | |
+ | |__| | |_) |  __/ | | |____) | |_) || |_
+  \____/| .__/ \___|_| |_|_____/|____/_____|
+        | |
+        |_|
+
+Platform Name               : riscv-virtio,qemu
+Platform Features           : medeleg
+Platform HART Count         : 1
+Platform IPI Device         : aclint-mswi
+Platform Timer Device       : aclint-mtimer @ 10000000Hz
+Platform Console Device     : uart8250
+Platform HSM Device         : ---
+Platform PMU Device         : ---
+Platform Reboot Device      : syscon-reboot
+Platform Shutdown Device    : syscon-poweroff
+Platform Suspend Device     : ---
+Platform CPPC Device        : ---
+Firmware Base               : 0x80000000
+Firmware Size               : 317 KB
+Firmware RW Offset          : 0x40000
+Firmware RW Size            : 61 KB
+Firmware Heap Offset        : 0x46000
+Firmware Heap Size          : 37 KB (total), 2 KB (reserved), 11 KB (used), 23 KB (free)
+Firmware Scratch Size       : 4096 B (total), 1400 B (used), 2696 B (free)
+Runtime SBI Version         : 3.0
+Standard SBI Extensions     : time,rfnc,ipi,base,hsm,srst,pmu,dbcn,fwft,legacy,dbtr,sse
+Experimental SBI Extensions : none
+
+Domain0 Name                : root
+Domain0 Boot HART           : 0
+Domain0 HARTs               : 0*
+Domain0 Region00            : 0x0000000000100000-0x0000000000100fff M: (I,R,W) S/U: (R,W)
+Domain0 Region01            : 0x0000000010000000-0x0000000010000fff M: (I,R,W) S/U: (R,W)
+Domain0 Region02            : 0x0000000002000000-0x000000000200ffff M: (I,R,W) S/U: ()
+Domain0 Region03            : 0x0000000080040000-0x000000008004ffff M: (R,W) S/U: ()
+Domain0 Region04            : 0x0000000080000000-0x000000008003ffff M: (R,X) S/U: ()
+Domain0 Region05            : 0x000000000c400000-0x000000000c5fffff M: (I,R,W) S/U: (R,W)
+Domain0 Region06            : 0x000000000c000000-0x000000000c3fffff M: (I,R,W) S/U: (R,W)
+Domain0 Region07            : 0x0000000000000000-0xffffffffffffffff M: () S/U: (R,W,X)
+Domain0 Next Address        : 0x0000000080200000
+Domain0 Next Arg1           : 0x0000000087e00000
+Domain0 Next Mode           : S-mode
+Domain0 SysReset            : yes
+Domain0 SysSuspend          : yes
+
+Boot HART ID                : 0
+Boot HART Domain            : root
+Boot HART Priv Version      : v1.12
+Boot HART Base ISA          : rv64imafdch
+Boot HART ISA Extensions    : sstc,zicntr,zihpm,zicboz,zicbom,sdtrig,svadu
+Boot HART PMP Count         : 16
+Boot HART PMP Granularity   : 2 bits
+Boot HART PMP Address Bits  : 54
+Boot HART MHPM Info         : 16 (0x0007fff8)
+Boot HART Debug Triggers    : 2 triggers
+Boot HART MIDELEG           : 0x0000000000001666
+Boot HART MEDELEG           : 0x0000000000f4b509
+hello wrold!
+[34m[INFO 0]load and run app 0[0m
+[32m[DEBUG 0]bin range = [0x0000000080203000, 0x0000000080205000)[0m
+[32m[DEBUG 0]sysexit(1234)[0m
+[34m[INFO 0]load and run app 1[0m
+[32m[DEBUG 0]bin range = [0x0000000080205000, 0x0000000080207000)[0m
+[32m[DEBUG 0]sys_write fd = 1 str = -7fbfe6a0, len = 36[0m
+Hello world from user mode program!
+[32m[DEBUG 0]sys_write fd = 1 str = -7fbfe6a0, len = 21[0m
+Test hello_world OK!
+[32m[DEBUG 0]sysexit(0)[0m
+[34m[INFO 0]load and run app 2[0m
+[32m[DEBUG 0]bin range = [0x0000000080207000, 0x0000000080208af9)[0m
+[32m[DEBUG 0]sys_write fd = 1 str = -7fbfe628, len = 13[0m
+3^10000=5079
+[32m[DEBUG 0]sys_write fd = 1 str = -7fbfe628, len = 13[0m
+3^20000=8202
+[32m[DEBUG 0]sys_write fd = 1 str = -7fbfe628, len = 13[0m
+3^30000=8824
+[32m[DEBUG 0]sys_write fd = 1 str = -7fbfe628, len = 13[0m
+3^40000=5750
+[32m[DEBUG 0]sys_write fd = 1 str = -7fbfe628, len = 13[0m
+3^50000=3824
+[32m[DEBUG 0]sys_write fd = 1 str = -7fbfe628, len = 13[0m
+3^60000=8516
+[32m[DEBUG 0]sys_write fd = 1 str = -7fbfe628, len = 13[0m
+3^70000=2510
+[32m[DEBUG 0]sys_write fd = 1 str = -7fbfe628, len = 13[0m
+3^80000=9379
+[32m[DEBUG 0]sys_write fd = 1 str = -7fbfe628, len = 13[0m
+3^90000=2621
+[32m[DEBUG 0]sys_write fd = 1 str = -7fbfe628, len = 14[0m
+3^100000=2749
+[32m[DEBUG 0]sys_write fd = 1 str = -7fbfe628, len = 15[0m
+Test power OK!
+[32m[DEBUG 0]sysexit(0)[0m
+ALL DONE
