@@ -4,7 +4,7 @@ NodeFusion 记录 QEMU 中运行的操作系统内核，生成可离线打开的
 
 支持 xv6-riscv、rCore、ArceOS、StarryOS 和 uCoreOS。[运行报告](artifacts/)按内核存放。
 
-[操作系统内核分析](site/README.md)按 2026A 参考实现组织 rCore 与 uCore 的八章源码、运行记录和交互图。
+[操作系统内核分析](https://josephjoshua.github.io/nodefusion/)按 2026A 参考实现组织 rCore 与 uCore 的八章源码、运行记录和交互图。网站源码见 [site/](site/README.md)。
 
 ## 开始使用
 

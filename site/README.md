@@ -1,5 +1,7 @@
 # 教学网站
 
+[在线阅读](https://josephjoshua.github.io/nodefusion/)
+
 正文位于 `src/`，阅读导航与筛选位于 `theme/`。机制交互图位于 `src/diagrams/`。运行报告从仓库的 `artifacts/` 复制到构建结果的 `reports/`。
 
 使用 Python 3.11 及以上版本和 mdBook 0.5.4 构建：
