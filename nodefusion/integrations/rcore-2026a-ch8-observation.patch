@@ -1,0 +1,567 @@
+diff --git a/easy-fs/src/vfs.rs b/easy-fs/src/vfs.rs
+index 27f8096..0410dfd 100644
+--- a/easy-fs/src/vfs.rs
++++ b/easy-fs/src/vfs.rs
+@@ -54,6 +54,7 @@ impl Inode {
+             .modify(self.block_offset, f)
+     }
+     /// find the disk inode id according to the file with 'name' by search the directory entries in the disk inode with Directory type
++    #[inline(never)]
+     fn find_inode_id(&self, name: &str, disk_inode: &DiskInode) -> Option<u32> {
+         // assert it is a directory
+         assert!(disk_inode.is_dir());
+diff --git a/os/src/fs/pipe.rs b/os/src/fs/pipe.rs
+index 0204765..950b0f2 100644
+--- a/os/src/fs/pipe.rs
++++ b/os/src/fs/pipe.rs
+@@ -61,6 +61,7 @@ impl PipeRingBuffer {
+     pub fn set_write_end(&mut self, write_end: &Arc<Pipe>) {
+         self.write_end = Some(Arc::downgrade(write_end));
+     }
++    #[inline(never)]
+     pub fn write_byte(&mut self, byte: u8) {
+         self.status = RingBufferStatus::Normal;
+         self.arr[self.tail] = byte;
+@@ -69,6 +70,7 @@ impl PipeRingBuffer {
+             self.status = RingBufferStatus::Full;
+         }
+     }
++    #[inline(never)]
+     pub fn read_byte(&mut self) -> u8 {
+         self.status = RingBufferStatus::Normal;
+         let c = self.arr[self.head];
+@@ -78,6 +80,7 @@ impl PipeRingBuffer {
+         }
+         c
+     }
++    #[inline(never)]
+     pub fn available_read(&self) -> usize {
+         if self.status == RingBufferStatus::Empty {
+             0
+@@ -87,6 +90,7 @@ impl PipeRingBuffer {
+             self.tail + RING_BUFFER_SIZE - self.head
+         }
+     }
++    #[inline(never)]
+     pub fn available_write(&self) -> usize {
+         if self.status == RingBufferStatus::Full {
+             0
+@@ -94,6 +98,7 @@ impl PipeRingBuffer {
+             RING_BUFFER_SIZE - self.available_read()
+         }
+     }
++    #[inline(never)]
+     pub fn all_write_ends_closed(&self) -> bool {
+         self.write_end.as_ref().unwrap().upgrade().is_none()
+     }
+diff --git a/os/src/main.rs b/os/src/main.rs
+index 056ed5f..146f93b 100644
+--- a/os/src/main.rs
++++ b/os/src/main.rs
+@@ -44,6 +44,7 @@ pub mod fs;
+ pub mod lang_items;
+ pub mod logging;
+ pub mod mm;
++mod nftrace;
+ pub mod sbi;
+ pub mod sync;
+ pub mod syscall;
+diff --git a/os/src/mm/frame_allocator.rs b/os/src/mm/frame_allocator.rs
+index a942274..af5cbe4 100644
+--- a/os/src/mm/frame_allocator.rs
++++ b/os/src/mm/frame_allocator.rs
+@@ -47,6 +47,7 @@ pub struct StackFrameAllocator {
+     current: usize,
+     end: usize,
+     recycled: Vec<usize>,
++    allocated: usize,
+ }
+ 
+ impl StackFrameAllocator {
+@@ -62,17 +63,22 @@ impl FrameAllocator for StackFrameAllocator {
+             current: 0,
+             end: 0,
+             recycled: Vec::new(),
++            allocated: 0,
+         }
+     }
+     fn alloc(&mut self) -> Option<PhysPageNum> {
+-        if let Some(ppn) = self.recycled.pop() {
++        let result = if let Some(ppn) = self.recycled.pop() {
+             Some(ppn.into())
+         } else if self.current == self.end {
+             None
+         } else {
+             self.current += 1;
+             Some((self.current - 1).into())
++        };
++        if result.is_some() {
++            self.allocated += 1;
+         }
++        result
+     }
+     fn dealloc(&mut self, ppn: PhysPageNum) {
+         let ppn = ppn.0;
+@@ -82,6 +88,13 @@ impl FrameAllocator for StackFrameAllocator {
+         }
+         // recycle
+         self.recycled.push(ppn);
++        self.allocated -= 1;
++    }
++}
++
++impl StackFrameAllocator {
++    fn page_counts(&self) -> (usize, usize) {
++        (self.end - self.current + self.recycled.len(), self.allocated)
+     }
+ }
+ 
+@@ -100,19 +113,34 @@ pub fn init_frame_allocator() {
+         PhysAddr::from(ekernel as usize).ceil(),
+         PhysAddr::from(MEMORY_END).floor(),
+     );
++    let (free, used) = FRAME_ALLOCATOR.exclusive_access().page_counts();
++    crate::nftrace::allocator_state(free, used);
+ }
+ 
+ /// Allocate a physical page frame in FrameTracker style
++#[inline(never)]
+ pub fn frame_alloc() -> Option<FrameTracker> {
+-    FRAME_ALLOCATOR
+-        .exclusive_access()
+-        .alloc()
+-        .map(FrameTracker::new)
++    let (ppn, free, used) = {
++        let mut allocator = FRAME_ALLOCATOR.exclusive_access();
++        let ppn = allocator.alloc();
++        let (free, used) = allocator.page_counts();
++        (ppn, free, used)
++    };
++    let frame = ppn.map(FrameTracker::new);
++    let pa = frame.as_ref().map_or(0, |frame| PhysAddr::from(frame.ppn).0);
++    crate::nftrace::page_alloc(pa, free, used);
++    frame
+ }
+ 
+ /// Deallocate a physical page frame with a given ppn
++#[inline(never)]
+ pub fn frame_dealloc(ppn: PhysPageNum) {
+-    FRAME_ALLOCATOR.exclusive_access().dealloc(ppn);
++    let (free, used) = {
++        let mut allocator = FRAME_ALLOCATOR.exclusive_access();
++        allocator.dealloc(ppn);
++        allocator.page_counts()
++    };
++    crate::nftrace::page_free(PhysAddr::from(ppn).0, free, used);
+ }
+ 
+ #[allow(unused)]
+diff --git a/os/src/mm/heap_allocator.rs b/os/src/mm/heap_allocator.rs
+index fa27d85..d2a2fe8 100644
+--- a/os/src/mm/heap_allocator.rs
++++ b/os/src/mm/heap_allocator.rs
+@@ -2,9 +2,39 @@
+ 
+ use crate::config::KERNEL_HEAP_SIZE;
+ use buddy_system_allocator::LockedHeap;
++use core::alloc::{GlobalAlloc, Layout};
++use core::ops::Deref;
++
++struct ObservedHeap(LockedHeap);
++
++impl Deref for ObservedHeap {
++    type Target = LockedHeap;
++    fn deref(&self) -> &Self::Target {
++        &self.0
++    }
++}
++
++unsafe impl GlobalAlloc for ObservedHeap {
++    #[inline(never)]
++    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
++        GlobalAlloc::alloc(&self.0, layout)
++    }
++    #[inline(never)]
++    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
++        GlobalAlloc::dealloc(&self.0, ptr, layout)
++    }
++    #[inline(never)]
++    unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
++        GlobalAlloc::realloc(&self.0, ptr, layout, new_size)
++    }
++    #[inline(never)]
++    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
++        GlobalAlloc::alloc_zeroed(&self.0, layout)
++    }
++}
+ 
+ #[global_allocator]
+-static HEAP_ALLOCATOR: LockedHeap = LockedHeap::empty();
++static HEAP_ALLOCATOR: ObservedHeap = ObservedHeap(LockedHeap::empty());
+ 
+ #[alloc_error_handler]
+ pub fn handle_alloc_error(layout: core::alloc::Layout) -> ! {
+diff --git a/os/src/mm/memory_set.rs b/os/src/mm/memory_set.rs
+index 6dc14aa..bc2df05 100644
+--- a/os/src/mm/memory_set.rs
++++ b/os/src/mm/memory_set.rs
+@@ -45,6 +45,11 @@ pub struct MemorySet {
+     pub areas: Vec<MapArea>,
+ }
+ 
++#[inline(never)]
++pub fn nodefusion_vm_unmap_region(start_vpn: usize, end_vpn: usize) {
++    core::hint::black_box((start_vpn, end_vpn));
++}
++
+ impl MemorySet {
+     /// Create a new empty `MemorySet`.
+     pub fn new_bare() -> Self {
+@@ -70,6 +75,7 @@ impl MemorySet {
+         );
+     }
+     /// remove a area
++    #[inline(never)]
+     pub fn remove_area_with_start_vpn(&mut self, start_vpn: VirtPageNum) {
+         if let Some((idx, area)) = self
+             .areas
+@@ -87,6 +93,7 @@ impl MemorySet {
+     /// Add a new MapArea into this MemorySet.
+     /// Assuming that there are no conflicts in the virtual address
+     /// space.
++    #[inline(never)]
+     fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
+         map_area.map(&mut self.page_table);
+         if let Some(data) = data {
+@@ -353,12 +360,18 @@ impl MapArea {
+         }
+     }
+     pub fn unmap(&mut self, page_table: &mut PageTable) {
++        if self.vpn_range.get_start() < self.vpn_range.get_end() {
++            nodefusion_vm_unmap_region(self.vpn_range.get_start().0, self.vpn_range.get_end().0);
++        }
+         for vpn in self.vpn_range {
+             self.unmap_one(page_table, vpn);
+         }
+     }
+     #[allow(unused)]
+     pub fn shrink_to(&mut self, page_table: &mut PageTable, new_end: VirtPageNum) {
++        if new_end < self.vpn_range.get_end() {
++            nodefusion_vm_unmap_region(new_end.0, self.vpn_range.get_end().0);
++        }
+         for vpn in VPNRange::new(new_end, self.vpn_range.get_end()) {
+             self.unmap_one(page_table, vpn)
+         }
+diff --git a/os/src/mm/page_table.rs b/os/src/mm/page_table.rs
+index 2dee026..754a87f 100644
+--- a/os/src/mm/page_table.rs
++++ b/os/src/mm/page_table.rs
+@@ -73,6 +73,7 @@ pub struct PageTable {
+ /// Assume that it won't oom when creating/mapping.
+ impl PageTable {
+     /// Create a new page table
++    #[inline(never)]
+     pub fn new() -> Self {
+         let frame = frame_alloc().unwrap();
+         PageTable {
+@@ -125,6 +126,7 @@ impl PageTable {
+     }
+     /// set the map between virtual page number and physical page number
+     #[allow(unused)]
++    #[inline(never)]
+     pub fn map(&mut self, vpn: VirtPageNum, ppn: PhysPageNum, flags: PTEFlags) {
+         let pte = self.find_pte_create(vpn).unwrap();
+         assert!(!pte.is_valid(), "vpn {:?} is mapped before mapping", vpn);
+diff --git a/os/src/nftrace.rs b/os/src/nftrace.rs
+new file mode 100644
+index 0000000..9bd8075
+--- /dev/null
++++ b/os/src/nftrace.rs
+@@ -0,0 +1,48 @@
++//! Stack-backed observation records for the QEMU plugin.
++
++pub(crate) const NO_TASK: usize = usize::MAX;
++
++#[repr(C)]
++struct Record {
++    kind: u64,
++    args: [u64; 4],
++}
++
++#[no_mangle]
++#[inline(never)]
++/// Read an observation record while its stack storage is live.
++pub extern "C" fn nftrace_commit_point(record: *const u64) {
++    if !record.is_null() {
++        // The caller keeps this stack record alive until return.
++        core::hint::black_box(unsafe { core::ptr::read_volatile(record) });
++    }
++}
++
++fn emit(kind: u64, args: [u64; 4]) {
++    let record = Record { kind, args };
++    nftrace_commit_point(&record as *const Record as *const u64);
++}
++
++pub(crate) fn page_alloc(pa: usize, free: usize, used: usize) {
++    emit(1, [pa as u64, 1, free as u64, used as u64]);
++}
++
++pub(crate) fn page_free(pa: usize, free: usize, used: usize) {
++    emit(5, [pa as u64, 1, free as u64, used as u64]);
++}
++
++pub(crate) fn allocator_state(free: usize, used: usize) {
++    emit(6, [free as u64, used as u64, 0, 0]);
++}
++
++pub(crate) fn process_fork(parent: usize, child: usize) {
++    emit(2, [parent as u64, child as u64, 0, 0]);
++}
++
++pub(crate) fn thread_create(parent: usize, child: usize) {
++    emit(3, [parent as u64, child as u64, 0, 0]);
++}
++
++pub(crate) fn sched_switch(from_task: usize, to_task: usize, from_pid: usize, to_pid: usize) {
++    emit(4, [from_task as u64, to_task as u64, from_pid as u64, to_pid as u64]);
++}
+diff --git a/os/src/sync/condvar.rs b/os/src/sync/condvar.rs
+index f15331e..59d1efc 100644
+--- a/os/src/sync/condvar.rs
++++ b/os/src/sync/condvar.rs
+@@ -40,6 +40,7 @@ impl Condvar {
+     /// Remove and wake the first waiter, if any.
+     /// An empty queue is a no-op; do not save a notification or transfer mutex
+     /// ownership. The awakened task must acquire its mutex itself.
++    #[inline(never)]
+     pub fn signal(&self) {
+         let task = self.inner.exclusive_access().wait_queue.pop_front();
+         if let Some(task) = task {
+@@ -53,6 +54,7 @@ impl Condvar {
+     /// once, release the queue borrow, and block_current_and_run_next(). After
+     /// waking, call mutex.lock() before returning; it may block again. The caller
+     /// remains responsible for checking its condition in a loop.
++    #[inline(never)]
+     pub fn wait(&self, mutex: Arc<dyn Mutex>) {
+         trace!("kernel: Condvar::wait_with_mutex");
+         mutex.unlock();
+diff --git a/os/src/sync/mutex.rs b/os/src/sync/mutex.rs
+index 0d55b05..4694120 100644
+--- a/os/src/sync/mutex.rs
++++ b/os/src/sync/mutex.rs
+@@ -53,6 +53,7 @@ impl Mutex for MutexSpin {
+     /// Resource::acquire exactly once. On contention release the locked borrow,
+     /// suspend_current_and_run_next(), and retry; do not block or busy-wait.
+     /// The syscall performs rejection; this method also serves Condvar::wait.
++    #[inline(never)]
+     fn lock(&self) {
+         trace!("kernel: MutexSpin::lock");
+         self.resource.wait();
+@@ -70,6 +71,7 @@ impl Mutex for MutexSpin {
+ 
+     /// Release one accounted unit from the current task and clear locked.
+     /// The caller holds the mutex. There is no blocking wait queue to wake.
++    #[inline(never)]
+     fn unlock(&self) {
+         trace!("kernel: MutexSpin::unlock");
+         self.resource.release();
+@@ -116,6 +118,7 @@ impl Mutex for MutexBlocking {
+     /// for the current task. Otherwise enqueue it once at the back, release the
+     /// inner borrow, and block_current_and_run_next(). On resumption unlock has
+     /// already assigned ownership; do not acquire or enqueue a second time.
++    #[inline(never)]
+     fn lock(&self) {
+         trace!("kernel: MutexBlocking::lock");
+         self.resource.wait();
+@@ -137,6 +140,7 @@ impl Mutex for MutexBlocking {
+     /// Require locked, then release the current task's resource accounting.
+     /// With a waiter, assign its resource before wakeup_task and keep locked
+     /// true. Only an empty queue permits clearing locked. Wake at most one task.
++    #[inline(never)]
+     fn unlock(&self) {
+         trace!("kernel: MutexBlocking::unlock");
+         let mut inner = self.inner.exclusive_access();
+diff --git a/os/src/sync/semaphore.rs b/os/src/sync/semaphore.rs
+index 346ec93..056b106 100644
+--- a/os/src/sync/semaphore.rs
++++ b/os/src/sync/semaphore.rs
+@@ -49,6 +49,7 @@ impl Semaphore {
+     /// wake it. Do not increment count again for the handoff. The provided
+     /// Resource::release also supports event notification by a task that did
+     /// not previously call down(); do not add an ownership requirement.
++    #[inline(never)]
+     pub fn up(&self) {
+         trace!("kernel: Semaphore::up");
+         self.resource.release();
+@@ -70,6 +71,7 @@ impl Semaphore {
+     /// the inner borrow, and blocks. On resumption up() has already assigned
+     /// the permit, so do not decrement or acquire again. Return true on success;
+     /// the syscall wrapper translates rejection into -0xDEAD.
++    #[inline(never)]
+     pub fn down(&self) -> bool {
+         trace!("kernel: Semaphore::down");
+         if !self.resource.request() {
+diff --git a/os/src/syscall/process.rs b/os/src/syscall/process.rs
+index 2a15ea3..1a6fb1e 100644
+--- a/os/src/syscall/process.rs
++++ b/os/src/syscall/process.rs
+@@ -62,6 +62,7 @@ pub fn sys_fork() -> isize {
+     // we do not have to move to next instruction since we have done it before
+     // for child process, fork returns 0
+     trap_cx.x[10] = 0;
++    crate::nftrace::process_fork(current_process.getpid(), new_pid);
+     new_pid as isize
+ }
+ /// exec syscall
+diff --git a/os/src/syscall/thread.rs b/os/src/syscall/thread.rs
+index 86f01c6..6c19ec1 100644
+--- a/os/src/syscall/thread.rs
++++ b/os/src/syscall/thread.rs
+@@ -50,6 +50,8 @@ pub fn sys_thread_create(entry: usize, arg: usize) -> isize {
+         trap_handler as usize,
+     );
+     (*new_task_trap_cx).x[10] = arg;
++    let parent_tid = task.inner_exclusive_access().res.as_ref().unwrap().tid;
++    crate::nftrace::thread_create(parent_tid, new_task_tid);
+     new_task_tid as isize
+ }
+ /// get current thread id syscall
+diff --git a/os/src/task/id.rs b/os/src/task/id.rs
+index 9a30cd3..b31ffa2 100644
+--- a/os/src/task/id.rs
++++ b/os/src/task/id.rs
+@@ -66,6 +66,7 @@ pub fn pid_alloc() -> PidHandle {
+ }
+ 
+ impl Drop for PidHandle {
++    #[inline(never)]
+     fn drop(&mut self) {
+         // trace!("drop pid {}", self.0);
+         PID_ALLOCATOR.exclusive_access().dealloc(self.0);
+@@ -95,6 +96,7 @@ pub fn kstack_alloc() -> KernelStack {
+ }
+ 
+ impl Drop for KernelStack {
++    #[inline(never)]
+     fn drop(&mut self) {
+         let (kernel_stack_bottom, _) = kernel_stack_position(self.0);
+         let kernel_stack_bottom_va: VirtAddr = kernel_stack_bottom.into();
+@@ -184,6 +186,7 @@ impl TaskUserRes {
+         );
+     }
+     /// Deallocate user resource for a task
++    #[inline(never)]
+     fn dealloc_user_res(&self) {
+         // dealloc tid
+         let process = self.process.upgrade().unwrap();
+diff --git a/os/src/task/manager.rs b/os/src/task/manager.rs
+index 6d5f5e6..176af90 100644
+--- a/os/src/task/manager.rs
++++ b/os/src/task/manager.rs
+@@ -106,6 +106,7 @@ pub fn insert_into_pid2process(pid: usize, process: Arc<ProcessControlBlock>) {
+ }
+ 
+ /// Remove item(pid, _some_pcb) from PDI2PCB map (called by exit_current_and_run_next)
++#[inline(never)]
+ pub fn remove_from_pid2process(pid: usize) {
+     let mut map = PID2PCB.exclusive_access();
+     if map.remove(&pid).is_none() {
+diff --git a/os/src/task/mod.rs b/os/src/task/mod.rs
+index 81a25be..058480d 100644
+--- a/os/src/task/mod.rs
++++ b/os/src/task/mod.rs
+@@ -40,10 +40,14 @@ pub use signal::SignalFlags;
+ pub use task::{TaskControlBlock, TaskStatus};
+ 
+ /// Make current task suspended and switch to the next task
++#[inline(never)]
+ pub fn suspend_current_and_run_next() {
+     // There must be an application running.
+     let task = take_current_task().unwrap();
+ 
++    let task_id = Arc::as_ptr(&task) as usize;
++    let pid = task.process.upgrade().unwrap().getpid();
++
+     // ---- access current TCB exclusively
+     let mut task_inner = task.inner_exclusive_access();
+     let task_cx_ptr = &mut task_inner.task_cx as *mut TaskContext;
+@@ -55,16 +59,21 @@ pub fn suspend_current_and_run_next() {
+     // push back to ready queue.
+     add_task(task);
+     // jump to scheduling cycle
++    processor::trace_to_idle(task_id, pid);
+     schedule(task_cx_ptr);
+ }
+ 
+ /// Make current task blocked and switch to the next task.
++#[inline(never)]
+ pub fn block_current_and_run_next() {
+     let task = take_current_task().unwrap();
++    let task_id = Arc::as_ptr(&task) as usize;
++    let pid = task.process.upgrade().unwrap().getpid();
+     let mut task_inner = task.inner_exclusive_access();
+     let task_cx_ptr = &mut task_inner.task_cx as *mut TaskContext;
+     task_inner.task_status = TaskStatus::Blocked;
+     drop(task_inner);
++    processor::trace_to_idle(task_id, pid);
+     schedule(task_cx_ptr);
+ }
+ 
+@@ -78,6 +87,8 @@ pub fn exit_current_and_run_next(exit_code: i32) {
+     );
+     // take from Processor
+     let task = take_current_task().unwrap();
++    let task_id = Arc::as_ptr(&task) as usize;
++    let pid = task.process.upgrade().unwrap().getpid();
+     let mut task_inner = task.inner_exclusive_access();
+     let process = task.process.upgrade().unwrap();
+     let tid = task_inner.res.as_ref().unwrap().tid;
+@@ -164,6 +175,7 @@ pub fn exit_current_and_run_next(exit_code: i32) {
+     drop(process);
+     // we do not have to save task context
+     let mut _unused = TaskContext::zero_init();
++    processor::trace_to_idle(task_id, pid);
+     schedule(&mut _unused as *mut _);
+ }
+ 
+@@ -192,6 +204,7 @@ pub fn check_signals_of_current() -> Option<(i32, &'static str)> {
+ }
+ 
+ /// Add signal to the current task
++#[inline(never)]
+ pub fn current_add_signal(signal: SignalFlags) {
+     let process = current_process();
+     let mut process_inner = process.inner_exclusive_access();
+diff --git a/os/src/task/processor.rs b/os/src/task/processor.rs
+index b54f9c2..b0d3f33 100644
+--- a/os/src/task/processor.rs
++++ b/os/src/task/processor.rs
+@@ -59,12 +59,15 @@ pub fn run_tasks() {
+             let mut task_inner = task.inner_exclusive_access();
+             let next_task_cx_ptr = &task_inner.task_cx as *const TaskContext;
+             task_inner.task_status = TaskStatus::Running;
++            let next_task_id = Arc::as_ptr(&task) as usize;
++            let next_pid = task.process.upgrade().unwrap().getpid();
+             // release coming task_inner manually
+             drop(task_inner);
+             // release coming task TCB manually
+             processor.current = Some(task);
+             // release processor manually
+             drop(processor);
++            crate::nftrace::sched_switch(idle_task_cx_ptr as usize, next_task_id, crate::nftrace::NO_TASK, next_pid);
+             unsafe {
+                 __switch(idle_task_cx_ptr, next_task_cx_ptr);
+             }
+@@ -84,6 +87,11 @@ pub fn current_task() -> Option<Arc<TaskControlBlock>> {
+     PROCESSOR.exclusive_access().current()
+ }
+ 
++pub(super) fn trace_to_idle(task_id: usize, pid: usize) {
++    let idle = PROCESSOR.exclusive_access().get_idle_task_cx_ptr() as usize;
++    crate::nftrace::sched_switch(task_id, idle, pid, crate::nftrace::NO_TASK);
++}
++
+ /// get current process
+ pub fn current_process() -> Arc<ProcessControlBlock> {
+     current_task().unwrap().process.upgrade().unwrap()

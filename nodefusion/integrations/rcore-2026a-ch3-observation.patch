@@ -1,0 +1,8 @@
+diff --git a/os/src/task/mod.rs b/os/src/task/mod.rs
+--- a/os/src/task/mod.rs
++++ b/os/src/task/mod.rs
+@@ -155,3 +155,4 @@
+ /// voluntary yielding and timer preemption.
++#[inline(never)]
+ pub fn suspend_current_and_run_next() {
+     {

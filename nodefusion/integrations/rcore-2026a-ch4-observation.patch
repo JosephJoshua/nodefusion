@@ -1,0 +1,244 @@
+diff --git a/os/src/mm/frame_allocator.rs b/os/src/mm/frame_allocator.rs
+index 01e62fd..6a3f192 100644
+--- a/os/src/mm/frame_allocator.rs
++++ b/os/src/mm/frame_allocator.rs
+@@ -8,6 +8,34 @@ use alloc::vec::Vec;
+ use core::fmt::{self, Debug, Formatter};
+ use lazy_static::*;
+ 
++const NFT_KALLOC: u64 = 1;
++const NFT_KFREE: u64 = 5;
++const NFT_ALLOCATOR_STATE: u64 = 6;
++
++#[repr(C)]
++struct NfTraceRecord {
++    type_: u64,
++    a: [u64; 4],
++}
++
++#[no_mangle]
++#[inline(never)]
++/// Read an observation record while its stack storage is live.
++pub extern "C" fn nftrace_commit_point(record: *const u64) {
++    if !record.is_null() {
++        // The caller keeps this stack record alive until the function returns.
++        core::hint::black_box(unsafe { core::ptr::read_volatile(record) });
++    }
++}
++
++fn nodefusion_trace_page(kind: u64, paddr: usize, free_pages: usize, used_pages: usize) {
++    let record = NfTraceRecord {
++        type_: kind,
++        a: [paddr as u64, 1, free_pages as u64, used_pages as u64],
++    };
++    nftrace_commit_point(&record as *const NfTraceRecord as *const u64);
++}
++
+ /// tracker for physical page frame allocation and deallocation
+ pub struct FrameTracker {
+     /// physical page number
+@@ -48,6 +76,7 @@ pub struct StackFrameAllocator {
+     current: usize,
+     end: usize,
+     recycled: Vec<usize>,
++    allocated: usize,
+ }
+ 
+ impl StackFrameAllocator {
+@@ -63,17 +92,22 @@ impl FrameAllocator for StackFrameAllocator {
+             current: 0,
+             end: 0,
+             recycled: Vec::new(),
++            allocated: 0,
+         }
+     }
+     fn alloc(&mut self) -> Option<PhysPageNum> {
+-        if let Some(ppn) = self.recycled.pop() {
++        let result = if let Some(ppn) = self.recycled.pop() {
+             Some(ppn.into())
+         } else if self.current == self.end {
+             None
+         } else {
+             self.current += 1;
+             Some((self.current - 1).into())
++        };
++        if result.is_some() {
++            self.allocated += 1;
+         }
++        result
+     }
+     fn dealloc(&mut self, ppn: PhysPageNum) {
+         let ppn = ppn.0;
+@@ -83,6 +117,13 @@ impl FrameAllocator for StackFrameAllocator {
+         }
+         // recycle
+         self.recycled.push(ppn);
++        self.allocated -= 1;
++    }
++}
++
++impl StackFrameAllocator {
++    fn page_counts(&self) -> (usize, usize) {
++        (self.end - self.current + self.recycled.len(), self.allocated)
+     }
+ }
+ 
+@@ -102,19 +143,38 @@ pub fn init_frame_allocator() {
+         PhysAddr::from(ekernel as usize).ceil(),
+         PhysAddr::from(MEMORY_END).floor(),
+     );
++    let (free_pages, used_pages) = FRAME_ALLOCATOR.exclusive_access().page_counts();
++    let record = NfTraceRecord {
++        type_: NFT_ALLOCATOR_STATE,
++        a: [free_pages as u64, used_pages as u64, 0, 0],
++    };
++    nftrace_commit_point(&record as *const NfTraceRecord as *const u64);
+ }
+ 
+ /// Allocate a physical page frame in FrameTracker style
++#[inline(never)]
+ pub fn frame_alloc() -> Option<FrameTracker> {
+-    FRAME_ALLOCATOR
+-        .exclusive_access()
+-        .alloc()
+-        .map(FrameTracker::new)
++    let (ppn, free_pages, used_pages) = {
++        let mut allocator = FRAME_ALLOCATOR.exclusive_access();
++        let ppn = allocator.alloc();
++        let (free_pages, used_pages) = allocator.page_counts();
++        (ppn, free_pages, used_pages)
++    };
++    let frame = ppn.map(FrameTracker::new);
++    let paddr = frame.as_ref().map_or(0, |frame| PhysAddr::from(frame.ppn).0);
++    nodefusion_trace_page(NFT_KALLOC, paddr, free_pages, used_pages);
++    frame
+ }
+ 
+ /// Deallocate a physical page frame with a given ppn
++#[inline(never)]
+ pub fn frame_dealloc(ppn: PhysPageNum) {
+-    FRAME_ALLOCATOR.exclusive_access().dealloc(ppn);
++    let (free_pages, used_pages) = {
++        let mut allocator = FRAME_ALLOCATOR.exclusive_access();
++        allocator.dealloc(ppn);
++        allocator.page_counts()
++    };
++    nodefusion_trace_page(NFT_KFREE, PhysAddr::from(ppn).0, free_pages, used_pages);
+ }
+ 
+ #[allow(unused)]
+diff --git a/os/src/mm/heap_allocator.rs b/os/src/mm/heap_allocator.rs
+index e5f8b30..e39a7cc 100644
+--- a/os/src/mm/heap_allocator.rs
++++ b/os/src/mm/heap_allocator.rs
+@@ -1,10 +1,44 @@
+ //! The global allocator
+ use crate::config::KERNEL_HEAP_SIZE;
+ use buddy_system_allocator::LockedHeap;
++use core::alloc::{GlobalAlloc, Layout};
++use core::ops::Deref;
++
++struct ObservedHeap(LockedHeap);
++
++impl Deref for ObservedHeap {
++    type Target = LockedHeap;
++
++    fn deref(&self) -> &Self::Target {
++        &self.0
++    }
++}
++
++unsafe impl GlobalAlloc for ObservedHeap {
++    #[inline(never)]
++    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
++        GlobalAlloc::alloc(&self.0, layout)
++    }
++
++    #[inline(never)]
++    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
++        GlobalAlloc::dealloc(&self.0, ptr, layout)
++    }
++
++    #[inline(never)]
++    unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
++        GlobalAlloc::realloc(&self.0, ptr, layout, new_size)
++    }
++
++    #[inline(never)]
++    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
++        GlobalAlloc::alloc_zeroed(&self.0, layout)
++    }
++}
+ 
+ #[global_allocator]
+ /// heap allocator instance
+-static HEAP_ALLOCATOR: LockedHeap = LockedHeap::empty();
++static HEAP_ALLOCATOR: ObservedHeap = ObservedHeap(LockedHeap::empty());
+ 
+ #[alloc_error_handler]
+ /// panic when heap allocation error occurs
+diff --git a/os/src/mm/memory_set.rs b/os/src/mm/memory_set.rs
+index 5854e42..221b957 100644
+--- a/os/src/mm/memory_set.rs
++++ b/os/src/mm/memory_set.rs
+@@ -191,6 +191,12 @@ lazy_static! {
+     };
+ }
+ 
++#[inline(never)]
++/// Observe an accepted complete-region removal before clearing its mappings.
++pub fn nodefusion_vm_unmap_region(start_vpn: usize, end_vpn: usize) {
++    core::hint::black_box((start_vpn, end_vpn));
++}
++
+ impl MemorySet {
+     /// Create a new empty `MemorySet`.
+     pub fn new_bare() -> Self {
+@@ -204,6 +210,7 @@ impl MemorySet {
+         self.page_table.token()
+     }
+ 
++    #[inline(never)]
+     fn push(&mut self, mut map_area: MapArea) -> Option<()> {
+         map_area.map(&mut self.page_table)?;
+         self.areas.push(map_area);
+@@ -397,6 +404,7 @@ impl MemorySet {
+                 && area.vpn_range.get_start() == start
+                 && area.vpn_range.get_end() == end
+         })?;
++        nodefusion_vm_unmap_region(start.0, end.0);
+         let mut area = self.areas.remove(index);
+         area.unmap(&mut self.page_table);
+         Some(())
+diff --git a/os/src/mm/page_table.rs b/os/src/mm/page_table.rs
+index d260c6e..c63dc6a 100644
+--- a/os/src/mm/page_table.rs
++++ b/os/src/mm/page_table.rs
+@@ -89,6 +89,7 @@ pub struct PageTable {
+ 
+ impl PageTable {
+     /// Create a new page table
++    #[inline(never)]
+     pub fn new() -> Self {
+         let frame = frame_alloc().unwrap();
+         PageTable {
+@@ -154,6 +155,7 @@ impl PageTable {
+     /// Constraints: Use a 4 KiB Sv39 mapping with `V` and the requested flags.
+     /// This page table owns its intermediate page table frames through `frames`;
+     /// ownership of the mapped data frame remains with the caller.
++    #[inline(never)]
+     pub fn map(&mut self, vpn: VirtPageNum, ppn: PhysPageNum, flags: PTEFlags) -> Option<()> {
+         let pte = self.find_pte_create(vpn)?;
+         if pte.is_valid() {
+diff --git a/os/src/task/mod.rs b/os/src/task/mod.rs
+index 5739112..fadf002 100644
+--- a/os/src/task/mod.rs
++++ b/os/src/task/mod.rs
+@@ -217,6 +217,7 @@ fn mark_current_exited() {
+ }
+ 
+ /// Suspend the current 'Running' task and run the next task in task list.
++#[inline(never)]
+ pub fn suspend_current_and_run_next() {
+     mark_current_suspended();
+     run_next_task();

@@ -6,3 +6,4 @@
 /visualization/artifacts/lab-stage-evolution-20260812-final/** -text whitespace=-blank-at-eof
 /visualization/artifacts/timeslice-sweep-20260812-b61-final/** -text whitespace=-blank-at-eof
 /nodefusion/integrations/*.patch -text whitespace=-blank-at-eol,-space-before-tab
+/artifacts/** -text whitespace=-blank-at-eol

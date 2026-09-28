@@ -1,0 +1,11 @@
+diff --git a/os/src/main.rs b/os/src/main.rs
+--- a/os/src/main.rs
++++ b/os/src/main.rs
+@@ -36,6 +36,7 @@
+ /// Clear [sbss, ebss), excluding the active boot stack placed before sbss.
+ /// This implementation is provided; call it before initializing global state.
++#[inline(never)]
+ pub fn clear_bss() {
+     extern "C" {
+         fn sbss();
+         fn ebss();

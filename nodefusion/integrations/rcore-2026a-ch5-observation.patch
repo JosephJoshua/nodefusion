@@ -1,0 +1,386 @@
+diff --git a/os/src/main.rs b/os/src/main.rs
+index ccac0c1..ab7a3eb 100644
+--- a/os/src/main.rs
++++ b/os/src/main.rs
+@@ -38,6 +38,7 @@ pub mod lang_items;
+ mod loader;
+ pub mod logging;
+ pub mod mm;
++mod nftrace;
+ pub mod sbi;
+ pub mod sync;
+ pub mod syscall;
+diff --git a/os/src/mm/frame_allocator.rs b/os/src/mm/frame_allocator.rs
+index 44f20cd..63dc934 100644
+--- a/os/src/mm/frame_allocator.rs
++++ b/os/src/mm/frame_allocator.rs
+@@ -47,6 +47,7 @@ pub struct StackFrameAllocator {
+     current: usize,
+     end: usize,
+     recycled: Vec<usize>,
++    allocated: usize,
+ }
+ 
+ impl StackFrameAllocator {
+@@ -62,17 +63,22 @@ impl FrameAllocator for StackFrameAllocator {
+             current: 0,
+             end: 0,
+             recycled: Vec::new(),
++            allocated: 0,
+         }
+     }
+     fn alloc(&mut self) -> Option<PhysPageNum> {
+-        if let Some(ppn) = self.recycled.pop() {
++        let result = if let Some(ppn) = self.recycled.pop() {
+             Some(ppn.into())
+         } else if self.current == self.end {
+             None
+         } else {
+             self.current += 1;
+             Some((self.current - 1).into())
++        };
++        if result.is_some() {
++            self.allocated += 1;
+         }
++        result
+     }
+     fn dealloc(&mut self, ppn: PhysPageNum) {
+         let ppn = ppn.0;
+@@ -82,6 +88,13 @@ impl FrameAllocator for StackFrameAllocator {
+         }
+         // recycle
+         self.recycled.push(ppn);
++        self.allocated -= 1;
++    }
++}
++
++impl StackFrameAllocator {
++    fn page_counts(&self) -> (usize, usize) {
++        (self.end - self.current + self.recycled.len(), self.allocated)
+     }
+ }
+ 
+@@ -101,19 +114,34 @@ pub fn init_frame_allocator() {
+         PhysAddr::from(ekernel as usize).ceil(),
+         PhysAddr::from(MEMORY_END).floor(),
+     );
++    let (free, used) = FRAME_ALLOCATOR.exclusive_access().page_counts();
++    crate::nftrace::allocator_state(free, used);
+ }
+ 
+ /// Allocate a physical page frame in FrameTracker style
++#[inline(never)]
+ pub fn frame_alloc() -> Option<FrameTracker> {
+-    FRAME_ALLOCATOR
+-        .exclusive_access()
+-        .alloc()
+-        .map(FrameTracker::new)
++    let (ppn, free, used) = {
++        let mut allocator = FRAME_ALLOCATOR.exclusive_access();
++        let ppn = allocator.alloc();
++        let (free, used) = allocator.page_counts();
++        (ppn, free, used)
++    };
++    let frame = ppn.map(FrameTracker::new);
++    let pa = frame.as_ref().map_or(0, |frame| PhysAddr::from(frame.ppn).0);
++    crate::nftrace::page_alloc(pa, free, used);
++    frame
+ }
+ 
+ /// Deallocate a physical page frame with a given ppn
++#[inline(never)]
+ pub fn frame_dealloc(ppn: PhysPageNum) {
+-    FRAME_ALLOCATOR.exclusive_access().dealloc(ppn);
++    let (free, used) = {
++        let mut allocator = FRAME_ALLOCATOR.exclusive_access();
++        allocator.dealloc(ppn);
++        allocator.page_counts()
++    };
++    crate::nftrace::page_free(PhysAddr::from(ppn).0, free, used);
+ }
+ 
+ #[allow(unused)]
+diff --git a/os/src/mm/heap_allocator.rs b/os/src/mm/heap_allocator.rs
+index e5f8b30..e39a7cc 100644
+--- a/os/src/mm/heap_allocator.rs
++++ b/os/src/mm/heap_allocator.rs
+@@ -1,10 +1,44 @@
+ //! The global allocator
+ use crate::config::KERNEL_HEAP_SIZE;
+ use buddy_system_allocator::LockedHeap;
++use core::alloc::{GlobalAlloc, Layout};
++use core::ops::Deref;
++
++struct ObservedHeap(LockedHeap);
++
++impl Deref for ObservedHeap {
++    type Target = LockedHeap;
++
++    fn deref(&self) -> &Self::Target {
++        &self.0
++    }
++}
++
++unsafe impl GlobalAlloc for ObservedHeap {
++    #[inline(never)]
++    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
++        GlobalAlloc::alloc(&self.0, layout)
++    }
++
++    #[inline(never)]
++    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
++        GlobalAlloc::dealloc(&self.0, ptr, layout)
++    }
++
++    #[inline(never)]
++    unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
++        GlobalAlloc::realloc(&self.0, ptr, layout, new_size)
++    }
++
++    #[inline(never)]
++    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
++        GlobalAlloc::alloc_zeroed(&self.0, layout)
++    }
++}
+ 
+ #[global_allocator]
+ /// heap allocator instance
+-static HEAP_ALLOCATOR: LockedHeap = LockedHeap::empty();
++static HEAP_ALLOCATOR: ObservedHeap = ObservedHeap(LockedHeap::empty());
+ 
+ #[alloc_error_handler]
+ /// panic when heap allocation error occurs
+diff --git a/os/src/mm/memory_set.rs b/os/src/mm/memory_set.rs
+index a36cf74..ba2ea18 100644
+--- a/os/src/mm/memory_set.rs
++++ b/os/src/mm/memory_set.rs
+@@ -36,6 +36,12 @@ pub struct MemorySet {
+     areas: Vec<MapArea>,
+ }
+ 
++#[inline(never)]
++/// Observe a range whose page-table entries are about to be removed.
++pub fn nodefusion_vm_unmap_region(start_vpn: usize, end_vpn: usize) {
++    core::hint::black_box((start_vpn, end_vpn));
++}
++
+ impl MemorySet {
+     /// Create a new empty `MemorySet`.
+     pub fn new_bare() -> Self {
+@@ -90,6 +96,9 @@ impl MemorySet {
+         }
+         if mapped_end != area.vpn_range.get_end() {
+             // Remove successful mappings before dropping the area's data frames.
++            if mapped_end > area.vpn_range.get_start() {
++                nodefusion_vm_unmap_region(area.vpn_range.get_start().0, mapped_end.0);
++            }
+             for vpn in VPNRange::new(area.vpn_range.get_start(), mapped_end) {
+                 self.page_table.unmap(vpn);
+             }
+@@ -115,6 +124,7 @@ impl MemorySet {
+         Some(())
+     }
+     /// remove a area
++    #[inline(never)]
+     pub fn remove_area_with_start_vpn(&mut self, start_vpn: VirtPageNum) {
+         if let Some((idx, area)) = self
+             .areas
+@@ -129,6 +139,7 @@ impl MemorySet {
+     /// Add a new MapArea into this MemorySet.
+     /// Assuming that there are no conflicts in the virtual address
+     /// space.
++    #[inline(never)]
+     fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
+         map_area.map(&mut self.page_table);
+         if let Some(data) = data {
+@@ -416,12 +427,18 @@ impl MapArea {
+         }
+     }
+     pub fn unmap(&mut self, page_table: &mut PageTable) {
++        if self.vpn_range.get_start() < self.vpn_range.get_end() {
++            nodefusion_vm_unmap_region(self.vpn_range.get_start().0, self.vpn_range.get_end().0);
++        }
+         for vpn in self.vpn_range {
+             self.unmap_one(page_table, vpn);
+         }
+     }
+     #[allow(unused)]
+     pub fn shrink_to(&mut self, page_table: &mut PageTable, new_end: VirtPageNum) {
++        if new_end < self.vpn_range.get_end() {
++            nodefusion_vm_unmap_region(new_end.0, self.vpn_range.get_end().0);
++        }
+         for vpn in VPNRange::new(new_end, self.vpn_range.get_end()) {
+             self.unmap_one(page_table, vpn)
+         }
+diff --git a/os/src/mm/page_table.rs b/os/src/mm/page_table.rs
+index 875484f..0521401 100644
+--- a/os/src/mm/page_table.rs
++++ b/os/src/mm/page_table.rs
+@@ -81,6 +81,7 @@ pub struct PageTable {
+ /// Assume that it won't oom when creating/mapping.
+ impl PageTable {
+     /// Create a new page table
++    #[inline(never)]
+     pub fn new() -> Self {
+         let frame = frame_alloc().unwrap();
+         PageTable {
+@@ -134,6 +135,7 @@ impl PageTable {
+         result
+     }
+     /// Map a page, returning failure for conflicts or exhausted page table frames.
++    #[inline(never)]
+     pub fn map(&mut self, vpn: VirtPageNum, ppn: PhysPageNum, flags: PTEFlags) -> Option<()> {
+         let pte = self.find_pte_create(vpn)?;
+         if pte.is_valid() {
+diff --git a/os/src/nftrace.rs b/os/src/nftrace.rs
+new file mode 100644
+index 0000000..933bb39
+--- /dev/null
++++ b/os/src/nftrace.rs
+@@ -0,0 +1,44 @@
++//! Stack-backed observation records for the QEMU plugin.
++
++pub(crate) const NO_TASK: usize = usize::MAX;
++
++#[repr(C)]
++struct Record {
++    kind: u64,
++    args: [u64; 4],
++}
++
++#[no_mangle]
++#[inline(never)]
++/// Read an observation record while its stack storage is live.
++pub extern "C" fn nftrace_commit_point(record: *const u64) {
++    if !record.is_null() {
++        // The caller keeps this stack record alive until return.
++        core::hint::black_box(unsafe { core::ptr::read_volatile(record) });
++    }
++}
++
++fn emit(kind: u64, args: [u64; 4]) {
++    let record = Record { kind, args };
++    nftrace_commit_point(&record as *const Record as *const u64);
++}
++
++pub(crate) fn page_alloc(pa: usize, free: usize, used: usize) {
++    emit(1, [pa as u64, 1, free as u64, used as u64]);
++}
++
++pub(crate) fn page_free(pa: usize, free: usize, used: usize) {
++    emit(5, [pa as u64, 1, free as u64, used as u64]);
++}
++
++pub(crate) fn allocator_state(free: usize, used: usize) {
++    emit(6, [free as u64, used as u64, 0, 0]);
++}
++
++pub(crate) fn process_fork(parent: usize, child: usize) {
++    emit(2, [parent as u64, child as u64, 0, 0]);
++}
++
++pub(crate) fn sched_switch(from_task: usize, to_task: usize, from_pid: usize, to_pid: usize) {
++    emit(4, [from_task as u64, to_task as u64, from_pid as u64, to_pid as u64]);
++}
+diff --git a/os/src/syscall/process.rs b/os/src/syscall/process.rs
+index 43c9efd..8901a39 100644
+--- a/os/src/syscall/process.rs
++++ b/os/src/syscall/process.rs
+@@ -53,6 +53,7 @@ pub fn sys_fork() -> isize {
+     trap_cx.x[10] = 0;
+     // add new task to scheduler
+     add_task(new_task);
++    crate::nftrace::process_fork(current_task.getpid(), new_pid);
+     new_pid as isize
+ }
+ 
+diff --git a/os/src/task/id.rs b/os/src/task/id.rs
+index 5a67d4a..534c4b7 100644
+--- a/os/src/task/id.rs
++++ b/os/src/task/id.rs
+@@ -51,6 +51,7 @@ lazy_static! {
+ pub struct PidHandle(pub usize);
+ 
+ impl Drop for PidHandle {
++    #[inline(never)]
+     fn drop(&mut self) {
+         //println!("drop pid {}", self.0);
+         PID_ALLOCATOR.exclusive_access().dealloc(self.0);
+@@ -85,6 +86,7 @@ pub fn kstack_alloc() -> KernelStack {
+ }
+ 
+ impl Drop for KernelStack {
++    #[inline(never)]
+     fn drop(&mut self) {
+         let (kernel_stack_bottom, _) = kernel_stack_position(self.0);
+         let kernel_stack_bottom_va: VirtAddr = kernel_stack_bottom.into();
+diff --git a/os/src/task/mod.rs b/os/src/task/mod.rs
+index 6137842..34e5616 100644
+--- a/os/src/task/mod.rs
++++ b/os/src/task/mod.rs
+@@ -44,14 +44,18 @@ pub use processor::{
+ /// Constraints: Support both yield and timer preemption. Clear the processor's
+ /// current slot before scheduling and release all dynamic borrows. Preserve
+ /// the process's resources and scheduling attributes; stride is charged by fetch.
++#[inline(never)]
+ pub fn suspend_current_and_run_next() {
+     let task = take_current_task().unwrap();
++    let task_id = Arc::as_ptr(&task) as usize;
++    let pid = task.getpid();
+     let mut inner = task.inner_exclusive_access();
+     inner.task_status = TaskStatus::Ready;
+     let task_cx_ptr = &mut inner.task_cx as *mut TaskContext;
+     drop(inner);
+     // The queue keeps the context alive until the processor takes ownership.
+     add_task(task);
++    processor::trace_to_idle(task_id, pid);
+     schedule(task_cx_ptr);
+ }
+ 
+@@ -70,6 +74,8 @@ pub const IDLE_PID: usize = 0;
+ /// Exiting PID 0 terminates the kernel with the existing panic policy.
+ pub fn exit_current_and_run_next(exit_code: i32) {
+     let task = take_current_task().unwrap();
++    let task_id = Arc::as_ptr(&task) as usize;
++    let pid = task.getpid();
+     if task.getpid() == IDLE_PID {
+         println!(
+             "[kernel] Idle process exit with exit_code {} ...",
+@@ -92,6 +98,7 @@ pub fn exit_current_and_run_next(exit_code: i32) {
+     // This stack is abandoned: release our Arc before switching to idle.
+     drop(task);
+     let mut unused_task_cx = TaskContext::zero_init();
++    processor::trace_to_idle(task_id, pid);
+     schedule(&mut unused_task_cx as *mut TaskContext);
+     panic!("An exited process must not be resumed!");
+ }
+diff --git a/os/src/task/processor.rs b/os/src/task/processor.rs
+index 64701a3..74c65a6 100644
+--- a/os/src/task/processor.rs
++++ b/os/src/task/processor.rs
+@@ -68,10 +68,13 @@ pub fn run_tasks() {
+             let mut inner = task.inner_exclusive_access();
+             inner.task_status = TaskStatus::Running;
+             let next_task_cx_ptr = &inner.task_cx as *const TaskContext;
++            let next_task_id = Arc::as_ptr(&task) as usize;
++            let next_pid = task.getpid();
+             drop(inner);
+             // Move ownership into current; leave no extra Arc on the idle stack.
+             processor.current = Some(task);
+             drop(processor);
++            crate::nftrace::sched_switch(idle_task_cx_ptr as usize, next_task_id, crate::nftrace::NO_TASK, next_pid);
+             unsafe {
+                 __switch(idle_task_cx_ptr, next_task_cx_ptr);
+             }
+@@ -89,6 +92,11 @@ pub fn current_task() -> Option<Arc<TaskControlBlock>> {
+     PROCESSOR.exclusive_access().current()
+ }
+ 
++pub(super) fn trace_to_idle(task_id: usize, pid: usize) {
++    let idle = PROCESSOR.exclusive_access().get_idle_task_cx_ptr() as usize;
++    crate::nftrace::sched_switch(task_id, idle, pid, crate::nftrace::NO_TASK);
++}
++
+ /// Get the current user token(addr of page table)
+ pub fn current_user_token() -> usize {
+     let task = current_task().unwrap();

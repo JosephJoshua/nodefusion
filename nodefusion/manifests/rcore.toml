@@ -174,12 +174,7 @@ kind         = "batch"
 completeness = "none"
 when         = { type_exists = "os::batch::AppManager" }
 reason       = "ch2 是批处理，没有任务表；只有当前应用序号"
-steps = [
-
-
-  { static = "os::batch::APP_MANAGER" },
-  { unwrap = ["Lazy", "UPSafeCell"] },
-]
+steps = []
 
 # ch1 has neither TaskControlBlock nor AppManager.  This source records that
 # structural absence explicitly; it intentionally enumerates no entities.
@@ -213,8 +208,12 @@ base  = { path = "base_size",       reader = "usize" }
 # address, which the page-table walk then reported as "not in observed
 # physical memory" -- a unit error that reads like missing memory.
 # `.__0` rather than the tuple struct itself so no field offset is assumed.
-pgtbl = { path = "inner.memory_set.page_table.root_ppn.__0", reader = "ppn", role = "address_space_root" }
-prio  = { path = "inner.priority",  reader = "usize", role = "priority" }
+pgtbl = { path = "memory_set.page_table.root_ppn.__0", reader = "ppn", role = "address_space_root" }
+prio  = { path = "inner.prio",      reader = "usize", role = "priority" }
+priority = { path = "inner.priority", reader = "usize", role = "priority" }
+stride = { path = "inner.stride", reader = "usize" }
+heap_bottom = { path = "inner.heap_bottom", reader = "usize" }
+program_brk = { path = "inner.program_brk", reader = "usize" }
 
 
 
@@ -223,7 +222,7 @@ exit  = { path = "inner.exit_code", reader = "i32", role = "exit_code" }
 
 
 
-trapcx = { path = "inner.trap_cx_ppn.__0", reader = "ppn", role = "trap_context" }
+trapcx = { path = "trap_cx_ppn.__0", reader = "ppn", role = "trap_context" }
 # These relations appear only once rCore introduces a process tree (ch5).
 # They are optional fields with links, so ch3/ch4 report structural absence
 # rather than claiming that a required relation failed to decode.
@@ -480,6 +479,18 @@ throttle  = 0
 
 [[watch]]
 subsystem = "mm"
+match     = { module = "os::mm::memory_set::MemorySet", fn = ["remove_framed_area"] }
+args      = 3
+throttle  = 0
+
+[[watch]]
+subsystem = "mm"
+match     = { module = "os::mm::page_table::PageTable", fn = ["map"] }
+args      = 4
+throttle  = 0
+
+[[watch]]
+subsystem = "mm"
 inlined   = true
 match     = { module = "os::mm", fn = ["frame_alloc", "frame_dealloc", "unmap", "init_heap"] }
 args      = 2
@@ -656,7 +667,7 @@ throttle  = 0
 "proc.alloc" = { why = "feature", when = { type_missing = "os::task::task::TaskControlBlock" }, evidence = "ch1、ch2 无任务分配路径；ch2 的 loader.c 复用同一应用内存区依次装入二进制，ch3 起引入 TaskControlBlock。" }
 "proc.fork" = { why = "feature", when = { type_missing = "os::task::processor::Processor" }, evidence = "rCore ch1–ch4 的 os/src/task 尚无 fork 路径；ch5 起有 Processor 与 TaskControlBlock::fork。按当前 ELF 的 Processor 类型核对阶段。" }
 "proc.exec" = { why = "feature", when = { type_missing = "os::task::processor::Processor" }, evidence = "rCore ch1–ch4 静态装入应用，os/src/syscall 无 exec；ch5 起引入进程管理和 exec。按当前 ELF 的 Processor 类型核对阶段。" }
-"vm.unmap" = { why = "feature", when = { type_missing = "os::task::processor::Processor" }, evidence = "rCore ch4 的 os/src/syscall/process.rs 中 sys_munmap 明确为 NOT IMPLEMENTED YET；ch5 起有进程内存回收。按当前 ELF 的 Processor 类型区分阶段。" }
+"vm.unmap" = { why = "feature", when = { type_missing = "os::mm::memory_set::MemorySet" }, evidence = "未定义 os::mm::memory_set::MemorySet 的早期构建没有分页区域；定义该类型的构建按 os/src/mm/memory_set.rs 中的区域取消映射路径检查，包括 2026A 的 remove_framed_area。" }
 "phys.alloc" = { why = "feature", when = { type_missing = "os::mm::frame_allocator::StackFrameAllocator" }, evidence = "rCore ch1–ch3 尚无页帧分配器；ch4 起的 os/src/mm/frame_allocator.rs 定义 StackFrameAllocator。按当前 ELF 的该类型核对阶段。" }
 "phys.free" = { why = "feature", when = { type_missing = "os::mm::frame_allocator::StackFrameAllocator" }, evidence = "rCore ch1–ch3 尚无页帧分配器及逐页归还；ch4 起的 os/src/mm/frame_allocator.rs 实现分配与回收。按当前 ELF 的类型核对阶段。" }
 "vm.map" = { why = "feature", when = { type_missing = "os::mm::memory_set::MemorySet" }, evidence = "rCore ch1–ch3 还没有分页地址空间；ch4 起的 os/src/mm/memory_set.rs 定义 MemorySet 并建立区域映射。按当前 ELF 的类型核对阶段。" }
@@ -828,7 +839,7 @@ throttle  = 0
 
 "os::mm::frame_allocator::frame_dealloc" = "phys.free"
 "os::mm::frame_allocator::frame_alloc" = "phys.alloc"
-"os::mm::page_table::PageTable::map" = "pagetable.map"
+"os::mm::page_table::PageTable::map" = { kind = "pagetable.map", resource = "pagetable", args = ["self", "vpn", "ppn", "flags"] }
 "os::mm::page_table::PageTable::unmap" = "pagetable.unmap"
 "os::mm::page_table::PageTable::new" = "pagetable.new"
 
@@ -893,6 +904,7 @@ throttle  = 0
 
 "os::mm::memory_set::nodefusion_vm_unmap_region" = { kind = "vm.unmap", resource = "vm", args = ["start_vpn", "end_vpn"] }
 "os::mm::memory_set::MemorySet::remove_area_with_start_vpn" = "vm.remove_area"
+"os::mm::memory_set::MemorySet::remove_framed_area" = { kind = "vm.remove_area", resource = "vm", args = ["self", "start_vpn", "end_vpn"] }
 "os::mm::memory_set::MemorySet::shrink_to" = "vm.shrink"
 "os::mm::memory_set::MemorySet::append_to" = "vm.grow"
 "os::mm::init" = "vm.init"
@@ -1550,3 +1562,35 @@ opts = [
 [syscalls]
 files   = ["os/src/syscall/mod.rs"]
 pattern = 'const\s+SYSCALL_(?P<name>\w+)\s*:\s*usize\s*=\s*(?P<num>\d+)'
+
+[[entity]]
+name = "batch_manager"
+type = "os::batch::AppManager"
+label = "应用批次"
+
+[[entity.source]]
+kind = "table"
+completeness = "total"
+when = { type_exists = "os::batch::AppManager" }
+steps = [{ static = "os::batch::APP_MANAGER" }, { unwrap = ["Lazy", "UPSafeCell"] }]
+
+[entity.fields]
+num_app = { path = "num_app", reader = "u64" }
+current_app = { path = "current_app", reader = "u64" }
+
+[entity.table]
+empty = "当前没有应用批次。"
+  [[entity.table.column]]
+  key = "num_app"
+  label = "应用数"
+  [[entity.table.column]]
+  key = "current_app"
+  label = "下一应用序号"
+
+[[watch]]
+subsystem = "trap"
+match = { fn = ["os::trap::trap_handler"] }
+when = { type_exists = "os::batch::AppManager" }
+snapshot = "always"
+args = 1
+throttle = 0
