@@ -14,11 +14,18 @@
       button.click();
     }
   });
-  for (const [id, title] of [['mdbook-theme-toggle', '主题'], ['mdbook-search-toggle', '搜索正文'], ['mdbook-print-button', '打印']]) {
+  for (const [id, title] of [['mdbook-theme-toggle', '主题'], ['mdbook-search-toggle', '搜索正文']]) {
     const control = document.getElementById(id);
     if (control) {
       control.title = title;
       control.setAttribute('aria-label', title);
+    }
+  }
+  for (const [selector, title] of [['#mdbook-menu-bar a[href$="print.html"]', '打印全书'], ['#mdbook-menu-bar a[href^="https://github.com/"]', '项目源码']]) {
+    const link = document.querySelector(selector);
+    if (link) {
+      link.title = title;
+      link.setAttribute('aria-label', title);
     }
   }
   const narrow = window.matchMedia('(max-width: 900px)');

@@ -4,7 +4,12 @@ async (page) => {
   await page.goto(base + 'reports.html');
   const total = await page.locator('tbody tr').count();
   const courseTotal = await page.locator('main h2').first().evaluate(el => el.nextElementSibling.querySelectorAll('tbody tr').length);
+  const chapterFiveTotal = await page.locator('tbody tr').evaluateAll(rows => rows.filter(row => row.querySelector('a[href*="/ch5/"]')).length);
   await page.setViewportSize({width: 1280, height: 900});
+  check(await page.locator('main.report-catalog').evaluate(el => el.getBoundingClientRect().width > 800), 'Report catalog uses desktop width');
+  check(await page.locator('.report-query input').evaluate(el => el.getBoundingClientRect().width > 180), 'Report search has usable desktop width');
+  check((await page.locator('tbody tr').first().locator('td').last().innerText()).indexOf('运行报告') <
+    (await page.locator('tbody tr').first().locator('td').last().innerText()).indexOf('实现分析'), 'Report actions use a consistent order');
   const directory = page.getByRole('button', {name: '目录', exact: true});
   if (!(await page.locator('#mdbook-sidebar-toggle-anchor').isChecked())) await directory.click();
   await page.setViewportSize({width: 320, height: 720});
@@ -20,6 +25,13 @@ async (page) => {
   check(await page.locator('tbody tr:visible').count() === 0, 'Empty results');
   await page.getByRole('button', {name: '清除', exact: true}).click();
   await page.waitForFunction(count => document.querySelector('output').textContent === `${count} 份报告`, total);
+  await page.getByRole('combobox', {name: '章节', exact: true}).selectOption('5');
+  check(await page.locator('tbody tr:visible').count() === chapterFiveTotal, 'Chapter filter');
+  check(new URL(page.url()).searchParams.get('chapter') === '5', 'Chapter filter URL');
+  await page.reload();
+  check(await page.getByRole('combobox', {name: '章节', exact: true}).inputValue() === '5', 'Restore chapter filter URL');
+  await page.getByRole('button', {name: '清除', exact: true}).click();
+  await page.waitForFunction(count => document.querySelector('output').textContent === `${count} 份报告`, total);
   await page.getByRole('combobox', {name: '来源', exact: true}).selectOption('2026A 课程实验');
   check(await page.locator('tbody tr:visible').count() === courseTotal, 'Source filter');
   await page.reload();
@@ -30,6 +42,10 @@ async (page) => {
   await page.evaluate(() => window.scrollTo(0, 1000));
   check(await page.locator('.report-toolbar').evaluate(el => Math.abs(el.getBoundingClientRect().top - 50) < 2), 'Filter toolbar stays visible');
   await page.goto(base + 'ch3/rcore.html');
+  check((await page.locator('.lesson-context').textContent()).includes('第三章：任务切换与调度'), 'Implementation shows chapter context');
+  check(await page.getByRole('navigation', {name: '第三章阅读导航'}).getByRole('link', {name: '第三章'}).isVisible(), 'Chapter tab stays identifiable');
+  check(await page.locator('#mdbook-sidebar .chapter > .chapter-item > .section').evaluateAll(nodes =>
+    nodes.filter(node => getComputedStyle(node).display !== 'none').length) === 1, 'Directory expands only the current chapter');
   // Exercise continuous scrolling as well as the default section workflow.
   const mode = page.getByRole('button', {name: '逐节阅读', exact: true});
   if (await mode.getAttribute('aria-pressed') === 'true') await mode.click();
@@ -75,7 +91,13 @@ async (page) => {
     check((await page.locator('iframe[title="运行报告"]').getAttribute('src')).includes(`${kernel}-2026A-ch1-verified.html`), 'Open matching chapter report');
     await page.getByRole('button', {name: '返回正文', exact: true}).click();
     check(await page.getByRole('combobox', {name: '跳转到小节'}).inputValue() === '运行观察', 'Opening report preserves reading section');
-    await page.getByRole('button', {name: '下一节', exact: true}).click();
-    check(await page.getByRole('combobox', {name: '跳转到小节'}).inputValue() === '源码阅读练习', 'Chapter one section navigation');
+    check(await page.getByRole('button', {name: '下一节', exact: true}).isDisabled(), 'Chapter one ends at the run observation');
   }
+  await page.goto(base);
+  check(await page.locator('.chapter-index-row').count() === 8, 'Home lists eight chapters');
+  for (const row of await page.locator('.chapter-index-row').all()) {
+    check(await row.locator('.chapter-actions a').count() === 3, 'Each chapter links both implementations and reports');
+  }
+  await page.locator('.chapter-index-row').nth(4).getByRole('link', {name: '运行报告'}).click();
+  check(await page.getByRole('combobox', {name: '章节', exact: true}).inputValue() === '5', 'Home opens matching chapter reports');
 }

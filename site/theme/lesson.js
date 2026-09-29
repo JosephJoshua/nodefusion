@@ -10,9 +10,24 @@
   toolbar.setAttribute('aria-label', '第' + '一二三四五六七八'[Number(chapter) - 1] + '章阅读导航');
   const links = document.createElement('div');
   links.className = 'lesson-links';
+  const primary = document.createElement('div');
+  primary.className = 'lesson-primary';
+  primary.setAttribute('aria-label', '章节页面');
   let diagramLink;
-  const pages = [['导读', 'index.html'], ['rCore', 'rcore.html'], ['uCore', 'ucore.html'], ['比较与练习', 'exercises.html']];
+  const chapterLabel = `第${'一二三四五六七八'[Number(chapter) - 1]}章`;
+  const pages = [[chapterLabel, 'index.html'], ['rCore', 'rcore.html'], ['uCore', 'ucore.html']];
   const implementation = ['rcore.html', 'ucore.html'].includes(name);
+  if (implementation) {
+    const chapterLink = [...document.querySelectorAll('#mdbook-sidebar a[href]')].find(link =>
+      link.getAttribute('href').endsWith(`ch${chapter}/index.html`));
+    const heading = main.querySelector('h1');
+    if (heading && chapterLink) {
+      const context = document.createElement('p');
+      context.className = 'lesson-context';
+      context.textContent = chapterLink.textContent;
+      heading.before(context);
+    }
+  }
   const counterpart = name === 'rcore.html' ? 'ucore' : 'rcore';
   const sectionPairs = chapter !== '3' ? [] : [
     ['任务数组与静态资源', '进程表与上下文'],
@@ -36,8 +51,10 @@
     if (title === '交互图') diagramLink = a;
     if (path === name) a.setAttribute('aria-current', 'page');
     if (implementation && path === counterpart + '.html') counterpartLink = a;
-    links.append(a);
+    if (['index.html', 'rcore.html', 'ucore.html'].includes(path)) primary.append(a);
+    else links.append(a);
   }
+  links.prepend(primary);
   const label = document.createElement('label');
   label.textContent = '小节';
   const select = document.createElement('select');
@@ -55,6 +72,7 @@
   const outlineLinks = [];
   const readingHistory = [];
   let currentSection = '';
+  let skipScrollUntil = 0;
   let sectionMode = true;
   try {
     const stored = sessionStorage.getItem('nodefusion-section-reading');
@@ -147,6 +165,7 @@
       back.disabled = false;
     }
     select.value = id;
+    skipScrollUntil = performance.now() + 800;
     displaySection();
     history.replaceState(null, '', '#' + id);
     measure();
@@ -409,6 +428,7 @@
   let initialSection = '';
   try { initialSection = decodeURIComponent(location.hash.slice(1)); } catch (_) { /* Ignore malformed URL fragments. */ }
   if (headings.some(h => h.id === initialSection)) select.value = initialSection;
+  if (initialSection) skipScrollUntil = performance.now() + 1000;
   displaySection();
   updateCurrentSection();
   if (initialSection && headings.some(h => h.id === initialSection)) {
@@ -438,6 +458,7 @@
   let scheduled = false;
   window.addEventListener('scroll', () => {
     if (sectionMode) return;
+    if (performance.now() < skipScrollUntil) return;
     if (scheduled) return;
     scheduled = true;
     requestAnimationFrame(() => {
@@ -448,7 +469,6 @@
         if (heading.getBoundingClientRect().top > threshold) break;
         current = heading;
       }
-      if (window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2) current = headings.at(-1);
       if (current) {
         select.value = current.id;
         updateCurrentSection();
@@ -463,6 +483,7 @@
     const owner = [...sectionNodes].find(([, nodes]) => nodes.some(node => node === target || node.contains(target)));
     if (!owner) return;
     select.value = owner[0];
+    skipScrollUntil = performance.now() + 800;
     displaySection();
     measure();
     target.scrollIntoView({block: 'start'});

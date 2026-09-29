@@ -21,18 +21,23 @@ async (page) => {
   const body = pane.getByLabel('对照正文', {exact: true});
   await body.focus();
   await page.keyboard.press('PageDown');
-  await page.waitForFunction(() => document.querySelector('.comparison-body').scrollTop > 0);
+  if (await body.evaluate(el => el.scrollHeight > el.clientHeight)) {
+    await page.waitForFunction(() => document.querySelector('.comparison-body').scrollTop > 0);
+  }
   check(await page.evaluate(() => window.scrollY) === readingY, 'Keyboard scrolls comparison without moving primary reading');
   await pane.getByRole('combobox', {name: '对照小节'}).selectOption('进程表与上下文');
   check(!(await pane.getByRole('checkbox', {name: '跟随正文'}).isChecked()), 'Manual section disables following');
-  await page.getByRole('combobox', {name: '跳转到小节', exact: true}).selectOption('源码阅读练习');
+  await page.getByRole('combobox', {name: '跳转到小节', exact: true}).selectOption('时钟抢占与退出');
   check(await pane.getByRole('combobox', {name: '对照小节'}).inputValue() === '进程表与上下文', 'Manual comparison stays selected');
   await pane.getByRole('checkbox', {name: '跟随正文'}).check();
-  await pane.getByRole('heading', {name: '源码阅读练习', exact: true}).waitFor();
+  await pane.getByRole('heading', {name: '退出与批次结束', exact: true}).waitFor();
   await page.getByRole('combobox', {name: '跳转到小节', exact: true}).selectOption('运行观察');
   await pane.getByRole('heading', {name: '运行观察', exact: true}).waitFor();
   await page.getByRole('link', {name: '运行报告', exact: true}).click();
   await page.frameLocator('iframe[title="运行报告"]').locator('#panel-functions.on').waitFor();
+  check(await pane.isVisible(), 'Opening a report keeps the comparison open');
+  const stacked = page.getByRole('button', {name: '上下分屏', exact: true});
+  if (await stacked.isVisible()) await stacked.click();
   const resize = page.getByRole('separator', {name: '调整报告高度'});
   for (const [height, key] of [[900, 'Home'], [900, 'End'], [680, 'Home'], [680, 'End']]) {
     await page.setViewportSize({width: 1440, height});
@@ -73,6 +78,7 @@ async (page) => {
   await page.getByRole('link', {name: '运行报告', exact: true}).click();
   check(await page.locator('.lesson-outline nav').evaluate(el => el.getBoundingClientRect().bottom <= document.querySelector('.study-panel').getBoundingClientRect().top), 'Section outline fits above report too');
   await page.getByRole('button', {name: '返回正文', exact: true}).click();
+  await page.goto(base + 'ch3/rcore.html');
   for (const width of [1200, 1440, 1720]) {
     await page.setViewportSize({width, height: 900});
     const directory = page.getByRole('button', {name: '目录', exact: true});

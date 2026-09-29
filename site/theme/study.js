@@ -44,6 +44,7 @@
   dock.textContent = '左右并排';
   const wide = matchMedia('(min-width: 1200px)');
   let sideBySide = true;
+  let stackedForComparison = false;
   try {
     const stored = sessionStorage.getItem('nodefusion-study-side');
     if (stored !== null) sideBySide = stored === 'true';
@@ -226,6 +227,10 @@
     preserveAnchor(() => {
       panel.hidden = true;
       concealFrames();
+      if (stackedForComparison) {
+        sideBySide = true;
+        stackedForComparison = false;
+      }
       updateLayout();
     });
     const returnTarget = opener?.isConnected && opener.getClientRects().length ? opener : toolbar.querySelector('[data-study-resume]');
@@ -258,6 +263,7 @@
   });
   dock.addEventListener('click', () => {
     preserveAnchor(() => {
+      stackedForComparison = false;
       sideBySide = !sideBySide;
       if (sideBySide) document.querySelector('main').dispatchEvent(new CustomEvent('nodefusion:side-report'));
       updateLayout();
@@ -402,6 +408,10 @@
     retry.hidden = !frame.dataset.failed;
     status.textContent = frame.dataset.failed ? '加载失败' : frame.dataset.loaded ? '' : '正在加载…';
     preserveAnchor(() => {
+      if (sideBySide && wide.matches && !narrow.matches && document.querySelector('.lesson-comparison:not([hidden])')) {
+        sideBySide = false;
+        stackedForComparison = true;
+      }
       if (sideBySide && wide.matches && !narrow.matches) document.querySelector('main').dispatchEvent(new CustomEvent('nodefusion:side-report'));
       updateLayout();
     });
