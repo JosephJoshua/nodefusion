@@ -1,90 +1,37 @@
 # rCore 实现
 
-本节分析课程仓库 `ch2-api-impl` 的提交 [`529d8ba`](https://github.com/LearningOS/rCore-Tutorial-Code-2026A/tree/529d8bafef3dea5489c85a565d912307f6bbccb7)。应用测试来自 [`a059366`](https://github.com/LearningOS/rCore-Tutorial-Test/tree/a0593662ad55d670ba8c27ce1763347cd0dd552f)。
+第二章把多个应用依次装入同一段内存。应用通过系统调用请求输出或退出；发生异常时，内核结束当前应用并运行下一个。源码采用 [2026A 第二章参考实现](https://github.com/LearningOS/rCore-Tutorial-Code-2026A/tree/529d8bafef3dea5489c85a565d912307f6bbccb7)。
 
 ## 批次状态与装载
 
-[`AppManager`](https://github.com/LearningOS/rCore-Tutorial-Code-2026A/blob/529d8bafef3dea5489c85a565d912307f6bbccb7/os/src/batch.rs#L50) 保存应用数 `num_app`、下一应用序号 `current_app` 和应用位置数组 `app_start`。数组中每两个相邻地址界定一个二进制的范围；额外的最后一个地址用于计算最后一个应用的大小。
+[`AppManager`](https://github.com/LearningOS/rCore-Tutorial-Code-2026A/blob/529d8bafef3dea5489c85a565d912307f6bbccb7/os/src/batch.rs) 保存应用数量、下一应用序号和各应用的起始地址。地址表比应用数多一项；相邻地址确定一个应用二进制的范围。
 
-管理器由 `lazy_static` 初始化，读取链接时生成的 `_num_app` 表。`UPSafeCell` 提供对内部状态的可变访问。`run_next_app` 取得当前序号，调用 `load_app`，将序号增加一，再释放动态借用。
+`run_next_app` 读取 `current_app`，调用 `load_app`，再把序号加一。`load_app` 清空从 `0x80400000` 开始的 128 KiB 区域，将应用复制进去，并执行 `fence.i`。应用代码刚由数据写入指令内存，执行 `fence.i` 后，处理器取指才会看到新内容。
 
-因此，应用 0 已经运行时，`current_app` 的值为 1。报告中的“下一应用序号”对应这一含义。
-
-[`load_app`](https://github.com/LearningOS/rCore-Tutorial-Code-2026A/blob/529d8bafef3dea5489c85a565d912307f6bbccb7/os/src/batch.rs#L69) 清零从 `0x80400000` 开始的 `0x20000` 字节，将选中应用复制到同一区域，随后执行 `fence.i`，使后续取指能够观察到刚写入的程序。序号等于应用数时，函数输出批次完成信息并结束虚拟机。
+管理器保存的是下一次要装载的序号。应用 0 正在运行时，`current_app` 已经是 1。所有应用执行完毕后，最后一次 `run_next_app` 通过 QEMU 退出设备关机。
 
 ## 首次进入用户态
 
-[`TrapContext::app_init_context`](https://github.com/LearningOS/rCore-Tutorial-Code-2026A/blob/529d8bafef3dea5489c85a565d912307f6bbccb7/os/src/trap/context.rs) 将入口设为 `0x80400000`，将保存的 `sp` 设为用户栈顶，并把 `sstatus.SPP` 设为用户模式。
-
-用户栈和内核栈各有 8 KiB，按页对齐。`KERNEL_STACK.push_context` 将上下文写到内核栈顶下方，再把它的地址传给 `__restore`。恢复汇编使用这个预先建立的上下文进入第一个应用。此时还没有发生过用户异常。
+[`TrapContext::app_init_context`](https://github.com/LearningOS/rCore-Tutorial-Code-2026A/blob/529d8bafef3dea5489c85a565d912307f6bbccb7/os/src/trap/context.rs) 准备应用入口 `0x80400000`、用户栈顶和返回用户态所需的 `sstatus`。`run_next_app` 把这份上下文放在内核栈上，随后直接进入 `__restore`。第一次进入用户态也沿用异常返回的汇编路径。
 
 ## 异常入口与上下文
 
-[`trap.S`](https://github.com/LearningOS/rCore-Tutorial-Code-2026A/blob/529d8bafef3dea5489c85a565d912307f6bbccb7/os/src/trap/trap.S) 的 `__alltraps` 首先交换 `sp` 与 `sscratch`。交换后，`sp` 指向内核栈，原用户栈指针留在 `sscratch` 中。入口为 `TrapContext` 预留 272 字节，保存寄存器、`sstatus` 和 `sepc`，再把上下文地址放入 `a0`，调用 `trap_handler`。
+用户态发生异常后，[`__alltraps`](https://github.com/LearningOS/rCore-Tutorial-Code-2026A/blob/529d8bafef3dea5489c85a565d912307f6bbccb7/os/src/trap/trap.S) 交换 `sp` 与 `sscratch`，切到内核栈。汇编在栈上保存用户寄存器、`sstatus` 和 `sepc`，把得到的 `TrapContext` 地址交给 `trap_handler`。
 
-`TrapContext` 为 32 个通用寄存器提供槽位，另有两个控制状态字段。该章汇编跳过 `x4`（`tp`）；零寄存器也无需保存。用户栈指针则从 `sscratch` 读出，写入 `x[2]`。
-
-返回时，`__restore` 从上下文恢复 `sstatus`、`sepc` 和通用寄存器，再交换栈指针并执行 `sret`。用户上下文位于内核栈的高地址端，处理函数的调用栈向低地址增长。
+返回路径由 `__restore` 从同一份上下文恢复寄存器，最后执行 `sret`。用户栈指针保存在上下文的 `x[2]` 中；处理异常期间的函数调用使用内核栈。
 
 ## 系统调用与返回
 
-[`trap_handler`](https://github.com/LearningOS/rCore-Tutorial-Code-2026A/blob/529d8bafef3dea5489c85a565d912307f6bbccb7/os/src/trap/mod.rs#L63) 对用户 `ecall` 执行两项更新：
+用户程序执行 `ecall` 时，[`trap_handler`](https://github.com/LearningOS/rCore-Tutorial-Code-2026A/blob/529d8bafef3dea5489c85a565d912307f6bbccb7/os/src/trap/mod.rs) 从 `a7` 读取调用号，从 `a0`—`a2` 读取参数，并把返回值写回上下文的 `a0`。处理前先将 `sepc` 加 4，返回用户态后便从 `ecall` 的下一条指令继续。
 
-```rust
-cx.sepc += 4;
-cx.x[10] = syscall(cx.x[17], [cx.x[10], cx.x[11], cx.x[12]]) as usize;
-```
-
-`x[17]` 是 `a7`，`x[10..=12]` 是三个参数。普通调用返回后，处理函数将同一个上下文交给恢复汇编。
-
-[`sys_write`](https://github.com/LearningOS/rCore-Tutorial-Code-2026A/blob/529d8bafef3dea5489c85a565d912307f6bbccb7/os/src/syscall/fs.rs) 只接受文件描述符 1，把缓冲区解释为 UTF-8 字符串并输出，成功时返回长度。不支持的描述符、无效的 UTF-8 和未知系统调用号会进入 panic 路径。该实现直接根据地址和长度构造切片，尚未进行用户缓冲区范围检查。
+本章的 `sys_write` 接收标准输出描述符 1，将给定缓冲区作为 UTF-8 文本输出，返回写入长度。`sys_exit` 不再返回当前应用，而是调用 `run_next_app` 装载下一项。
 
 ## 退出与应用异常
 
-[`sys_exit`](https://github.com/LearningOS/rCore-Tutorial-Code-2026A/blob/529d8bafef3dea5489c85a565d912307f6bbccb7/os/src/syscall/process.rs) 输出退出码后调用 `run_next_app`。这个函数不会返回原用户上下文。
-
-异常分发对 `StoreFault`、`StorePageFault` 和 `IllegalInstruction` 输出诊断信息，然后装载下一应用。其他原因会 panic。日志中的 `PageFault` 消息同时用于前两种原因；本次向地址零写入产生的是原因 7，即存储访问异常。
+写地址零、执行无效指令等应用错误由异常处理器识别。`StoreFault`、`StorePageFault` 和 `IllegalInstruction` 会结束当前应用并运行下一项；内核不再恢复出错的上下文。第二章的七个应用中有三个故意触发异常，其余四个通过 `exit` 结束。
 
 ## 运行观察
 
-本次运行按名称顺序装载七个第二章应用：三个异常程序、Hello World，以及三个求幂程序。三个异常程序分别向地址零写入、执行 `sret`、读取特权寄存器。其余四个应用通过退出系统调用结束。
+报告中的第一条 `write` 先进入 `trap_handler`，随后沿 `syscall → sys_write` 输出文本。继续查看 `run_next_app`，可以看到每次退出或应用异常后，下一份应用二进制被装入同一地址。七个应用结束后，内核输出 `All applications completed!`。
 
-第一条 write 位于第 11,648,879 条指令：`a7 = 64`，`a0 = 1`，`a2 = 37`。第 11,648,920 条指令处进入 `trap_handler`，其 `a0` 与 `sp` 均为上下文地址 `0x80206ef0`。入口汇编已把用户参数写入该上下文，处理函数通过上下文读取它们。
-
-| 观察点 | 完整轨迹中的次数 |
-| --- | ---: |
-| 用户 write，系统调用 64 | 61 |
-| 用户 exit，系统调用 93 | 4 |
-| `trap_handler` | 68 |
-| `run_next_app` | 8 |
-
-68 次异常处理由 65 次系统调用和三次应用异常组成。七次装载应用加上最后一次批次结束检查，共进入 `run_next_app` 八次。最后输出 `All applications completed!`，运行正常结束。
-
-[打开本次运行报告](../reports/rcore/ch2/2026a/rcore-2026A-ch2-reference.html)。在函数轨迹中筛选 `trap_handler` 或 `run_next_app`，再结合系统调用参数与“下一应用序号”查看批次推进。
-
-<details>
-<summary>构建与录制参数</summary>
-
-内核源码未修改。用户应用使用 `CHAPTER=2 TEST=2 BASE=2` 构建；内核使用 Rust `1.80.0-nightly`，以 `LOG=TRACE CARGO_PROFILE_RELEASE_DEBUG=2 cargo build --release` 保留调试信息。QEMU 为 10.2.2，固件为 OpenSBI 1.7。
-
-实际录制命令在远程任务的 `tool` 目录执行：
-
-```sh
-/home/joseph/nf/venv313/bin/python -m nodefusion.host.cli record \
-  --kernel /home/joseph/nf/education-2026A-20260927/rcore-ch2 \
-  --kernel-kind rcore --runs /home/joseph/nf/education-2026A-20260927/runs \
-  --name rcore-2026A-ch2-reference --no-build --function-returns --watch-all \
-  --profile uniform --snapshots 80 --max-ram-bytes 268435456 \
-  --timeout 60 --no-render --event-stream never
-```
-
-轨迹包含 7,167 条事件和 2,346 条函数入口，报告全部保留。完整构建环境、工具源码补丁、分析命令与校验和见[录制参数](../reports/rcore/ch2/2026a/rcore-2026A-ch2-reference.json)，输出见[串口日志](../reports/rcore/ch2/2026a/rcore-2026A-ch2-reference.log)。
-
-</details>
-
-## 源码阅读练习
-
-1. 应用 3 开始执行时，`current_app` 为什么是 4？最后一次 `run_next_app` 会在哪一行结束运行？
-2. 沿 `__alltraps` 找到用户 `sp` 的保存位置，说明处理函数为什么可以使用另一个栈。
-3. 如果删去 `cx.sepc += 4`，一次 write 返回后会执行哪条指令？
-4. 设 write 返回 `-1`，将其转换为 `usize` 再恢复到 `a0` 后，用户端如何取得有符号的返回值？
+[查看函数调用报告](../reports/rcore/ch2/2026a/rcore-2026A-ch2-reference.html) · [录制数据](../reports/rcore/ch2/2026a/rcore-2026A-ch2-reference.json)

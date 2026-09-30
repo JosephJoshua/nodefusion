@@ -1,15 +1,31 @@
 async page => {
   const check = (condition, label) => { if (!condition) throw new Error(label); };
   const base = await page.evaluate(() => new URL('./', location.href).href);
+  const sectionControl = {
+    async selectOption(value) {
+      const headings = page.locator('main > h2[id]');
+      const id = typeof value === 'string' ? value : value.label || await headings.nth(value.index).getAttribute('id');
+      await page.waitForFunction(() => Math.abs(parseFloat(document.querySelector('main').style.getPropertyValue('--lesson-offset')) - document.querySelector('.lesson-toolbar').getBoundingClientRect().height - 70) < 1);
+      await page.evaluate(id => {
+        const heading = document.getElementById(id);
+        if (!heading) throw new Error('Missing section: ' + id);
+        location.hash = encodeURIComponent(id);
+        heading.scrollIntoView({block: 'start'});
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+      }, id);
+      await page.waitForFunction(id => document.querySelector('.lesson-outline [aria-current="location"]')?.dataset.section === id, id);
+    },
+    inputValue: () => page.locator('.lesson-outline [aria-current="location"]').getAttribute('data-section'),
+    locator: () => page.locator('main > h2[id]')
+  };
   await page.evaluate(() => {
-    sessionStorage.removeItem('nodefusion-section-reading');
     sessionStorage.removeItem('nodefusion-study-side');
   });
   for (const width of [320, 390, 900, 1440]) {
     await page.setViewportSize({width, height: 740});
     for (const kernel of ['rcore', 'ucore']) {
       await page.goto(base + `ch8/${kernel}.html`);
-      const select = page.getByRole('combobox', {name: '跳转到小节', exact: true});
+      const select = sectionControl;
       check(await select.locator('option').count() === 7, 'Both implementations have seven matching sections');
       await select.selectOption('互斥锁');
       const heading = page.locator('main > h2[id="互斥锁"]');
@@ -32,7 +48,8 @@ async page => {
       }
       await page.getByRole('button', {name: '返回正文', exact: true}).click();
       check(await select.inputValue() === '互斥锁', 'Return preserves matching section');
-      check(Math.abs(await heading.evaluate(el => el.getBoundingClientRect().top) - top) < 3, 'Return preserves reading position');
+      const returnedTop = await heading.evaluate(el => el.getBoundingClientRect().top);
+      check(Math.abs(returnedTop - top) < 3, `Return preserves reading position at ${width}px in ${kernel}: ${top} -> ${returnedTop}`);
       await page.locator('.lesson-toolbar').getByRole('link', {name: '交互图', exact: true}).click();
       check(await frame.locator('#queue-value').textContent() === '互斥锁：A', 'Reopening keeps simulation state');
       await page.getByRole('button', {name: '返回正文', exact: true}).click();

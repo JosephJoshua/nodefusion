@@ -21,17 +21,17 @@ node site/tests/blocks.test.cjs
 node site/tests/pipe.test.cjs
 ```
 
-章节页支持逐节阅读、两套实现对照和页内报告。宽屏报告可切换左右并排与上下分屏，窄屏使用全屏报告。返回正文时保留阅读位置和报告筛选条件。
+首页按章节提供导读、rCore、uCore 和运行报告入口，也收录添加内核支持与 Manifest 语法参考。报告目录可按章节、内核、来源和实验名称筛选。章节页可连续阅读，并提供页内目录、两套实现对照和页内报告；返回正文时保留阅读位置和报告筛选条件。宽屏报告可切换左右并排与上下分屏，窄屏使用全屏报告。
 
-浏览器检查包括目录、筛选、逐节阅读、阅读位置、报告布局和两套实现对照。启动上面的本地服务后，可用 Playwright CLI 执行：
+浏览器检查包括目录、筛选、章节阅读、阅读位置、报告布局和两套实现对照。启动上面的本地服务后，可用 Playwright CLI 执行：
 
 ```sh
 playwright-cli --session education open http://127.0.0.1:8768/
-for suite in navigation sections study comparison ch2 ch4 ch5 ch6 ch7 ch8 \
-             pipe report-context report-filters report-layout; do
+for suite in site-smoke navigation sections study comparison ch2 ch4 ch5 ch6 ch7 ch8 \
+             pipe report-context report-filters report-layout report-discovery report-smoke; do
     playwright-cli --session education goto http://127.0.0.1:8768/
     playwright-cli --session education run-code --filename "site/tests/$suite.browser.js"
 done
 ```
 
-构建结果不提交到 Git。`main` 分支更新站点、报告或构建脚本后，`.github/workflows/education-site.yml` 构建并发布 GitHub Pages；在仓库的 Pages 设置中将发布来源设为 GitHub Actions。站点使用 `/nodefusion/` 路径。新增章节时，同时更新 `src/SUMMARY.md` 和报告目录，保留实现分析、运行观察与练习之间的直接入口。
+构建结果不提交到 Git。`main` 分支更新站点、报告或构建脚本后，`.github/workflows/education-site.yml` 构建并发布 GitHub Pages；在仓库的 Pages 设置中将发布来源设为 GitHub Actions。站点使用 `/nodefusion/` 路径。新增章节时，同时更新 `src/SUMMARY.md` 和报告目录，保留实现分析与运行观察的入口。

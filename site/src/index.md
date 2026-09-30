@@ -1,30 +1,20 @@
 # 操作系统内核分析
 
-用户程序通过系统调用使用内核服务。内核保存程序的执行状态，管理处理器、内存和文件，并借助硬件的特权级与页表限制访问范围。程序的运行可以从三个方面分析：执行到哪一步，持有哪些资源，继续执行需要满足什么条件。
+本书使用 rCore 与 uCore 的 2026A 参考实现，分析内核从启动到线程同步的主要机制。源码链接固定到各章对应的提交；运行报告可用于查看函数调用和系统事件。
 
-## 从启动到线程同步
+## 章节
 
-| 章节 | 本章增加的能力 | 需要理解的问题 |
-| --- | --- | --- |
-| 第一章 | 裸机程序的启动与运行 | 栈和内存初始状态如何建立？ |
-| 第二章 | 用户态程序与系统调用 | 进入内核后如何返回用户程序？ |
-| 第三章 | 多任务与分时调度 | 程序暂停后如何从原来的位置继续？ |
-| 第四章 | 独立地址空间 | 虚拟地址如何转换，访问权限如何检查？ |
-| 第五章 | 进程创建、执行与回收 | 进程的资源在各阶段如何变化？ |
-| 第六章 | 文件与文件系统 | 文件描述符如何关联到磁盘数据？ |
-| 第七章 | 管道与描述符共享 | 读写何时等待，何时结束？ |
-| 第八章 | 线程与同步 | 执行交错时如何维护共享状态？ |
+<div class="chapter-index" role="list">
+  <div class="chapter-index-row" role="listitem"><span class="chapter-number">01</span><div class="chapter-summary"><a href="ch1/index.html">启动与基本执行环境</a><p>入口汇编设置启动栈，内核初始化 BSS、输出字符并关机。</p></div><div class="chapter-actions"><a href="ch1/rcore.html">rCore</a><a href="ch1/ucore.html">uCore</a><a href="reports.html?chapter=1">运行报告</a></div></div>
+  <div class="chapter-index-row" role="listitem"><span class="chapter-number">02</span><div class="chapter-summary"><a href="ch2/index.html">批处理与系统调用</a><p>用户程序通过 <code>ecall</code> 进入内核；异常上下文保存返回位置。</p></div><div class="chapter-actions"><a href="ch2/rcore.html">rCore</a><a href="ch2/ucore.html">uCore</a><a href="reports.html?chapter=2">运行报告</a></div></div>
+  <div class="chapter-index-row" role="listitem"><span class="chapter-number">03</span><div class="chapter-summary"><a href="ch3/index.html">多任务与分时调度</a><p>任务上下文让程序暂停后恢复，时钟中断触发抢占。</p></div><div class="chapter-actions"><a href="ch3/rcore.html">rCore</a><a href="ch3/ucore.html">uCore</a><a href="reports.html?chapter=3">运行报告</a></div></div>
+  <div class="chapter-index-row" role="listitem"><span class="chapter-number">04</span><div class="chapter-summary"><a href="ch4/index.html">地址空间与页表</a><p>页表完成地址转换，内核检查用户缓冲区的映射和权限。</p></div><div class="chapter-actions"><a href="ch4/rcore.html">rCore</a><a href="ch4/ucore.html">uCore</a><a href="reports.html?chapter=4">运行报告</a></div></div>
+  <div class="chapter-index-row" role="listitem"><span class="chapter-number">05</span><div class="chapter-summary"><a href="ch5/index.html">进程</a><p><code>fork</code>、<code>exec</code> 和 <code>wait</code> 连接进程创建、程序替换与资源回收。</p></div><div class="chapter-actions"><a href="ch5/rcore.html">rCore</a><a href="ch5/ucore.html">uCore</a><a href="reports.html?chapter=5">运行报告</a></div></div>
+  <div class="chapter-index-row" role="listitem"><span class="chapter-number">06</span><div class="chapter-summary"><a href="ch6/index.html">文件系统</a><p>文件描述符、文件对象、索引节点和磁盘块组成访问路径。</p></div><div class="chapter-actions"><a href="ch6/rcore.html">rCore</a><a href="ch6/ucore.html">uCore</a><a href="reports.html?chapter=6">运行报告</a></div></div>
+  <div class="chapter-index-row" role="listitem"><span class="chapter-number">07</span><div class="chapter-summary"><a href="ch7/index.html">进程间通信</a><p>管道传递字节；端点引用决定读写结束与资源回收。</p></div><div class="chapter-actions"><a href="ch7/rcore.html">rCore</a><a href="ch7/ucore.html">uCore</a><a href="reports.html?chapter=7">运行报告</a></div></div>
+  <div class="chapter-index-row" role="listitem"><span class="chapter-number">08</span><div class="chapter-summary"><a href="ch8/index.html">线程与同步</a><p>线程共享进程资源；互斥锁、信号量和条件变量协调执行。</p></div><div class="chapter-actions"><a href="ch8/rcore.html">rCore</a><a href="ch8/ucore.html">uCore</a><a href="reports.html?chapter=8">运行报告</a></div></div>
+</div>
 
-前两章建立执行环境以及用户程序与内核之间的调用关系。第三章使多个程序能够轮流运行；第四章为它们建立独立地址空间。第五章允许程序在运行期间创建进程。文件、管道与同步对象随后成为进程或线程使用的资源。
+[报告目录](reports.html)还收录 xv6-riscv、ArceOS 和 StarryOS 的运行记录。
 
-各章先说明机制，再分别分析 rCore 和 uCore 的参考实现。源码链接固定到课程仓库的具体提交。运行案例由 NodeFusion 录制，包含函数轨迹、调度事件和内存快照。
-
-## 阅读入口
-
-从[第一章：启动与基本执行环境](ch1/index.md)开始，可以把入口汇编、链接地址和运行中的栈指针对照起来，理解内核如何建立自身的执行环境。
-
-接着阅读[第二章：批处理与系统调用](ch2/index.md)，沿一次用户请求查看异常入口、上下文与返回过程。[第三章：任务切换与调度](ch3/index.md)在这条路径中加入任务暂停与恢复。[第四章：地址空间与页表](ch4/index.md)说明程序如何使用独立内存，以及页表与物理页的管理关系。[第五章：进程创建与回收](ch5/index.md)沿 fork、exec、exit 和 waitpid 查看进程关系与资源的变化。[第六章：文件系统](ch6/index.md)从文件描述符出发，查看目录、块索引、缓存和设备请求。[第七章：进程间通信](ch7/index.md)把描述符连接到共享管道，沿读写与端点关闭观察进程间的数据传递。[第八章：线程与同步](ch8/index.md)追踪共享变量、锁、条件变量和线程回收。
-
-阅读前需要熟悉 RISC-V 的 `ra`、`sp` 和 `s0`—`s11`，以及第二章中的系统调用和异常返回。正文会结合汇编说明这些寄存器在切换中的用途。
-
-[运行报告](reports.md)中还可以查看 xv6-riscv、ArceOS、StarryOS，以及已有的 rCore 和 uCore 实验。
+使用 NodeFusion 分析其他内核时，可参考[添加内核支持](guides/adding-kernel.md)和[Manifest 语法参考](guides/manifest-reference.md)。

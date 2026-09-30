@@ -80,7 +80,7 @@
   const params = new URLSearchParams(location.search);
   if (capacities[params.get('kernel')]) kernel.value = params.get('kernel');
   const returnTo = params.get('return');
-  if (returnTo && /^(index|rcore|ucore|exercises)\.html(?:#.*)?$/.test(returnTo)) doc.getElementById('return-to-lesson').href = '../ch7/' + returnTo;
+  if (returnTo && /^(index|rcore|ucore)\.html(?:#.*)?$/.test(returnTo)) doc.getElementById('return-to-lesson').href = '../ch7/' + returnTo;
   let state = preset(kernel.value, example.value);
   let history = [];
   let message = '选择一个进程，运行到返回或主动让出处理器。';

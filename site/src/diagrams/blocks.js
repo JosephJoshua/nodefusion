@@ -27,7 +27,7 @@
   const params = new URLSearchParams(location.search);
   if (layouts[params.get('kernel')]) kernel.value = params.get('kernel');
   const returnTo = params.get('return');
-  if (returnTo && /^(index|rcore|ucore|exercises)\.html(?:#.*)?$/.test(returnTo)) doc.getElementById('return-to-lesson').href = '../ch6/' + returnTo;
+  if (returnTo && /^(index|rcore|ucore)\.html(?:#.*)?$/.test(returnTo)) doc.getElementById('return-to-lesson').href = '../ch6/' + returnTo;
   function render() {
     const layout = layouts[kernel.value];
     const capacity = (layout.direct + layout.entries + (layout.double ? layout.entries ** 2 : 0)) * layout.block;

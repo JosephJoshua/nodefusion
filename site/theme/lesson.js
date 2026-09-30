@@ -2,9 +2,32 @@
   'use strict';
   const name = location.pathname.split('/').pop();
   const chapter = location.pathname.match(/\/ch([1-8])\//)?.[1];
-  if (!chapter || name === 'print.html') return;
+  if (name === 'print.html') return;
   const main = document.querySelector('main');
   if (!main) return;
+  if (!chapter) {
+    if (!location.pathname.includes('/guides/')) return;
+    const headings = [...main.querySelectorAll('h2[id]')];
+    const outline = document.createElement('aside');
+    outline.className = 'lesson-outline guide-outline';
+    const nav = document.createElement('nav');
+    nav.setAttribute('aria-label', '本页目录');
+    const title = document.createElement('p');
+    title.textContent = '本页目录';
+    const list = document.createElement('ol');
+    for (const heading of headings) {
+      const item = document.createElement('li');
+      const link = document.createElement('a');
+      link.href = '#' + encodeURIComponent(heading.id);
+      link.textContent = heading.textContent;
+      item.append(link);
+      list.append(item);
+    }
+    nav.append(title, list);
+    outline.append(nav);
+    main.append(outline);
+    return;
+  }
   const toolbar = document.createElement('nav');
   toolbar.className = 'lesson-toolbar';
   toolbar.setAttribute('aria-label', '第' + '一二三四五六七八'[Number(chapter) - 1] + '章阅读导航');
@@ -55,10 +78,6 @@
     else links.append(a);
   }
   links.prepend(primary);
-  const label = document.createElement('label');
-  label.textContent = '小节';
-  const select = document.createElement('select');
-  select.setAttribute('aria-label', '跳转到小节');
   const headings = [...main.querySelectorAll('h2[id]')];
   const outline = document.createElement('aside');
   outline.className = 'lesson-outline';
@@ -70,170 +89,36 @@
   outlineNav.append(outlineTitle, outlineList);
   outline.append(outlineNav);
   const outlineLinks = [];
-  const readingHistory = [];
   let currentSection = '';
-  let skipScrollUntil = 0;
-  let sectionMode = true;
-  try {
-    const stored = sessionStorage.getItem('nodefusion-section-reading');
-    if (stored !== null) sectionMode = stored === 'true';
-  } catch (_) { /* Use section reading without storage. */ }
-  const sectionNodes = new Map();
-  const introduction = [];
-  let group;
-  for (const node of [...main.children]) {
-    node.dataset.lessonContent = '';
-    if (headings.includes(node)) {
-      group = [];
-      sectionNodes.set(node.id, group);
-    }
-    if (group) group.push(node);
-    else if (node.tagName !== 'H1') introduction.push(node);
-  }
-  const mode = document.createElement('button');
-  mode.type = 'button';
-  mode.className = 'lesson-mode';
-  mode.textContent = '逐节阅读';
-  mode.title = '开启时只显示当前小节，关闭后连续阅读全章';
-  mode.setAttribute('aria-pressed', String(sectionMode));
-  const footer = document.createElement('nav');
-  footer.className = 'lesson-paging';
-  footer.setAttribute('aria-label', '小节前后导航');
-  const footerPrevious = document.createElement('button');
-  const footerNext = document.createElement('button');
-  const position = document.createElement('output');
-  position.setAttribute('aria-label', '小节位置');
-  const toolbarPosition = document.createElement('output');
-  toolbarPosition.className = 'lesson-position';
-  toolbarPosition.setAttribute('aria-label', '当前小节位置');
-  for (const [button, direction] of [[footerPrevious, -1], [footerNext, 1]]) {
-    button.type = 'button';
-    button.addEventListener('click', () => {
-      const target = headings[select.selectedIndex + direction];
-      if (target) goToSection(target.id, true);
-    });
-  }
-  footer.append(footerPrevious, position, footerNext);
-  function displaySection() {
-    for (const [id, nodes] of sectionNodes) {
-      for (const node of nodes) node.hidden = sectionMode && id !== select.value;
-    }
-    for (const node of introduction) node.hidden = sectionMode && select.selectedIndex !== 0;
-    main.classList.toggle('section-reading', sectionMode);
-    mode.setAttribute('aria-pressed', String(sectionMode));
-    footer.hidden = !sectionMode;
-    const index = select.selectedIndex;
-    footerPrevious.disabled = index <= 0;
-    footerNext.disabled = index >= headings.length - 1;
-    footerPrevious.textContent = index > 0 ? '↑ ' + headings[index - 1].textContent : '已到第一节';
-    footerNext.textContent = index < headings.length - 1 ? headings[index + 1].textContent + ' ↓' : '已到最后一节';
-    position.textContent = `${index + 1} / ${headings.length}`;
-    toolbarPosition.textContent = position.textContent;
-  }
-  mode.addEventListener('click', () => {
-    preserveReadingPosition(() => {
-      sectionMode = !sectionMode;
-      displaySection();
-    });
-    history.replaceState(null, '', '#' + encodeURIComponent(select.value));
-    try { sessionStorage.setItem('nodefusion-section-reading', String(sectionMode)); } catch (_) { /* Keep the current mode without storage. */ }
-  });
-  const back = document.createElement('button');
-  back.type = 'button';
-  back.className = 'lesson-back';
-  back.textContent = '返回';
-  back.setAttribute('aria-label', '返回跳转前的位置');
-  back.disabled = true;
-  back.addEventListener('click', () => {
-    const point = readingHistory.pop();
-    if (!point) return;
-    select.value = point.section;
-    sectionMode = point.sectionMode;
-    displaySection();
-    try { sessionStorage.setItem('nodefusion-section-reading', String(sectionMode)); } catch (_) { /* Optional reading preference. */ }
-    history.replaceState(null, '', point.hash || location.pathname + location.search);
-    window.scrollTo(0, point.y);
-    back.disabled = readingHistory.length === 0;
-    updateCurrentSection();
-  });
-  function goToSection(id, focusHeading = false) {
-    const heading = document.getElementById(id);
-    if (!heading) return;
-    if (id !== currentSection) {
-      readingHistory.push({section: currentSection, y: window.scrollY, hash: location.hash, sectionMode});
-      if (readingHistory.length > 20) readingHistory.shift();
-      back.disabled = false;
-    }
-    select.value = id;
-    skipScrollUntil = performance.now() + 800;
-    displaySection();
-    history.replaceState(null, '', '#' + id);
-    measure();
-    heading.scrollIntoView({block: 'start'});
-    updateCurrentSection();
-    if (focusHeading) {
-      heading.tabIndex = -1;
-      heading.focus({preventScroll: true});
-    }
-  }
-  const previous = document.createElement('button');
-  const next = document.createElement('button');
-  for (const [button, text, title, direction] of [[previous, '↑', '上一节', -1], [next, '↓', '下一节', 1]]) {
-    button.type = 'button';
-    button.textContent = text;
-    button.title = title;
-    button.setAttribute('aria-label', title);
-    button.addEventListener('click', () => {
-      const target = headings[select.selectedIndex + direction];
-      if (target) goToSection(target.id);
-    });
-  }
-  function updateCurrentSection() {
-    currentSection = select.value;
-    toolbarPosition.textContent = `${select.selectedIndex + 1} / ${headings.length}`;
-    previous.disabled = select.selectedIndex <= 0;
-    next.disabled = select.selectedIndex < 0 || select.selectedIndex >= headings.length - 1;
+  function updateCurrentSection(id) {
+    if (!id || id === currentSection) return;
+    currentSection = id;
     for (const link of outlineLinks) {
-      if (link.dataset.section === select.value) link.setAttribute('aria-current', 'location');
+      if (link.dataset.section === currentSection) link.setAttribute('aria-current', 'location');
       else link.removeAttribute('aria-current');
     }
     updateDiagramLink();
-    if (counterpartLink) counterpartLink.href = counterpart + '.html#' + encodeURIComponent(matchingSection(select.value));
+    if (counterpartLink) counterpartLink.href = counterpart + '.html#' + encodeURIComponent(matchingSection(currentSection));
     updateComparison();
   }
   function updateDiagramLink() {
     if (!diagramLink) return;
     const params = new URLSearchParams();
     if (name === 'rcore.html' || name === 'ucore.html') params.set('kernel', name.split('.')[0]);
-    params.set('return', name + (select.value ? '#' + select.value : ''));
+    params.set('return', name + (currentSection ? '#' + currentSection : ''));
     diagramLink.href = '../diagrams/' + diagramPage + '?' + params;
   }
   for (const h of headings) {
-    const option = document.createElement('option');
-    option.value = h.id;
-    option.textContent = h.textContent;
-    select.append(option);
     const item = document.createElement('li');
     const link = document.createElement('a');
     link.href = '#' + encodeURIComponent(h.id);
     link.dataset.section = h.id;
     link.textContent = h.textContent;
-    link.addEventListener('click', event => {
-      event.preventDefault();
-      goToSection(h.id);
-    });
+    link.addEventListener('click', () => updateCurrentSection(h.id));
     item.append(link);
     outlineList.append(item);
     outlineLinks.push(link);
   }
-  select.addEventListener('change', () => {
-    goToSection(select.value);
-  });
-  label.append(select);
-  const sectionRow = document.createElement('div');
-  sectionRow.className = 'lesson-section';
-  sectionRow.append(label, previous, next);
-  links.append(toolbarPosition, mode, back);
   let comparison;
   let comparisonBody;
   let comparisonSelect;
@@ -244,7 +129,7 @@
   let lastComparisonSection;
   const wide = window.matchMedia('(min-width: 1200px)');
   function preserveReadingPosition(change) {
-    const heading = document.getElementById(select.value);
+    const heading = document.getElementById(currentSection);
     const top = heading?.getBoundingClientRect().top;
     change();
     if (heading && Number.isFinite(top)) window.scrollBy(0, heading.getBoundingClientRect().top - top);
@@ -271,9 +156,9 @@
   }
   function updateComparison() {
     if (!comparisonDocument || !comparison || comparison.hidden || !follow.checked) return;
-    if (lastComparisonSection === select.value) return;
-    lastComparisonSection = select.value;
-    const id = matchingSection(select.value);
+    if (lastComparisonSection === currentSection) return;
+    lastComparisonSection = currentSection;
+    const id = matchingSection(currentSection);
     if (comparisonDocument.getElementById(id)) renderComparison(id);
   }
   function closeComparison(returnFocus) {
@@ -313,8 +198,8 @@
           return option;
         }));
         comparisonSelect.disabled = false;
-        renderComparison(comparisonDocument.getElementById(matchingSection(select.value)) ? matchingSection(select.value) : otherHeadings[0].id);
-        lastComparisonSection = select.value;
+        renderComparison(comparisonDocument.getElementById(matchingSection(currentSection)) ? matchingSection(currentSection) : otherHeadings[0].id);
+        lastComparisonSection = currentSection;
       } catch (_) {
         comparisonBody.textContent = '对照内容加载失败。';
         const retry = document.createElement('button');
@@ -416,29 +301,35 @@
     report.setAttribute('aria-label', '运行报告');
     if (recordedReport) links.append(report);
   }
-  toolbar.append(links, sectionRow);
+  toolbar.append(links);
   main.prepend(toolbar);
   main.append(outline);
-  main.append(footer);
   if (comparison) main.append(comparison);
   const measure = () => main.style.setProperty('--lesson-offset', `${toolbar.getBoundingClientRect().height + 70}px`);
   measure();
   if ('ResizeObserver' in window) new ResizeObserver(measure).observe(toolbar);
   else window.addEventListener('resize', measure);
-  let initialSection = '';
-  try { initialSection = decodeURIComponent(location.hash.slice(1)); } catch (_) { /* Ignore malformed URL fragments. */ }
-  if (headings.some(h => h.id === initialSection)) select.value = initialSection;
-  if (initialSection) skipScrollUntil = performance.now() + 1000;
-  displaySection();
-  updateCurrentSection();
-  if (initialSection && headings.some(h => h.id === initialSection)) {
-    const restore = () => requestAnimationFrame(() => document.getElementById(initialSection).scrollIntoView({block: 'start'}));
-    if (document.readyState === 'complete') restore();
-    else window.addEventListener('load', restore, {once: true});
+  function sectionForTarget(target) {
+    if (!target) return '';
+    let owner = '';
+    for (const heading of headings) {
+      if (heading === target || heading.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_FOLLOWING) owner = heading.id;
+      else break;
+    }
+    return owner;
   }
+  let explicitSectionY = null;
+  function revealFragment() {
+    let id;
+    try { id = decodeURIComponent(location.hash.slice(1)); } catch (_) { return; }
+    const section = sectionForTarget(document.getElementById(id));
+    if (section) explicitSectionY = window.scrollY;
+    updateCurrentSection(section || headings[0]?.id);
+  }
+  revealFragment();
   const positionKey = 'nodefusion-reading:' + location.pathname;
   window.addEventListener('pagehide', () => {
-    try { sessionStorage.setItem(positionKey, JSON.stringify({y: window.scrollY, hash: location.hash, sectionMode, width: innerWidth})); } catch (_) { /* Storage may be disabled. */ }
+    try { sessionStorage.setItem(positionKey, JSON.stringify({y: window.scrollY, hash: location.hash, width: innerWidth})); } catch (_) { /* Storage may be disabled. */ }
   });
   {
     const restorePosition = () => requestAnimationFrame(() => {
@@ -449,16 +340,18 @@
         const position = typeof point === 'number' ? point : point?.y;
         const hash = typeof point === 'number' ? '' : point?.hash;
         // Pixel offsets from another line width can land in an unrelated section.
-        if (hash === location.hash && point?.width === innerWidth && (point?.sectionMode ?? false) === sectionMode && Number.isFinite(position) && position >= 0) window.scrollTo(0, position);
+        if (hash === location.hash && point?.width === innerWidth && Number.isFinite(position) && position >= 0) window.scrollTo(0, position);
       } catch (_) { /* Keep normal browser navigation when storage is unavailable. */ }
     });
     if (document.readyState === 'complete') restorePosition();
     else window.addEventListener('load', restorePosition, {once: true});
   }
   let scheduled = false;
-  window.addEventListener('scroll', () => {
-    if (sectionMode) return;
-    if (performance.now() < skipScrollUntil) return;
+  function updateFromScroll() {
+    if (explicitSectionY !== null) {
+      if (Math.abs(window.scrollY - explicitSectionY) < 48) return;
+      explicitSectionY = null;
+    }
     if (scheduled) return;
     scheduled = true;
     requestAnimationFrame(() => {
@@ -469,31 +362,11 @@
         if (heading.getBoundingClientRect().top > threshold) break;
         current = heading;
       }
-      if (current) {
-        select.value = current.id;
-        updateCurrentSection();
-      }
+      if (current) updateCurrentSection(current.id);
     });
-  }, {passive: true});
-  // Fragment links and browser history must reveal their destination in section mode.
-  function revealFragment() {
-    let id;
-    try { id = decodeURIComponent(location.hash.slice(1)); } catch (_) { return; }
-    const target = document.getElementById(id);
-    const owner = [...sectionNodes].find(([, nodes]) => nodes.some(node => node === target || node.contains(target)));
-    if (!owner) return;
-    select.value = owner[0];
-    skipScrollUntil = performance.now() + 800;
-    displaySection();
-    measure();
-    target.scrollIntoView({block: 'start'});
-    updateCurrentSection();
   }
+  window.addEventListener('scroll', updateFromScroll, {passive: true});
   window.addEventListener('hashchange', revealFragment);
-  main.addEventListener('click', event => {
-    const link = event.target.closest('a[href]');
-    if (!sectionMode || !link || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    const url = new URL(link.href, location.href);
-    if (url.pathname === location.pathname && url.hash && url.hash === location.hash) revealFragment();
-  });
+  if (document.readyState === 'complete') updateFromScroll();
+  else window.addEventListener('load', () => { revealFragment(); updateFromScroll(); }, {once: true});
 })();

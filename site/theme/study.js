@@ -44,7 +44,6 @@
   dock.textContent = '左右并排';
   const wide = matchMedia('(min-width: 1200px)');
   let sideBySide = true;
-  let stackedForComparison = false;
   try {
     const stored = sessionStorage.getItem('nodefusion-study-side');
     if (stored !== null) sideBySide = stored === 'true';
@@ -178,7 +177,7 @@
   let restoringFocus = false;
   const inertBefore = new Map();
   function preserveAnchor(change) {
-    const id = document.querySelector('.lesson-section select')?.value;
+    const id = document.querySelector('.lesson-outline [aria-current="location"]')?.dataset.section;
     const readingTop = toolbar.getBoundingClientRect().bottom;
     const visibleHeadings = [...document.querySelectorAll('main > h2[id]')].filter(element => element.getClientRects().length);
     const heading = visibleHeadings.sort((a, b) => Math.abs(a.getBoundingClientRect().top - readingTop) - Math.abs(b.getBoundingClientRect().top - readingTop))[0] || (id && document.getElementById(id));
@@ -227,10 +226,6 @@
     preserveAnchor(() => {
       panel.hidden = true;
       concealFrames();
-      if (stackedForComparison) {
-        sideBySide = true;
-        stackedForComparison = false;
-      }
       updateLayout();
     });
     const returnTarget = opener?.isConnected && opener.getClientRects().length ? opener : toolbar.querySelector('[data-study-resume]');
@@ -263,7 +258,6 @@
   });
   dock.addEventListener('click', () => {
     preserveAnchor(() => {
-      stackedForComparison = false;
       sideBySide = !sideBySide;
       if (sideBySide) document.querySelector('main').dispatchEvent(new CustomEvent('nodefusion:side-report'));
       updateLayout();
@@ -297,6 +291,7 @@
   document.body.append(panel);
   function open(url, link) {
     const kind = url.pathname.includes('/reports/') ? '运行报告' : '交互图';
+    const sameOpenKind = !panel.hidden && title.textContent === kind;
     if (kind === '运行报告') lastReport = url.href;
     if (kind === '运行报告' && !url.searchParams.has('tab')) url.searchParams.set('tab', 'functions');
     if (kind === '运行报告') {
@@ -407,14 +402,12 @@
     filterRestorers.get(frame)?.();
     retry.hidden = !frame.dataset.failed;
     status.textContent = frame.dataset.failed ? '加载失败' : frame.dataset.loaded ? '' : '正在加载…';
-    preserveAnchor(() => {
-      if (sideBySide && wide.matches && !narrow.matches && document.querySelector('.lesson-comparison:not([hidden])')) {
-        sideBySide = false;
-        stackedForComparison = true;
-      }
-      if (sideBySide && wide.matches && !narrow.matches) document.querySelector('main').dispatchEvent(new CustomEvent('nodefusion:side-report'));
-      updateLayout();
-    });
+    if (!sameOpenKind) {
+      preserveAnchor(() => {
+        if (sideBySide && wide.matches && !narrow.matches) document.querySelector('main').dispatchEvent(new CustomEvent('nodefusion:side-report'));
+        updateLayout();
+      });
+    }
     if (link) close.focus({preventScroll: true});
   }
   choices.addEventListener('change', () => open(new URL(reports.get(choices.value), location.href)));

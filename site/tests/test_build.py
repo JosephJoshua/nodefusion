@@ -9,6 +9,21 @@ from scripts.build_education_site import stage_reports, validate_links
 
 
 class SiteBuildTests(unittest.TestCase):
+    def test_manifest_guides_match_repository_docs(self):
+        root = Path(__file__).resolve().parents[2]
+        substitutions = {
+            'AUTHORING.md': ('adding-kernel.md', {'(REFERENCE.md': '(manifest-reference.md',
+                '(../../nodefusion/spec/event-stream.md)': '(https://github.com/JosephJoshua/nodefusion/blob/main/nodefusion/spec/event-stream.md)',
+                '(../../nodefusion/integrations/README.md)': '(https://github.com/JosephJoshua/nodefusion/blob/main/nodefusion/integrations/README.md)'}),
+            'REFERENCE.md': ('manifest-reference.md', {'(AUTHORING.md': '(adding-kernel.md'}),
+        }
+        for source, (target, links) in substitutions.items():
+            with self.subTest(source=source):
+                expected = (root / 'docs/manifests' / source).read_text(encoding='utf-8')
+                for before, after in links.items():
+                    expected = expected.replace(before, after)
+                self.assertEqual((root / 'site/src/guides' / target).read_text(encoding='utf-8'), expected)
+
     def test_local_links_and_chinese_fragments(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

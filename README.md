@@ -42,8 +42,8 @@ python -m nodefusion.host.cli compare \
 
 ## 文档
 
-- [添加内核支持](docs/manifests/AUTHORING.md)
-- [Manifest 语法参考](docs/manifests/REFERENCE.md)
+- [添加内核支持](https://josephjoshua.github.io/nodefusion/guides/adding-kernel.html)
+- [Manifest 语法参考](https://josephjoshua.github.io/nodefusion/guides/manifest-reference.html)
 - [内核侧观测补丁](nodefusion/integrations/README.md)
 - [事件流与轨迹格式](nodefusion/spec/event-stream.md)
 - [源码目录](nodefusion/README.md)

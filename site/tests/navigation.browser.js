@@ -46,58 +46,37 @@ async (page) => {
   check(await page.getByRole('navigation', {name: '第三章阅读导航'}).getByRole('link', {name: '第三章'}).isVisible(), 'Chapter tab stays identifiable');
   check(await page.locator('#mdbook-sidebar .chapter > .chapter-item > .section').evaluateAll(nodes =>
     nodes.filter(node => getComputedStyle(node).display !== 'none').length) === 1, 'Directory expands only the current chapter');
-  // Exercise continuous scrolling as well as the default section workflow.
-  const mode = page.getByRole('button', {name: '逐节阅读', exact: true});
-  if (await mode.getAttribute('aria-pressed') === 'true') await mode.click();
-  await page.getByRole('combobox', {name: '跳转到小节'}).selectOption({index: 0});
-  check(await page.getByRole('button', {name: '上一节', exact: true}).isDisabled(), 'First section has no previous section');
-  await page.getByRole('button', {name: '下一节', exact: true}).click();
-  check(await page.getByRole('combobox', {name: '跳转到小节'}).evaluate(el => el.selectedIndex) === 1, 'Next section updates selection');
-  await page.getByRole('button', {name: '上一节', exact: true}).click();
-  check(await page.getByRole('combobox', {name: '跳转到小节'}).evaluate(el => el.selectedIndex) === 0, 'Previous section updates selection');
-  await page.getByRole('combobox', {name: '跳转到小节'}).selectOption({label: '运行观察'});
-  await page.waitForFunction(() => window.scrollY > 500);
-  const position = await page.evaluate(() => window.scrollY);
-  check(await page.evaluate(() => document.getElementById('运行观察').getBoundingClientRect().top >= document.querySelector('.lesson-toolbar').getBoundingClientRect().bottom), 'Section heading clears navigation');
-  await page.getByRole('link', {name: '交互图', exact: true}).click();
-  const diagram = page.frameLocator('iframe[title="交互图"]');
-  await diagram.getByRole('link', {name: '返回阅读位置'}).click();
-  await page.waitForFunction(() => window.scrollY > 500);
-  check((await page.getByRole('combobox', {name: '跳转到小节'}).inputValue()) === '运行观察', 'Diagram returns to section');
-  await page.getByRole('link', {name: 'uCore', exact: true}).first().click();
-  await page.getByRole('link', {name: 'rCore', exact: true}).first().click();
-  await page.waitForFunction(() => window.scrollY > 500);
-  check(Math.abs(await page.evaluate(() => window.scrollY) - position) < 5, 'Restore reading position across implementations');
-  check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Lesson fits 320px');
+  check(await page.locator('main > h2:visible').count() > 1, 'Chapter uses continuous reading');
   await page.setViewportSize({width: 1720, height: 900});
   const outline = page.getByRole('navigation', {name: '本页小节', exact: true});
-  check(await outline.isVisible(), 'Wide screen shows section outline');
+  check(await outline.isVisible(), 'Wide screen shows the section outline');
   await outline.getByRole('link', {name: '运行观察', exact: true}).click();
-  check(await outline.locator('[aria-current="location"]').textContent() === '运行观察', 'Outline marks current section');
-  check(await outline.evaluate(el => el.getBoundingClientRect().top >= 50), 'Outline remains visible at reading position');
-  check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Wide lesson fits viewport');
-  await page.getByRole('combobox', {name: '跳转到小节'}).selectOption({index: await page.locator('.lesson-toolbar select option').count() - 1});
-  check(await page.getByRole('button', {name: '下一节', exact: true}).isDisabled(), 'Last section has no next section');
+  await page.waitForFunction(() => document.querySelector('.lesson-outline [aria-current="location"]')?.dataset.section === '运行观察');
+  check(await page.evaluate(() => document.getElementById('运行观察').getBoundingClientRect().top >= document.querySelector('.lesson-toolbar').getBoundingClientRect().bottom - 1), 'Anchor clears toolbar');
+  await page.getByRole('link', {name: '交互图', exact: true}).click();
+  await page.frameLocator('iframe[title="交互图"]').getByRole('link', {name: '返回阅读位置'}).click();
+  check(decodeURIComponent(new URL(page.url()).hash) === '#运行观察', 'Diagram returns to section');
   for (const kernel of ['rcore', 'ucore']) {
-    await page.goto(base + `ch1/${kernel}.html`);
-    check(await page.getByRole('navigation', {name: '第一章阅读导航'}).isVisible(), 'Chapter one navigation');
+    await page.goto(base + `ch1/${kernel}.html#运行观察`);
     await page.setViewportSize({width: 320, height: 720});
-    await page.getByRole('combobox', {name: '跳转到小节'}).selectOption({label: '运行观察'});
-    check(await page.evaluate(() => document.getElementById('运行观察').getBoundingClientRect().top >= document.querySelector('.lesson-toolbar').getBoundingClientRect().bottom - 1), 'Chapter one heading clears toolbar');
     check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Chapter one fits narrow screen');
     await page.getByRole('link', {name: '运行报告', exact: true}).click();
-    const report = page.frameLocator('iframe[title="运行报告"]');
-    await report.locator('#panel-functions').waitFor({state: 'attached'});
-    check((await page.locator('iframe[title="运行报告"]').getAttribute('src')).includes(`${kernel}-2026A-ch1-verified.html`), 'Open matching chapter report');
+    await page.frameLocator('iframe[title="运行报告"]').locator('#panel-functions.on').waitFor();
     await page.getByRole('button', {name: '返回正文', exact: true}).click();
-    check(await page.getByRole('combobox', {name: '跳转到小节'}).inputValue() === '运行观察', 'Opening report preserves reading section');
-    check(await page.getByRole('button', {name: '下一节', exact: true}).isDisabled(), 'Chapter one ends at the run observation');
+    check(decodeURIComponent(new URL(page.url()).hash) === '#运行观察', 'Report return retains the section');
   }
   await page.goto(base);
   check(await page.locator('.chapter-index-row').count() === 8, 'Home lists eight chapters');
   for (const row of await page.locator('.chapter-index-row').all()) {
     check(await row.locator('.chapter-actions a').count() === 3, 'Each chapter links both implementations and reports');
   }
-  await page.locator('.chapter-index-row').nth(4).getByRole('link', {name: '运行报告'}).click();
-  check(await page.getByRole('combobox', {name: '章节', exact: true}).inputValue() === '5', 'Home opens matching chapter reports');
+  await page.getByRole('link', {name: '添加内核支持'}).last().click();
+  check(await page.getByRole('heading', {name: '添加内核支持', exact: true}).count() === 1, 'Wiki authoring guide appears in the site');
+  await page.setViewportSize({width: 1440, height: 900});
+  const guideOutline = page.getByRole('navigation', {name: '本页目录'});
+  check(await guideOutline.isVisible(), 'Long guide has a desktop outline');
+  await guideOutline.getByRole('link', {name: '准备内核构建'}).click();
+  check(decodeURIComponent(new URL(page.url()).hash) === '#准备内核构建', 'Guide outline opens the selected heading');
+  await page.getByRole('link', {name: 'Manifest 语法参考'}).last().click();
+  check(await page.getByRole('heading', {name: 'Manifest 语法参考', exact: true}).count() === 1, 'Wiki reference appears in the site');
 }

@@ -1,110 +1,51 @@
 # uCore 实现
 
-源码固定到 [`df045c4`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/tree/df045c4455f2dacb81caf39510aed994bf49ade7) 的 `ch6-api-impl`。文件对象位于 `os/file.c`，磁盘布局与目录操作位于 `os/fs.c`，缓存和设备驱动分别位于 `os/bio.c` 与 `os/virtio_disk.c`。
+第六章把程序和普通文件放到磁盘上。一次 `read` 从进程的文件描述符出发，经过文件对象、inode、块缓存，最后才可能向 VirtIO 设备发起请求。以下代码来自 [uCore 2026A 第六章](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/tree/df045c4455f2dacb81caf39510aed994bf49ade7)。
 
 ## 文件对象与描述符
 
-每个进程的 `files` 数组有 16 个槽，保存指向全局 [`filepool`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/df045c4455f2dacb81caf39510aed994bf49ade7/os/file.c) 的指针。`struct file` 保存引用数 `ref`、读写权限、偏移 `off` 和 inode 指针。`fileopen` 查找或创建文件，取得空闲文件对象，再由 `fdalloc` 分配描述符。
+每个进程有 16 个文件描述符槽，槽中保存指向全局 [`filepool`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/df045c4455f2dacb81caf39510aed994bf49ade7/os/file.c) 的指针。文件对象保存引用数、读写权限、当前偏移和 inode 指针。两次独立打开同一文件得到两个文件对象，各有自己的偏移；`fork` 则复制指针并增加引用数，父子进程共享偏移。
 
-独立打开同一文件得到两个 `off = 0` 的对象。`fork` 复制文件指针并增加 `ref`，父子进程因而共享原偏移。`inoderead` 与 `inodewrite` 在传输返回值大于零时推进偏移。关闭描述符减少引用数；最后一份引用释放时，`fileclose` 调用 `iput` 并清空文件对象。
+`inoderead`、`inodewrite` 根据本次传输的字节数推进文件对象中的偏移。`fileclose` 在最后一份引用关闭时释放文件对象对 inode 的引用。文件对象消失不等于磁盘文件被删除。
 
-[`sys_read` 和 `sys_write`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/df045c4455f2dacb81caf39510aed994bf49ade7/os/syscall.c) 检查描述符范围和槽是否为空，再按文件类型调用控制台或 inode 读写。本提交在 `fileopen` 中设置 `readable`、`writable`，这两条系统调用路径没有检查它们。可以从这里练习为只读、只写文件补充权限检查。
-
-`O_CREATE` 打开已有普通文件时保留内容。`O_TRUNC` 调用 `itrunc`，清空大小并回收块；原 inode 身份保留，其他打开对象的偏移也保持原值。
+本章 `sys_read`、`sys_write` 检查描述符是否有效，并根据文件类型进入控制台或 inode 路径；代码尚未用文件对象的 `readable`、`writable` 字段限制这两个调用。`O_TRUNC` 则通过 `itrunc` 清空文件内容并回收块。
 
 ## 目录与索引节点
 
-磁盘上的 `dinode` 保存类型、大小和块地址。内存 [`inode`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/df045c4455f2dacb81caf39510aed994bf49ade7/os/file.h) 还保存设备号、inode 编号、引用数和 `valid` 标志。`iget` 查找或分配内存 inode，`ivalid` 首次使用时从磁盘装入，`iupdate` 把修改过的字段写回磁盘。
+磁盘上的 `dinode` 保存文件类型、大小和块地址；内存中的 `inode` 另有设备号、inode 编号和引用数。`iget` 在内存表中查找或取得一个槽，`ivalid` 首次使用时从磁盘载入，`iupdate` 把改动写回。
 
-根目录 inode 编号为 1。目录项占 16 字节，包含 2 字节 inode 编号和 14 字节名字。`dirlookup` 按目录项大小遍历根目录，`dirlink` 查找空项或追加目录内容。本章的 `namei` 直接在根目录查找传入的名字，没有逐级路径遍历。
+根目录的 inode 编号是 1。每个目录项占 16 字节，前 2 字节是 inode 编号，后 14 字节是名字。`dirlookup` 按目录项遍历，`dirlink` 写入空项或追加新项。此时 `namei` 直接在根目录查找文件名，还没有逐级解析路径。
 
-内存 inode 引用数与磁盘文件的链接数属于不同概念。此提交的 `inode`、`dinode` 尚未保存链接数，`sys_fstat`、`sys_linkat` 和 `sys_unlinkat` 返回 `-1`。`iput` 中回收磁盘 inode 的分支由常量 0 禁用，实际执行的是减少内存引用数。
-
-`root_dir` 会取得一份根 inode 引用。`create` 在完成查找和目录修改后释放它；`namei` 返回目标 inode 时没有释放这份根目录引用。阅读引用数的变化时，应分别追踪临时目录引用、文件对象引用和打开文件所持有的 inode 引用。
+内存 inode 的引用数表示当前有多少内核对象持有它。这个提交没有维护磁盘文件链接数；`linkat`、`unlinkat` 和 `fstat` 系统调用仍返回 -1。阅读 `fileclose → iput` 时，应将引用数变化与磁盘目录项分开。
 
 ## 数据块与磁盘布局
 
-[`fs.h`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/df045c4455f2dacb81caf39510aed994bf49ade7/os/fs.h) 定义 1024 字节的块和 64 字节的磁盘 inode。inode 保存 12 个直接地址和一个一级间接地址；间接块保存 256 个 4 字节地址，因此最多寻址 268 个数据块，共 274,432 字节。
+文件系统块大小为 1024 字节。一个磁盘 inode 有 12 个直接块地址，以及一个一级间接块地址；间接块可保存 256 个地址。文件内逻辑块号 0–11 直接查 inode，12–267 则在间接块中查找。最大文件长度为 268 个块。
 
-| 文件内逻辑块号 | 地址取得方式 |
-| --- | --- |
-| 0–11 | `addrs[逻辑块号]` |
-| 12–267 | `addrs[12]` 指向的间接块中的第 `逻辑块号 − 12` 项 |
+[`bmap`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/df045c4455f2dacb81caf39510aed994bf49ade7/os/fs.c) 把文件内的逻辑块号转换为磁盘块号，缺块时调用 `balloc`。`writei` 按块写入并更新 inode 的大小和块地址；`readi` 按文件大小截断读取范围，再通过 `bread` 取得相应块。
 
-[`bmap`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/df045c4455f2dacb81caf39510aed994bf49ade7/os/fs.c) 返回逻辑块对应的磁盘地址；地址为零时调用 `balloc` 分配块。读取和写入都通过它取得地址。`writei` 检查偏移、整数溢出与最大容量，按块复制用户字节并显式写回，最后调用 `iupdate` 保存大小和块地址。它拒绝从文件末尾之外的偏移开始写入。
-
-本次镜像有 1000 个块。块 0 预留为引导块，超级块位于块 1，13 块 inode 区从块 2 开始，位图位于块 15，数据区从块 16 开始，共 984 块。镜像包含 200 个磁盘 inode；内存 inode 表容量为 50，分别决定磁盘文件容量和同时持有的 inode 数量。
-
-数据位图包含整个磁盘的块号，生成镜像时已标记元数据块。`balloc` 设置空闲位并清零新块，`bfree` 清除对应位。inode 分配则扫描磁盘 inode 的 `type`，以零值表示空闲。
+本次镜像有 1000 个块：块 0 为引导块，块 1 为超级块，块 2–14 存放 inode，块 15 为位图，数据区从块 16 开始。位图管理磁盘块，内存 inode 表则管理当前载入的 inode；两者容量不同。
 
 ## 块缓存与写回
 
-[`bcache`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/df045c4455f2dacb81caf39510aed994bf49ade7/os/bio.c) 保存 30 个 `buf`，以双向链表连接。`bget` 先按设备号和块号查找已有条目；没有命中时，从链表尾部寻找 `refcnt = 0` 的条目，重设块号并清除 `valid`。
+[`bcache`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/df045c4455f2dacb81caf39510aed994bf49ade7/os/bio.c) 有 30 个缓存项。`bget` 先查找相同设备号和块号；未命中时，从链表尾部挑选无人引用的缓存项。`bread` 只在缓存尚无有效内容时读取设备；`bwrite` 把缓存内容写回设备；`brelse` 释放引用并调整链表次序。
 
-`bread` 取得缓存后，仅在 `valid = 0` 时读取设备，完成后设置有效标志。`bwrite` 直接发出设备写请求。`brelse` 减少引用数，归零时把条目移到链表前端，使最近释放的块更晚被替换。
+目录、位图、inode 和文件数据都经过这套缓存。`itrunc` 依次释放直接数据块、间接数据块与间接索引块，再更新 inode。磁盘写入按块发生，这个文件系统没有日志事务。
 
-位图、目录、数据和 inode 更新都使用同一缓存。`itrunc` 回收直接块及间接块中的数据地址，再回收间接索引块，清空大小并调用 `iupdate`。一次截断因此可能触发多次位图读取和写入。
+## 磁盘请求
 
-该实现逐块更新磁盘，没有日志事务层。可以沿 `balloc → bzero → writei → iupdate` 检查新块分配、数据写入和 inode 地址发布的先后关系，再推演更新途中断电的结果。
+[`virtio_disk_rw`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/df045c4455f2dacb81caf39510aed994bf49ade7/os/virtio_disk.c) 用三个描述符组成一次请求：请求头、数据缓冲区和完成状态。文件系统块为 1024 字节，设备扇区为 512 字节，因此扇区号是文件系统块号的两倍。
 
-## 磁盘请求与中断
-
-[`virtio_disk_rw`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/df045c4455f2dacb81caf39510aed994bf49ade7/os/virtio_disk.c) 为一次请求取得三个描述符，分别指向请求头、1024 字节数据和一个字节的完成状态。VirtIO 块设备使用 512 字节扇区，文件系统块号因此转换为 `sector = blockno × 2`。
-
-驱动把描述符链首写入 available ring，经过内存屏障更新队列索引，再通过 MMIO 通知设备。读取请求允许设备写入数据缓冲区；写入请求则由设备读取该缓冲区。
-
-提交后，驱动打开中断并忙等 `b->disk`。PLIC 转发设备中断，`virtio_disk_intr` 确认中断、读取 used ring 和状态字节，清除 `b->disk`。发起者随后关闭中断，释放描述符链。等待本次设备完成时没有主动调度；取得三个空闲描述符失败的路径则调用 `yield` 后重试。
-
-提交队列、设备传输和中断通知分属不同步骤。检查报告时，可以从 `virtio_disk_rw` 找到请求，从 `virtio_disk_intr` 找到完成处理，再回到 `bread` 或 `bwrite` 的调用者。
+驱动将请求放入 available ring，通知设备，然后等待完成。设备中断进入 `virtio_disk_intr`；该函数读取 used ring、检查状态并标记请求完成。由 `bread` 进入驱动的是读请求，由 `bwrite` 进入驱动的是写请求。缓存命中时，`bread` 不会再次访问设备。
 
 ## 程序装载与资源释放
 
-[`bin_loader`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/df045c4455f2dacb81caf39510aed994bf49ade7/os/loader.c) 读取磁盘中的平坦二进制程序，从用户地址 `0x1000` 开始逐页装入，映射权限为 `U | R | W | X`。最后一页超过文件末尾的部分清零；程序之后留出一页未映射区，再建立用户栈。
+[`bin_loader`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/df045c4455f2dacb81caf39510aed994bf49ade7/os/loader.c) 从磁盘读取平坦二进制文件，从用户地址 `0x1000` 起逐页装入。程序之后留一页未映射空间，再建立用户栈。`exec` 换掉旧用户映射并装入新程序，进程已打开的文件仍在描述符表中。
 
-`exec` 先按名字查找 inode，再解除旧用户映射，调用 `bin_loader` 装入新程序，并把参数压入新用户栈。进程的文件描述符数组保持不变。`fork` 复制用户页，文件对象继续由父子进程共享。
-
-退出时，`freeproc` 释放用户页表，逐槽关闭文件并清空指针。父进程仍可从僵尸记录取得退出码；等待路径取走的是这份退出信息。关闭最后一份文件引用会释放内存对象，而对应磁盘文件继续存在。
+进程退出时，`freeproc` 释放用户页表并逐个关闭文件。父进程以后从僵尸进程表项取回退出码；磁盘文件不因进程退出而消失。
 
 ## 运行观察
 
-本次内核以 `ch6b_usertest` 为初始程序，课程正向检查包含 14 个测试，覆盖进程、内存、文件读写和参数传递。初始镜像中的 24 个程序文件与参考构建的用户二进制文件逐项相同。
+课程批次以 `ch6b_usertest` 为初始程序。测试创建文件 `filea`，写入 `Hello, world!` 和换行；运行后磁盘上的文件大小为 14 字节。
 
-下表使用完整原始流的函数入口与物理页语义记录。设备请求共 138 次，其中 8 次由 `bwrite` 发起，其余 130 次是缓存装入时的读取。
-
-| 观察点 | 次数 |
-| --- | ---: |
-| `bread` 入口 | 636 |
-| `brelse` 入口 | 636 |
-| `bwrite` 入口 | 8 |
-| `virtio_disk_rw` 入口 | 138 |
-| `virtio_disk_intr` 入口 | 138 |
-| `readi` 入口 | 469 |
-| `writei` 入口 | 2 |
-| `fileopen` 入口 | 2 |
-| `fileclose` 入口 | 191 |
-| `bin_loader` 入口 | 21 |
-| 物理页分配 | 635 |
-| 物理页归还 | 564 |
-| 分配器使用页数峰值 | 127 |
-| 录制结束时分配器使用页数 | 71 |
-
-运行结束后，新增 `filea` 的 inode 编号为 26，数据位于磁盘块 192，大小为 14 字节，内容为 `Hello, world!` 加换行。原有 24 个程序文件的内容、inode 和数据块地址保持不变。`writei` 的两次入口分别用于目录项和文件内容；位图、清零和 inode 更新还会经过其他 `bwrite` 路径。
-
-在函数视图中搜索 `fileopen`、`readi`、`bread` 和 `virtio_disk_rw`，分别查看打开文件、逻辑块读取、缓存访问和设备请求。再搜索 `virtio_disk_intr`，结合设备中断事件检查一次请求的完成路径。`inodewrite` 更新文件对象偏移，`iupdate` 更新磁盘 inode，可以通过调用者区分这两个层次。
-
-保留的调用链包含 `sys_exec → exec → namei → dirlookup → readi` 和 `kerneltrap → devintr → virtio_disk_intr`。前者从程序名找到文件字节，后者从内核态设备中断进入完成处理。
-
-[打开本次运行报告](../reports/ucoreos/ch6/2026a/ucore-2026A-ch6-basic-observed.html)
-
-<details>
-<summary>构建与录制参数</summary>
-
-用户程序固定到 [`1733f46`](https://github.com/LearningOS/uCore-Tutorial-Test/tree/1733f460c596b013b1c509ad42afa428640783b0)，应用内核自带的 `tools/tests-upstream.patch` 后构建。观察版复制参考构建的实际用户二进制文件，并使用 `ucore-2026a-build.patch` 与 `ucore-2026a-ch6-observation.patch`。前者调整汇编源文件的 Makefile 展开方式，后者记录物理页、fork、调度和页表解除映射。
-
-工具版本为 GCC 14.2.0、CMake 3.31.6、QEMU 10.2.2。内核使用 `make build LOG=info CHAPTER=6 INIT_PROC=ch6b_usertest` 构建。
-
-录制使用 `--no-build --function-returns --watch-all --profile uniform --snapshots 80 --max-ram-bytes 268435456 --timeout 600 --no-render --event-stream never`。运行从初始镜像的独立工作副本开始，测试结束后保存实际磁盘内容。
-
-[录制记录](../reports/ucoreos/ch6/2026a/recording.json)保存实际命令、课程检查、补丁和磁盘文件内容的校验值，以及完整轨迹计数和调用链示例。
-
-</details>
+在[运行报告](../reports/ucoreos/ch6/2026a/ucore-2026A-ch6-basic-observed.html)中依次查看 `fileopen → readi → bread → virtio_disk_rw`，可以区分文件名查找、文件内偏移、块缓存和设备请求。`virtio_disk_intr` 则对应请求完成。另一条 `sys_exec → exec → namei → dirlookup → readi` 调用链展示了程序如何从磁盘文件变成用户地址空间中的页面。[录制信息](../reports/ucoreos/ch6/2026a/recording.json)保存构建和磁盘镜像记录。

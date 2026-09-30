@@ -1,67 +1,46 @@
 # uCore 实现
 
-源码固定到 [`51f0226`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/tree/51f02268653c68f169f5599055da3b0391995ee6) 的 `ch4-api-impl`。页表函数位于 [`os/vm.c`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/51f02268653c68f169f5599055da3b0391995ee6/os/vm.c)。
+第四章为每个进程建立独立页表。用户程序看到自己的虚拟地址空间；异常入口和返回汇编则负责在用户页表与内核页表之间切换。以下代码来自 [uCore 2026A 第四章](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/tree/51f02268653c68f169f5599055da3b0391995ee6)。
 
 ## 页表与物理页
 
-`pagetable_t` 指向根页表所在的物理页。`walk(pagetable, va, alloc)` 根据三个索引逐层查找，返回末级页表项的地址。中间项缺失时，`alloc = 0` 返回空指针；`alloc = 1` 分配新页，清零后把地址写入上层项。
+[`walk`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/51f02268653c68f169f5599055da3b0391995ee6/os/vm.c) 根据 Sv39 的三级索引查找页表项。中间页表不存在时，`alloc = 1` 会分配并清零一页；`alloc = 0` 则返回空指针。`mappages` 逐页取得末级页表项，写入物理页号和权限。
 
-`mappages` 将虚拟范围按页覆盖。它用 `walk` 找到每个末级项，检查已有映射，再写入物理地址和权限。`uvmunmap` 逐页清除末级项，`do_free` 决定是否调用 `kfree` 归还数据页。
-
-[`kalloc.c`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/51f02268653c68f169f5599055da3b0391995ee6/os/kalloc.c) 使用空闲页链表。分配后将整页填为字节值 5，归还时填为 1，再加入链表。因此，建立新页表的调用方需要显式清零页表页。
+物理页分配器是空闲页链表。`kalloc` 取出一页并填入字节 5，`kfree` 填入字节 1 后归还。新页表页必须由调用者清零，才能把所有页表项初始化为无效。
 
 ## 装载与地址空间
 
-[`bin_loader`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/51f02268653c68f169f5599055da3b0391995ee6/os/loader.c) 为每个进程创建用户页表，将内核中嵌入的应用二进制直接映射到 `BASE_ADDRESS`。代码和数据的这段映射统一使用 `RWXU`。
+[`bin_loader`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/51f02268653c68f169f5599055da3b0391995ee6/os/loader.c) 为进程创建用户页表，将嵌在内核映像中的应用映射到 `BASE_ADDRESS`，权限为 `R | W | X | U`。代码之后留一页空隙，再分配用户栈。
 
-装载范围后留一页空隙，再分配一页用户栈，栈也使用 `RWXU`。`trapframe` 的物理页映射到 `TRAPFRAME`，权限为 `RW`，没有 `U`。跳板映射到 `TRAMPOLINE`，权限为 `RX`，没有 `U`。
-
-每个进程有独立根页表。应用代码使用已嵌入内核的物理页，用户栈由分配器提供。进程中的 `program_brk` 与 `heap_bottom` 初始化为用户栈顶。
+内核还把异常上下文页映射到 `TRAPFRAME`，权限为 `R | W`；把跳板映射到 `TRAMPOLINE`，权限为 `R | X`。这两处映射没有 `U`，用户态不能直接访问。各进程拥有自己的页表根，跳板的物理代码则由它们共享。
 
 ## 异常入口与页表切换
 
-[`trampoline.S`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/51f02268653c68f169f5599055da3b0391995ee6/os/trampoline.S) 的 `uservec` 用 `sscratch` 取得异常上下文的虚拟地址，保存用户寄存器与 `sepc`。随后读取内核栈、处理入口和内核页表，写入 `satp`，执行 `sfence.vma`，跳转到内核处理函数。
+[`uservec`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/51f02268653c68f169f5599055da3b0391995ee6/os/trampoline.S) 先在用户页表下保存寄存器，再从异常上下文取出内核页表和内核栈。写入 `satp`、执行 `sfence.vma` 后，才跳转到内核中的异常处理函数。
 
-`userret` 接收 `TRAPFRAME` 和用户页表令牌，切换用户页表后恢复寄存器。最后交换 `a0` 与 `sscratch`，恢复用户 `a0`，并为下一次异常保留上下文地址。
+返回汇编 `userret` 先切回用户页表，再恢复用户寄存器，最后执行 `sret`。跳板同时映射在两套页表中，使切换 `satp` 前后的汇编指令能够继续执行。
 
 ## 用户地址检查
 
-`walkaddr` 检查地址小于 `MAXVA`、页表项有效且设置 `U`，返回物理页起始地址。`useraddr` 再拼接原虚拟地址的低 12 位，得到字节地址。
+`walkaddr` 要求虚拟地址低于 `MAXVA`，页表项有效且带有 `U` 标志；`useraddr` 再加上页内偏移。`copyin`、`copyout` 按页界分段，每到下一页都重新查找映射。
 
-`copyin` 与 `copyout` 按页复制，使用 `walkaddr` 检查每一页。这个提交的 `walkaddr` 没有区分请求的读写权限，所以这两个函数也没有分别检查 `R` 和 `W`。
+本章的 `walkaddr` 没有分别检查 `R` 与 `W`。因此，这两个复制函数只验证页面可由用户访问，尚未按复制方向验证读写权限。
 
 ## 映射与回收
 
-`uvmunmap` 的 `do_free = 0` 只撤销映射，数据页继续由调用方持有。`do_free = 1` 在清除页表项前归还数据页。`freewalk` 递归释放页表页，要求所有末级映射已经撤销；仍发现有效叶项时会触发错误。
+`uvmunmap` 清除末级页表项。参数 `do_free = 0` 只解除映射，物理页仍由调用者持有；`do_free = 1` 还调用 `kfree`。`freewalk` 递归释放页表页，要求叶子映射此前已经解除。
 
-[`syscall.c`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/51f02268653c68f169f5599055da3b0391995ee6/os/syscall.c) 中的 `mmap`、`munmap` 和 `trace` 仍为实验待实现接口。已有 `sys_sbrk` 使用 `uvmalloc` 或 `uvmdealloc` 改变堆范围。
-
-进程退出调用 [`freeproc`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/51f02268653c68f169f5599055da3b0391995ee6/os/proc.c)。其中 `uvmfree` 调用被注释，退出只恢复进程槽位状态，没有执行完整地址空间回收。
+这个提交已实现 `sys_sbrk`，但 `mmap`、`munmap` 和 `trace` 仍留待后续实现。`freeproc` 中的 `uvmfree` 调用被注释：退出进程会恢复表项状态，却不会在这条路径上释放其整个地址空间。这一点可与下章的回收代码对照。
 
 ## 运行观察
 
-原批次运行六个基础应用，输出、让出处理器和退出的课程检查通过。物理页记录包含 103 次分配，运行阶段没有归还；六个应用也没有执行 `uvmunmap`。
+页表实验将虚拟地址 `0x4000` 映射到物理页 `0x87fb9000`，写入并读回页内偏移 `0x123` 的字节 `0x5a`。接着分别以两种 `do_free` 参数撤销同一数据页的映射：
 
-[打开基础批次报告](../reports/ucoreos/ch4/2026a/ucore-2026A-ch4-observed.html)。可以查看用户页表根地址、跳板入口和分配过程。初始化空闲链表时的 `kfree` 调用发生在分配器启用之前，运行阶段的归还计数从初始化结束后开始。
+| 操作 | 物理页的处理 |
+| --- | --- |
+| `uvmunmap(..., 0x4000, 1, 0)` | 只清除页表项 |
+| 重新映射后 `uvmunmap(..., 0x4000, 1, 1)` | 清除页表项并归还数据页 |
 
-另一次录制在加载同样六个应用之前，运行独立页表实验：创建临时页表，将 `0x4000` 映射到物理页 `0x87fb9000`，权限为 `RWU`，检查偏移 `0x123` 处的字节 `0x5a`。
+实验还以 `do_free = 0` 解除跳板映射，因为跳板代码不是这张临时页表独占的物理页。实验结束时，临时页表页和数据页均已归还，随后六个基础应用继续运行。
 
-| 累计指令数 | 操作 | 结果 |
-| ---: | --- | --- |
-| 412,991,763 | 首次建立数据页映射 | 末级项权限为 `0x17`，包含 `V/R/W/U` |
-| 413,037,577 | `uvmunmap(..., 0x4000, 1, 0)` | 映射撤销，数据页保留 |
-| 413,067,814 | 重建映射后，`uvmunmap(..., 0x4000, 1, 1)` | 映射撤销，同一数据页归还 |
-| 413,110,301 | 撤销跳板映射，`do_free = 0` | 共享跳板的物理页继续保留 |
-
-实验创建的五个页表页和一个数据页全部归还，分配与归还地址逐一对应。实验前后的空闲页数均为 32,103，使用页数均为 67。随后六个基础应用继续执行，课程检查通过。
-
-[打开页表实验报告](../reports/ucoreos/ch4/2026a/ucore-2026A-ch4-pagetable.html)。将时间定位到表中第一项，筛选 `vm.unmap` 和物理页事件，比较两种 `do_free` 参数下的记录。
-
-<details>
-<summary>构建与录制参数</summary>
-
-用户程序提交为 `1733f460c596b013b1c509ad42afa428640783b0`，使用 GCC 14.2.0、CMake 3.31.6 和 QEMU 10.2.2。两次运行使用相同的六份用户二进制。
-
-基础观察版 ELF 的 SHA-256 为 `b2eacf484a2474f835578ba0764ac9e0b07f9a5ae878f6f5270e408dfef1e7c1`，实验版为 `21ed16ef2f7c3e3cc78658073e20542ae65ea400c00447860eddb042d4a6a327`。源码补丁、构建命令和录制参数分别见[批次数据](../reports/ucoreos/ch4/2026a/recording.json)与[实验数据](../reports/ucoreos/ch4/2026a/ucore-2026A-ch4-pagetable.json)。
-
-</details>
+[基础批次](../reports/ucoreos/ch4/2026a/ucore-2026A-ch4-observed.html) · [页表实验](../reports/ucoreos/ch4/2026a/ucore-2026A-ch4-pagetable.html) · [录制信息](../reports/ucoreos/ch4/2026a/recording.json)

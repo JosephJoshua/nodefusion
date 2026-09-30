@@ -42,4 +42,4 @@ rCore 本章还提供 `spawn`，直接用目标 ELF 建立子进程。它与 `fo
 
 本章 rCore 使用 stride 调度，根据优先级计算每次选择后的增量；uCore 使用先进先出的就绪队列。等待子进程的路径也不同：rCore 的用户库在子进程尚未退出时让出并重试，uCore 在内核的 `wait` 循环中重新入队并切换。
 
-沿一次 `fork`、`exec`、`exit` 和 `waitpid`，可以检查进程何时建立、何时入队、何时释放内存，以及何时将退出码交给父进程。[实现比较与练习](exercises.md)提供相应的源码与运行观察题。进程接口的概念说明还可参考 [rCore 教程第五章](https://rcore-os.cn/rCore-Tutorial-Book-v3/chapter5/1process.html)。
+沿一次 `fork`、`exec`、`exit` 和 `waitpid`，可以在 [rCore 实现](rcore.md)与 [uCore 实现](ucore.md)中对照进程的建立、调度和回收。进程接口的概念说明还可参考 [rCore 教程第五章](https://rcore-os.cn/rCore-Tutorial-Book-v3/chapter5/1process.html)。

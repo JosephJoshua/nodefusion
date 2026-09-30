@@ -54,7 +54,7 @@
   if (['yield', 'timer', 'exit', 'alone'].includes(params.get('scenario'))) get('scenario').value = params.get('scenario');
   const initialStep = Number(params.get('step'));
   const returnPath = params.get('return');
-  if (returnPath && /^(index|rcore|ucore|exercises)\.html(?:#[^\s]*)?$/.test(returnPath)) {
+  if (returnPath && /^(index|rcore|ucore)\.html(?:#[^\s]*)?$/.test(returnPath)) {
     get('return-to-lesson').href = '../ch3/' + returnPath;
     get('return-to-lesson').textContent = '返回阅读位置';
   }

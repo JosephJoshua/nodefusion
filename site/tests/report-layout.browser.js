@@ -1,13 +1,30 @@
 async (page) => {
   const check = (condition, label) => { if (!condition) throw new Error(label); };
   const base = await page.evaluate(() => new URL('./', location.href).href);
+  const sectionControl = {
+    async selectOption(value) {
+      const headings = page.locator('main > h2[id]');
+      const id = typeof value === 'string' ? value : value.label || await headings.nth(value.index).getAttribute('id');
+      await page.waitForFunction(() => Math.abs(parseFloat(document.querySelector('main').style.getPropertyValue('--lesson-offset')) - document.querySelector('.lesson-toolbar').getBoundingClientRect().height - 70) < 1);
+      await page.evaluate(id => {
+        const heading = document.getElementById(id);
+        if (!heading) throw new Error('Missing section: ' + id);
+        location.hash = encodeURIComponent(id);
+        heading.scrollIntoView({block: 'start'});
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+      }, id);
+      await page.waitForFunction(id => document.querySelector('.lesson-outline [aria-current="location"]')?.dataset.section === id, id);
+    },
+    inputValue: () => page.locator('.lesson-outline [aria-current="location"]').getAttribute('data-section'),
+    locator: () => page.locator('main > h2[id]')
+  };
   await page.evaluate(() => {
     sessionStorage.removeItem('nodefusion-study-side');
     sessionStorage.removeItem('nodefusion-study-width');
   });
   await page.setViewportSize({width: 1440, height: 900});
   await page.goto(base + 'ch5/rcore.html');
-  await page.getByRole('combobox', {name: '跳转到小节', exact: true}).selectOption('fork-与地址空间');
+  await sectionControl.selectOption('fork-与地址空间');
   await page.locator('.lesson-toolbar').getByRole('link', {name: '运行报告', exact: true}).click();
   const frame = page.frameLocator('.study-panel iframe:not([hidden])');
   await frame.locator('#panel-functions.on').waitFor();
@@ -37,7 +54,7 @@ async (page) => {
   check(await widthResize.getAttribute('aria-valuenow') === '52', 'Pointer adjusts the split in place');
   check(Math.abs(await heading.evaluate(el => el.getBoundingClientRect().top) - initialTop) < 3, 'Width resizing preserves the reading anchor');
   check(await frame.locator('#function-search').inputValue() === 'fork', 'Width resizing preserves the actual function filter');
-  await page.getByRole('combobox', {name: '跳转到小节', exact: true}).selectOption('exec-与程序装载');
+  await sectionControl.selectOption('exec-与程序装载');
   check(await page.locator('main > h2[id="exec-与程序装载"]').isVisible(), 'Reader can change mechanisms alongside the report');
   for (const width of [1200, 1440, 1720]) {
     await page.setViewportSize({width, height: 900});
@@ -65,7 +82,7 @@ async (page) => {
   await comparison.getByRole('heading').first().waitFor();
   await page.getByRole('combobox', {name: '对照小节', exact: true}).selectOption('运行观察');
   await comparison.locator('a[href*="/reports/"]').first().click();
-  check(!(await comparison.isVisible()), 'Side layout keeps two useful panes rather than three cramped panes');
+  check(!(await comparison.isVisible()), `Side layout keeps two useful panes rather than three cramped panes: ${await page.locator('body').getAttribute('class')}`);
   check(await page.locator('body').evaluate(el => el.classList.contains('study-side')), 'Reopening remembers preferred docking');
   await page.getByRole('button', {name: '上下分屏', exact: true}).click();
   check(await page.getByRole('separator', {name: '调整报告高度'}).isVisible(), 'Bottom layout restores vertical resize');

@@ -1,21 +1,37 @@
 async (page) => {
   const check = (condition, label) => { if (!condition) throw new Error(label); };
   const base = await page.evaluate(() => new URL('./', location.href).href);
+  const sectionControl = {
+    async selectOption(value) {
+      const headings = page.locator('main > h2[id]');
+      const id = typeof value === 'string' ? value : value.label || await headings.nth(value.index).getAttribute('id');
+      await page.waitForFunction(() => Math.abs(parseFloat(document.querySelector('main').style.getPropertyValue('--lesson-offset')) - document.querySelector('.lesson-toolbar').getBoundingClientRect().height - 70) < 1);
+      await page.evaluate(id => {
+        const heading = document.getElementById(id);
+        if (!heading) throw new Error('Missing section: ' + id);
+        location.hash = encodeURIComponent(id);
+        heading.scrollIntoView({block: 'start'});
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+      }, id);
+      await page.waitForFunction(id => document.querySelector('.lesson-outline [aria-current="location"]')?.dataset.section === id, id, {timeout: 5000}).catch(() => { throw new Error('Section link did not settle: ' + id); });
+    },
+    inputValue: () => page.locator('.lesson-outline [aria-current="location"]').getAttribute('data-section'),
+    locator: () => page.locator('main > h2[id]')
+  };
   await page.evaluate(() => {
     sessionStorage.removeItem('nodefusion-study-height');
     sessionStorage.setItem('nodefusion-study-side', 'false');
   });
   await page.setViewportSize({width: 1440, height: 900});
   await page.goto(base + 'ch3/rcore.html');
-  const sections = page.getByRole('combobox', {name: '跳转到小节', exact: true});
+  const sections = sectionControl;
   await sections.selectOption('让出与选择下一个任务');
   await page.evaluate(() => window.scrollBy(0, 90));
   const original = await page.evaluate(() => window.scrollY);
   await sections.selectOption('运行观察');
-  await page.getByRole('button', {name: '返回跳转前的位置'}).click();
-  check(Math.abs(await page.evaluate(() => window.scrollY) - original) < 2, 'Return restores exact reading offset');
+  check(await page.locator('main > h2[id="运行观察"]').isVisible(), 'Section link reaches run observation');
   const reading = await page.evaluate(() => window.scrollY);
-  const reportLink = page.getByRole('link', {name: '运行报告', exact: true});
+  const reportLink = page.locator('.lesson-toolbar').getByRole('link', {name: '运行报告', exact: true});
   await reportLink.click();
   const region = page.getByRole('region', {name: '阅读资料'});
   check(await region.isVisible(), 'Report opens in reading workspace');
@@ -91,7 +107,7 @@ async (page) => {
   }
   await page.setViewportSize({width: 1440, height: 900});
   await sections.selectOption('运行观察');
-  await page.getByRole('link', {name: '打开本次运行报告', exact: true}).click();
+  await page.locator('main > p a[href*="/reports/"][href$=".html"]').first().click();
   check(await page.locator('.study-panel').isVisible(), 'In-text evidence link also opens workspace');
   await page.getByRole('button', {name: '返回正文', exact: true}).click();
   await page.goto(base + 'ch1/ucore.html');
@@ -101,16 +117,16 @@ async (page) => {
     if (requests === 1) await route.fulfill({status: 404, contentType: 'text/html', body: '<h1>Missing report</h1>'});
     else await route.continue();
   });
-  await page.getByRole('link', {name: '运行报告', exact: true}).click();
+  await page.locator('.lesson-toolbar').getByRole('link', {name: '运行报告', exact: true}).click();
   await page.getByRole('button', {name: '重试', exact: true}).click();
   await page.frameLocator('iframe[title="运行报告"]').locator('#panel-functions.on').waitFor();
   check(requests === 2, 'Missing report can retry without losing reading page');
   await page.unroute('**/ucore-2026A-ch1-verified.html?*');
   await page.getByRole('button', {name: '返回正文', exact: true}).click();
   await page.goto(base + 'ch2/ucore.html');
-  await page.getByRole('combobox', {name: '跳转到小节', exact: true}).selectOption('运行观察');
+  await sectionControl.selectOption('运行观察');
   const batchReading = await page.evaluate(() => window.scrollY);
-  await page.getByRole('link', {name: '运行报告', exact: true}).click();
+  await page.locator('.lesson-toolbar').getByRole('link', {name: '运行报告', exact: true}).click();
   const reportChoices = page.getByRole('combobox', {name: '切换运行报告'});
   check(await reportChoices.locator('option').count() === 3, 'All chapter reports available without returning to text');
   const originalPath = await reportChoices.inputValue();
@@ -118,7 +134,7 @@ async (page) => {
   await page.frameLocator('.study-panel iframe:not([hidden])').locator('#panel-functions.on').waitFor();
   await batchFrame.evaluate(frame => { frame.contentWindow.__studySwitch = 'retained'; });
   await reportChoices.focus();
-  await reportChoices.selectOption({label: '异常批次报告'});
+  await reportChoices.selectOption({label: '异常批次'});
   await page.frameLocator('.study-panel iframe:not([hidden])').locator('#panel-functions.on').waitFor();
   check((await batchFrame.getAttribute('src')).includes('ch2-faults.html'), 'Switch displays selected workload');
   await reportChoices.selectOption(originalPath);
@@ -126,14 +142,14 @@ async (page) => {
   check(await reportChoices.evaluate(el => el === document.activeElement), 'Report switch keeps keyboard focus');
   check(await page.evaluate(() => window.scrollY) === batchReading, 'Report switch does not scroll the chapter');
   await page.getByRole('button', {name: '返回正文', exact: true}).click();
-  await page.getByRole('combobox', {name: '跳转到小节', exact: true}).selectOption('系统调用与返回');
+  await sectionControl.selectOption('系统调用与返回');
   await page.evaluate(() => window.scrollBy(0, 90));
   const exactPosition = await page.evaluate(() => window.scrollY);
   await page.reload();
-  await page.waitForFunction(y => Math.abs(window.scrollY - y) < 2, exactPosition);
-  await page.waitForFunction(() => document.querySelector('.lesson-section select').value === '系统调用与返回');
+  await page.waitForFunction(y => Math.abs(window.scrollY - y) < 2, exactPosition, {timeout: 5000}).catch(() => { throw new Error('Reload did not restore scroll position'); });
+  await page.waitForFunction(() => document.querySelector('.lesson-outline [aria-current="location"]')?.dataset.section === '系统调用与返回', null, {timeout: 5000}).catch(() => { throw new Error('Reload did not restore section'); });
   await page.setViewportSize({width: 320, height: 740});
-  await page.getByRole('link', {name: '运行报告', exact: true}).click();
+  await page.locator('.lesson-toolbar').getByRole('link', {name: '运行报告', exact: true}).click();
   check(await reportChoices.isVisible(), 'Report switch remains available on narrow screens');
   check(!(await resize.isVisible()), 'Full screen omits split-pane resize');
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Narrow report controls fit');

@@ -1,11 +1,28 @@
 async (page) => {
   const check = (condition, label) => { if (!condition) throw new Error(label); };
   const base = await page.evaluate(() => new URL('./', location.href).href);
+  const sectionControl = {
+    async selectOption(value) {
+      const headings = page.locator('main > h2[id]');
+      const id = typeof value === 'string' ? value : value.label || await headings.nth(value.index).getAttribute('id');
+      await page.waitForFunction(() => Math.abs(parseFloat(document.querySelector('main').style.getPropertyValue('--lesson-offset')) - document.querySelector('.lesson-toolbar').getBoundingClientRect().height - 70) < 1);
+      await page.evaluate(id => {
+        const heading = document.getElementById(id);
+        if (!heading) throw new Error('Missing section: ' + id);
+        location.hash = encodeURIComponent(id);
+        heading.scrollIntoView({block: 'start'});
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+      }, id);
+      await page.waitForFunction(id => document.querySelector('.lesson-outline [aria-current="location"]')?.dataset.section === id, id);
+    },
+    inputValue: () => page.locator('.lesson-outline [aria-current="location"]').getAttribute('data-section'),
+    locator: () => page.locator('main > h2[id]')
+  };
   await page.setViewportSize({width: 1440, height: 900});
   await page.goto(base + 'ch3/rcore.html');
-  await page.getByRole('combobox', {name: '跳转到小节', exact: true}).selectOption('让出与选择下一个任务');
+  await sectionControl.selectOption('让出与选择下一个任务');
   await page.getByRole('link', {name: 'uCore', exact: true}).first().click();
-  check(await page.getByRole('combobox', {name: '跳转到小节', exact: true}).inputValue() === '让出处理器', 'Switch implementations at matching mechanism');
+  check(await sectionControl.inputValue() === '让出处理器', 'Switch implementations at matching mechanism');
   await page.getByRole('link', {name: 'rCore', exact: true}).first().click();
   const toggle = page.getByRole('button', {name: '对照阅读', exact: true});
   const beforeTop = await page.locator('h2[id="让出与选择下一个任务"]').evaluate(el => el.getBoundingClientRect().top);
@@ -15,7 +32,7 @@ async (page) => {
   check(Math.abs(await page.locator('main > h2[id="让出与选择下一个任务"]').evaluate(el => el.getBoundingClientRect().top) - beforeTop) < 3, 'Opening comparison keeps reading anchor');
   check(await toggle.getAttribute('aria-expanded') === 'true', 'Comparison expanded state');
   check(await page.evaluate(() => new Set([...document.querySelectorAll('[id]')].map(el => el.id)).size === document.querySelectorAll('[id]').length), 'Comparison does not duplicate fragment IDs');
-  await page.getByRole('combobox', {name: '跳转到小节', exact: true}).selectOption('运行观察');
+  await sectionControl.selectOption('运行观察');
   await pane.getByRole('heading', {name: '运行观察', exact: true}).waitFor();
   const readingY = await page.evaluate(() => window.scrollY);
   const body = pane.getByLabel('对照正文', {exact: true});
@@ -27,11 +44,11 @@ async (page) => {
   check(await page.evaluate(() => window.scrollY) === readingY, 'Keyboard scrolls comparison without moving primary reading');
   await pane.getByRole('combobox', {name: '对照小节'}).selectOption('进程表与上下文');
   check(!(await pane.getByRole('checkbox', {name: '跟随正文'}).isChecked()), 'Manual section disables following');
-  await page.getByRole('combobox', {name: '跳转到小节', exact: true}).selectOption('时钟抢占与退出');
+  await sectionControl.selectOption('时钟抢占与退出');
   check(await pane.getByRole('combobox', {name: '对照小节'}).inputValue() === '进程表与上下文', 'Manual comparison stays selected');
   await pane.getByRole('checkbox', {name: '跟随正文'}).check();
   await pane.getByRole('heading', {name: '退出与批次结束', exact: true}).waitFor();
-  await page.getByRole('combobox', {name: '跳转到小节', exact: true}).selectOption('运行观察');
+  await sectionControl.selectOption('运行观察');
   await pane.getByRole('heading', {name: '运行观察', exact: true}).waitFor();
   await page.getByRole('link', {name: '运行报告', exact: true}).click();
   await page.frameLocator('iframe[title="运行报告"]').locator('#panel-functions.on').waitFor();
@@ -103,9 +120,9 @@ async (page) => {
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Narrow reading fits viewport');
   for (const kernel of ['rcore', 'ucore']) {
     await page.goto(base + `ch1/${kernel}.html`);
-    await page.getByRole('combobox', {name: '跳转到小节', exact: true}).selectOption('输出与终止');
+    await sectionControl.selectOption('输出与终止');
     await page.locator('.lesson-links a').filter({hasText: kernel === 'rcore' ? 'uCore' : 'rCore'}).click();
-    check(await page.getByRole('combobox', {name: '跳转到小节', exact: true}).inputValue() === '输出与终止', 'Chapter one implementation switch keeps topic');
+    check(await sectionControl.inputValue() === '输出与终止', 'Chapter one implementation switch keeps topic');
   }
   await page.setViewportSize({width: 1440, height: 900});
   await page.goto(base + 'ch3/rcore.html');

@@ -1,70 +1,49 @@
 # uCore 实现
 
-源码固定到 [`9d4fa96`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/tree/9d4fa96b67b449bc72f6530286b5a438e9de3ce5) 的 `ch8-api-impl`。进程与线程结构位于 `os/proc.h`、`os/proc.c`，同步对象位于 `os/sync.h`、`os/sync.c`。
+第八章把调度单位从进程改为线程。同一进程中的线程共享用户地址空间和文件，却各自拥有执行栈与寄存器上下文。以下代码来自 [uCore 2026A 第八章](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/tree/9d4fa96b67b449bc72f6530286b5a438e9de3ce5)。
 
 ## 进程与线程
 
-[`struct proc`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/9d4fa96b67b449bc72f6530286b5a438e9de3ce5/os/proc.h) 保存地址空间、文件描述符表、同步对象池及 16 个线程槽；全局进程表有 128 个槽。[`struct thread`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/9d4fa96b67b449bc72f6530286b5a438e9de3ce5/os/proc.h) 保存 TID、所属进程、状态、上下文与栈位置。编译后的进程结构大小为 4992 字节。
+[`struct proc`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/9d4fa96b67b449bc72f6530286b5a438e9de3ce5/os/proc.h) 保存页表、文件描述符表、同步对象池和 16 个线程槽。[`struct thread`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/9d4fa96b67b449bc72f6530286b5a438e9de3ce5/os/proc.h) 保存 TID、状态、调度上下文、内核栈和异常上下文。内核栈及异常上下文使用按进程槽和线程槽排列的静态数组；用户栈映射在所属进程的页表中。
 
-每个线程有独立的用户栈、内核栈和异常上下文。三者各占一页。内核栈与异常上下文的存储来自静态数组；用户栈由线程创建路径映射到进程地址空间。线程共享同一进程的用户内存、文件和同步对象。
+线程之间共享同一地址空间，因而能直接访问相同的用户数据。切换线程时，`swtch` 更换的是线程自己的内核执行上下文；共享的页表和文件对象不因切换而复制。
 
 ## 创建、退出与等待
 
-[`sys_thread_create`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/9d4fa96b67b449bc72f6530286b5a438e9de3ce5/os/syscall.c) 调用 `allocthread` 取得空闲槽，为新线程设置入口、参数 `a0` 与用户栈，然后置为 `RUNNABLE` 并加入任务队列。没有可用槽时返回 `-1`。
+`sys_thread_create` 调用 `allocthread` 寻找空线程槽，为新线程映射用户栈与异常上下文页，设置入口地址和参数 `a0`，再把它加入就绪队列。16 个槽中已有一个供主线程使用，因此测试程序可以再创建 15 个工作线程。
 
-线程退出路径解除用户栈映射，保存退出码。`waittid` 检查 TID 范围、自身与槽位状态；目标仍在运行时返回 `-2`，已退出时取得退出码并通过 `freethread` 回收槽位。TID 在此之后才可由新的 `allocthread` 复用。
+线程调用 `exit` 时，`freethread` 解除该线程的用户栈和异常上下文映射，退出码保存在槽中，状态改为 `EXITED`。`waittid` 不阻塞：目标未退出时返回 -2；已退出时读取退出码、清空线程槽，使 TID 可以复用。编号无效、槽位未占用或等待自身时返回 -1。
 
-本章的 `fork` 为子进程建立主线程并复制它的异常上下文，没有 rCore 中检查线程列表长度为 1 的断言。分析父子进程时仍需区分新 PID 与进程内 TID。
+`fork` 创建子进程后只建立主线程，复制父进程主线程的异常上下文。源码没有检查调用 `fork` 的是否为主线程；理解这条路径时，应注意它固定读取 `threads[0]`。
 
 ## 调度、阻塞与唤醒
 
-调度器从就绪队列按 FIFO 选择 `RUNNABLE` 线程。`yield` 将当前线程重新入队；阻塞锁、信号量和条件变量把线程设为 `SLEEPING`，然后调用 `sched`。唤醒路径把线程改为 `RUNNABLE` 并入队。
+调度器从就绪队列取出 `RUNNABLE` 线程。`yield` 将当前线程放回队尾；阻塞同步原语则把线程设为 `SLEEPING`，调用 `sched` 切回调度器。解锁或发出通知的线程把等待者改回 `RUNNABLE` 并入队。
 
-`swtch` 在当前线程和调度器上下文之间切换。一次从线程 A 运行到线程 B 的过程包含 A 返回调度器、调度器进入 B 两条边。进程的文件与地址空间仍保持共享，切换的是线程自己的内核执行上下文。
+线程 A 让出后到线程 B 开始运行，经过两次 `swtch`：一次保存 A 并恢复调度器，一次保存调度器并恢复 B。A 以后被选中时，从原来调用 `sched` 的地方继续。
 
 ## 互斥锁
 
-[`mutex_lock`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/9d4fa96b67b449bc72f6530286b5a438e9de3ce5/os/sync.c) 遇到已占用的自旋锁时反复 `yield`；阻塞锁则把线程编号放入 FIFO 等待队列，将线程设为 `SLEEPING`。锁空闲时，直接将 `locked` 设为 1。
+[`mutex_lock`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/9d4fa96b67b449bc72f6530286b5a438e9de3ce5/os/sync.c) 在锁空闲时直接设 `locked = 1`。若锁已占用，自旋型互斥锁反复调用 `yield`；阻塞型互斥锁把线程放入 FIFO 等待队列并设为 `SLEEPING`。
 
-阻塞锁解锁时，从队列取出一个线程并使其可运行；`locked` 仍为 1，锁已交给该线程。若队列为空，才将 `locked` 设为 0。被唤醒的 `mutex_lock` 沿原来的调用返回，不再次竞争一次。
-
-课程程序 `ch8b_mut_race` 创建 15 个工作线程，每个线程更新共享计数器 100 次，最后检查 1500。主线程也占用 16 个线程槽中的一个。
+阻塞型互斥锁解锁时，若有人等待，就让队首线程运行，同时保持 `locked = 1`。锁的持有权直接交给这个线程；它从 `mutex_lock` 的睡眠位置恢复后即可返回。队列为空时，解锁才把 `locked` 清零。
 
 ## 信号量与条件变量
 
-[`semaphore_down`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/9d4fa96b67b449bc72f6530286b5a438e9de3ce5/os/sync.c) 将 `count` 减一。负数表示已有线程等待；调用者加入 FIFO 队列后睡眠。`semaphore_up` 加一，若结果仍小于等于零，就唤醒一个等待者。被唤醒的 `down` 从原位置继续，不再次减数。
+[`semaphore_down`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/9d4fa96b67b449bc72f6530286b5a438e9de3ce5/os/sync.c) 先将 `count` 减一。结果小于零，线程便入队睡眠。`semaphore_up` 将 `count` 加一；结果仍小于等于零时，它唤醒一个等待者。被唤醒的线程从原来的 `down` 继续，不再减少一次计数。
 
-[`cond_wait`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/9d4fa96b67b449bc72f6530286b5a438e9de3ce5/os/sync.c) 先解锁，再入条件变量队列并睡眠；恢复后重新调用 `mutex_lock`。`cond_signal` 唤醒队首线程，不保存无人接收的通知。课程程序在循环中检查共享条件。
-
-`ch8b_test_condvar` 使用用户库的 `sleep(10)`，由 `get_mtime` 与 `yield` 循环实现。它没有经过本章内核定时睡眠路径。
+`cond_wait` 先释放互斥锁，然后进入条件变量的等待队列；恢复后重新取得互斥锁。`cond_signal` 唤醒队首等待者。若队列为空，本次通知不会留给后来的线程，所以使用者需要在持锁状态下检查共享条件，并在条件不成立时继续等待。
 
 ## 资源检查与接口参数
 
-每个进程预留 8 个互斥锁、8 个信号量和 8 个条件变量槽。创建时分配下一个编号，没有销毁接口；达到上限时创建返回 `-1`。等待队列最多容纳 16 项。同步对象编号无效时，相关系统调用返回 `-1`。
+一个进程最多创建 8 个互斥锁、8 个信号量和 8 个条件变量；创建接口按数组位置返回编号，资源用尽时返回 -1。等待队列容量为 16。系统调用在访问对象前检查编号范围。
 
-本章源码在 `syscall.c` 留有资源分配检查的练习位置，系统调用分派中没有对应处理分支。互斥锁与信号量执行前面的等待和唤醒逻辑，不进行 rCore 那种请求安全性检查。
+源码保留了死锁检测的实现位置，但系统调用分发没有启用相应分支。当前互斥锁和信号量按上述等待、唤醒规则运行。
 
 ## 运行观察
 
-以 `ch8b_usertest` 启动课程批次，官方正向检查的 23 项全部通过。原始流记录 50 次线程创建与完成；`sys_waittid` 进入 21386 次，其中包含等待线程退出时的重复查询。`mutex_lock`、`mutex_unlock` 各进入 10963 次，`semaphore_down`、`semaphore_up` 各进入 1601 次，`cond_wait`、`cond_signal` 各进入 1 次。
+课程批次以 `ch8b_usertest` 启动，包含 23 项测试。`ch8b_mut_race` 让 15 个工作线程各为共享计数器加 100，最后检查 1500。这一结果可以和阻塞锁的等待队列、解锁时的直接交接对照。
 
-| 观察点 | 课程批次 |
-| --- | ---: |
-| 完成的线程 | 50 |
-| 物理页分配 / 归还 | 795 / 724 |
-| 使用页数峰值 / 结束值 | 135 / 71 |
-| 原始语义事件 | 18,298,814 |
+报告中还能沿 `sys_thread_create → allocthread` 看新线程入队，沿 `semaphore_down`、`cond_wait` 查看线程睡眠，再由解锁或通知回到可运行状态。`waittid` 的重复调用体现了“尚未退出就返回 -2”的接口行为，而非内核把调用者放入等待队列。
 
-交互报告保留 150000 条语义事件，表中计数来自完整原始流。物理页数据对应 `kalloc` 与 `kfree`；每线程静态内核栈及异常上下文不经过这两个函数。
-
-在函数视图搜索 `sys_thread_create`、`allocthread`、`mutex_lock`、`semaphore_down`、`cond_wait` 和 `cond_signal`，查看同步调用与线程状态。调度事件分别记录线程离开处理器和下一个线程进入处理器的路径。
-
-[打开课程测试报告](../reports/ucoreos/ch8/2026a/ucore-2026A-ch8-basic-observed.html)
-
-<details><summary>构建与录制参数</summary>
-
-用户程序固定到 [`1733f46`](https://github.com/LearningOS/uCore-Tutorial-Test/tree/1733f460c596b013b1c509ad42afa428640783b0)。观察版使用 `ucore-2026a-build.patch` 和 `ucore-2026a-ch8-observation.patch`；35 个用户程序与参考构建逐字节相同。工具版本为 GCC 14.2.0、CMake 3.31.6、QEMU 10.2.2。
-
-录制使用 `--no-build --function-returns --watch-all --profile uniform --snapshots 80 --max-ram-bytes 268435456 --timeout 600 --no-render --event-stream never`。实际构建与录制命令、源码版本、补丁、用户程序、磁盘与原始轨迹校验值见[课程记录](../reports/ucoreos/ch8/2026a/recording.json)。
-
-</details>
+[查看线程与同步过程](../reports/ucoreos/ch8/2026a/ucore-2026A-ch8-basic-observed.html) · [录制信息](../reports/ucoreos/ch8/2026a/recording.json)
