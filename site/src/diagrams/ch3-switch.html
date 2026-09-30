@@ -12,19 +12,12 @@
     <header>
       <a id="return-to-lesson" href="../ch3/index.html">返回第三章正文</a>
       <h1>任务切换</h1>
-      <span class="example-label">教学示例</span>
     </header>
     <div id="controls" hidden>
       <div class="toolbar" aria-label="切换过程操作">
         <div class="choices">
           <label>内核 <select id="kernel"><option value="rcore">rCore</option><option value="ucore">uCore</option></select></label>
           <label>场景 <select id="scenario"><option value="yield">主动让出</option><option value="timer">时钟抢占</option><option value="exit">A 退出</option><option value="alone">仅 A 可运行</option></select></label>
-        </div>
-        <div class="navigation">
-          <button id="previous" type="button">上一步</button>
-          <span id="progress" aria-label="步骤进度"></span>
-          <button id="next" type="button">下一步</button>
-          <button id="reset" type="button">重置</button>
         </div>
       </div>
       <div class="workspace">
@@ -45,9 +38,13 @@
               <strong id="target-label">B</strong><span id="svg-b">就绪</span>
             </div>
           </div>
-          <label class="step-choice">步骤 <select id="step"></select></label>
-          <h2 id="step-title" aria-live="polite">A 正在执行</h2>
-          <p id="explanation"></p>
+          <div class="navigation" aria-label="切换步骤">
+            <button id="previous" type="button">上一步</button>
+            <span id="progress" aria-label="步骤进度"></span>
+            <button id="next" type="button">下一步</button>
+            <button id="reset" type="button">重置</button>
+          </div>
+          <div class="step-copy" aria-live="polite"><h2 id="step-title">A 正在执行</h2><p id="explanation"></p></div>
         </section>
         <table>
           <caption>执行状态</caption>

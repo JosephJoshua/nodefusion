@@ -78,7 +78,6 @@
     }
     for (const edge of ['first', 'second']) get(`edge-${edge}`).classList.toggle('active', s.edge === edge);
     get('progress').textContent = `${index + 1} / ${steps.length}`;
-    get('step').value = String(index);
     get('previous').disabled = index === 0;
     get('next').disabled = index === steps.length - 1;
     const url = new URL(root.location.href);
@@ -96,17 +95,10 @@
     const alone = get('scenario').value === 'alone';
     get('target-label').textContent = alone ? (rcore ? '其他任务' : 'A（恢复）') : 'B';
     get('edge-second').hidden = alone && rcore;
-    get('step').replaceChildren(...steps.map((s, i) => {
-      const option = doc.createElement('option');
-      option.value = String(i);
-      option.textContent = `${i + 1}. ${s.title}`;
-      return option;
-    }));
     draw();
   }
   get('kernel').addEventListener('change', reset);
   get('scenario').addEventListener('change', reset);
-  get('step').addEventListener('change', () => { index = Number(get('step').value); draw(); });
   get('reset').addEventListener('click', reset);
   get('previous').addEventListener('click', () => { if (index > 0) { index--; draw(); } });
   get('next').addEventListener('click', () => { if (index < steps.length - 1) { index++; draw(); } });

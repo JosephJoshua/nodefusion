@@ -83,13 +83,14 @@
   if (returnTo && /^(index|rcore|ucore)\.html(?:#.*)?$/.test(returnTo)) doc.getElementById('return-to-lesson').href = '../ch7/' + returnTo;
   let state = preset(kernel.value, example.value);
   let history = [];
-  let message = '选择一个进程，运行到返回或主动让出处理器。';
+  let message = '运行写进程，观察缓冲区占用。';
   const names = {reader: '读进程', writer: '写进程'};
   function formatOperation(operation) {
     if (!operation) return '尚未发起请求';
     if (operation.panic) return 'panic：请求长度为零';
     if (operation.result !== null) return `已传输 ${operation.done} / ${operation.length} 字节；返回 ${operation.result}`;
-    return `已传输 ${operation.done} / ${operation.length} 字节；待继续，已让出 ${operation.yields} 次`;
+    return operation.yields ? `已传输 ${operation.done} / ${operation.length} 字节；已让出 ${operation.yields} 次` :
+      `待执行 · ${operation.length} 字节`;
   }
   function render() {
     const count = state.released ? 0 : unread(state);
@@ -120,10 +121,9 @@
     doc.getElementById('ring').replaceChildren(...ranges);
     for (const actor of ['reader', 'writer']) {
       doc.getElementById(actor + '-status').textContent = formatOperation(state[actor]);
-      doc.getElementById(actor + '-run').disabled = !pending(state[actor]);
+      doc.getElementById(actor + '-run').disabled = !state[actor + 'Open'] && !pending(state[actor]);
       doc.getElementById(actor + '-close').disabled = !state[actor + 'Open'] || pending(state[actor]);
-      doc.getElementById(actor + '-start').disabled = !state[actor + 'Open'] || pending(state[actor]);
-      doc.getElementById(actor + '-length').disabled = !state[actor + 'Open'] || pending(state[actor]);
+      doc.getElementById(actor + '-length').closest('label').hidden = pending(state[actor]) || !state[actor + 'Open'];
     }
     doc.getElementById('undo').disabled = !history.length;
     doc.getElementById('result').textContent = message;
@@ -139,22 +139,22 @@
   }
   for (const actor of ['reader', 'writer']) {
     const input = doc.getElementById(actor + '-length');
-    doc.getElementById(actor + '-start').addEventListener('click', () => {
-      if (!input.reportValidity()) return;
-      change(() => { start(state, actor, input.valueAsNumber); message = `${names[actor]}发起 ${input.valueAsNumber} 字节请求。`; });
+    doc.getElementById(actor + '-run').addEventListener('click', () => {
+      if (!pending(state[actor]) && !input.reportValidity()) return;
+      change(() => {
+        if (!pending(state[actor])) start(state, actor, input.valueAsNumber);
+        const event = run(state, actor);
+        const count = event.chunks.reduce((sum, chunk) => sum + chunk.count, 0);
+        const copying = count ? (state.kernel === 'rcore' ? `连续 ${count} 次 ${actor === 'reader' ? 'read_byte' : 'write_byte'}` :
+          event.chunks.map(chunk => `${actor === 'reader' ? 'copyout' : 'copyin'}(${chunk.count})，下标 ${chunk.index}`).join('；')) + '。' : '';
+        message = `${names[actor]}：${copying}${event.kind === 'yield' ? '缓冲区' + (actor === 'reader' ? '为空' : '已满') + '，主动让出处理器；请求仍未返回。' : `返回 ${event.result}。`}`;
+      });
     });
-    doc.getElementById(actor + '-run').addEventListener('click', () => change(() => {
-      const event = run(state, actor);
-      const count = event.chunks.reduce((sum, chunk) => sum + chunk.count, 0);
-      const copying = count ? (state.kernel === 'rcore' ? `连续 ${count} 次 ${actor === 'reader' ? 'read_byte' : 'write_byte'}` :
-        event.chunks.map(chunk => `${actor === 'reader' ? 'copyout' : 'copyin'}(${chunk.count})，下标 ${chunk.index}`).join('；')) + '。' : '';
-      message = `${names[actor]}：${copying}${event.kind === 'yield' ? '缓冲区' + (actor === 'reader' ? '为空' : '已满') + '，主动让出处理器；请求仍未返回。' : `返回 ${event.result}。`}`;
-    }));
     doc.getElementById(actor + '-close').addEventListener('click', () => change(() => {
       close(state, actor); message = `${names[actor]}关闭其端点。`;
     }));
   }
-  function reset() { state = preset(kernel.value, example.value); history = []; message = '选择一个进程，运行到返回或主动让出处理器。'; render(); }
+  function reset() { state = preset(kernel.value, example.value); history = []; message = '运行进程，观察缓冲区占用。'; render(); }
   const processTabs = [...doc.querySelectorAll('[role="tab"]')];
   function chooseProcess(actor) {
     doc.querySelector('.processes').dataset.actor = actor;

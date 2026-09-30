@@ -11,18 +11,16 @@
   <main>
     <header>
       <a id="return-to-lesson" href="../ch6/index.html">返回第六章正文</a>
-      <h1>文件偏移与块索引</h1><span class="example-label">布局计算</span>
+      <h1>文件偏移与块索引</h1>
     </header>
     <section id="controls" hidden aria-label="文件偏移计算">
       <div class="toolbar">
         <label>内核 <select id="kernel"><option value="rcore">rCore</option><option value="ucore">uCore</option></select></label>
         <label class="offset-input">字节偏移 <input id="offset" type="number" min="0" step="1" value="13824" aria-describedby="capacity"></label>
       </div>
-      <p id="capacity"></p>
-      <div id="boundaries" aria-label="索引边界"></div>
-      <div id="block-path" aria-label="索引查找路径"></div>
+      <div class="lookup-summary"><p id="capacity"></p><div id="boundaries" aria-label="索引边界"></div></div>
       <p id="result" role="status"></p>
-      <p>索引块保存磁盘块号。图中标出需要访问的地址项；实际磁盘块号由文件 inode 和这些地址项的内容决定。</p>
+      <div id="block-path" aria-label="索引查找路径"></div>
     </section>
     <details id="static-diagram" open>
       <summary>静态图</summary>

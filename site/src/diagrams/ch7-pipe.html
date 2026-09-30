@@ -9,40 +9,40 @@
 </head>
 <body>
   <main>
-    <header><a id="return-to-lesson" href="../ch7/index.html">返回第七章正文</a><h1>管道读写与环形缓冲区</h1><span class="example-label">按源码模拟</span></header>
+    <header><a id="return-to-lesson" href="../ch7/index.html">返回第七章正文</a><h1>管道读写与环形缓冲区</h1></header>
     <section id="controls" hidden aria-label="管道模拟">
       <div class="toolbar">
         <label>内核 <select id="kernel"><option value="rcore">rCore</option><option value="ucore">uCore</option></select></label>
         <label>示例 <select id="example"><option value="transfer">超过缓冲区容量</option><option value="short">短读与等待</option><option value="wrap">数组末尾与环绕</option><option value="closed">读端关闭</option><option value="empty">空管道</option></select></label>
         <div class="navigation"><button id="undo" type="button">上一步</button><button id="reset" type="button">重置</button></div>
       </div>
-      <p class="setup">两进程各持一个端点，使用有效用户缓冲区。</p>
       <div class="pipe-workspace">
         <section class="buffer" aria-label="环形缓冲区">
           <h2>环形缓冲区 <output id="occupancy"></output></h2>
           <div class="meter" aria-hidden="true"><span id="used"></span></div>
           <div class="scale" aria-hidden="true"><span>0</span><span>容量</span></div>
           <div id="ring" aria-label="数组下标与未读区间"></div>
-          <p class="legend"><span class="occupied-key"></span>未读数据；其余区间空闲。下标从左到右递增。</p>
-          <p id="positions"></p><p id="resource"></p>
-          <details class="buffer-details"><summary>计数与数据</summary><p id="formula"></p><p id="received"></p></details>
+          <p id="positions"></p>
+          <p id="result" role="status"></p>
+          <details class="buffer-details"><summary>计数与数据</summary><p id="formula"></p><p id="received"></p><p id="resource"></p></details>
         </section>
         <section class="processes" aria-label="读写进程" data-actor="writer">
           <div class="process-tabs" role="tablist" aria-label="选择读写进程"><button id="writer-tab" role="tab" type="button" data-actor="writer" aria-controls="writer-process" aria-selected="true">写进程</button><button id="reader-tab" role="tab" type="button" data-actor="reader" aria-controls="reader-process" aria-selected="false" tabindex="-1">读进程</button></div>
           <div id="writer-process" class="process"><h2>写进程</h2><p id="writer-status"></p>
-            <label>请求字节数 <input id="writer-length" type="number" min="1" max="4096" step="1" value="40" required></label>
-            <div class="actions"><button id="writer-start" type="button">发起写入</button><button id="writer-run" type="button">运行写进程</button><button id="writer-close" type="button">关闭写端</button></div>
+            <label class="request-length">请求字节数 <input id="writer-length" type="number" min="1" max="4096" step="1" value="40" required></label>
+            <div class="actions"><button id="writer-run" type="button">运行写进程</button></div>
+            <details class="endpoint-actions"><summary>写端</summary><button id="writer-close" type="button">关闭写端</button></details>
           </div>
           <div id="reader-process" class="process"><h2>读进程</h2><p id="reader-status"></p>
-            <label>请求字节数 <input id="reader-length" type="number" min="1" max="4096" step="1" value="40" required></label>
-            <div class="actions"><button id="reader-start" type="button">发起读取</button><button id="reader-run" type="button">运行读进程</button><button id="reader-close" type="button">关闭读端</button></div>
+            <label class="request-length">请求字节数 <input id="reader-length" type="number" min="1" max="4096" step="1" value="40" required></label>
+            <div class="actions"><button id="reader-run" type="button">运行读进程</button></div>
+            <details class="endpoint-actions"><summary>读端</summary><button id="reader-close" type="button">关闭读端</button></details>
           </div>
         </section>
       </div>
-      <p id="result" role="status"></p>
     </section>
     <details id="static-diagram" open><summary>静态图</summary><img src="ch7-pipe.svg" width="840" height="480" alt="读端与写端共享环形缓冲区。写入推进写下标，读取推进读下标；满时写进程让出，空时读进程根据写端状态等待或返回。rCore 容量为32字节，uCore 为512字节。"></details>
-    <p class="source">一次推进运行到函数返回或主动让出处理器。固定到第七章参考实现：<a href="https://github.com/LearningOS/rCore-Tutorial-Code-2026A/blob/c8e0313a55ed5926123d990f196061978c460aed/os/src/fs/pipe.rs">rCore pipe.rs</a> · <a href="https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/c6f384219f334280fd6a4acad2a58ad2222a9d25/os/pipe.c">uCore pipe.c</a>。进程主动让出后仍可调度；本章管道没有专用等待队列。</p>
+    <p class="source">依据第七章参考实现：<a href="https://github.com/LearningOS/rCore-Tutorial-Code-2026A/blob/c8e0313a55ed5926123d990f196061978c460aed/os/src/fs/pipe.rs">rCore pipe.rs</a> · <a href="https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/c6f384219f334280fd6a4acad2a58ad2222a9d25/os/pipe.c">uCore pipe.c</a></p>
   </main>
   <script src="pipe.js"></script>
 </body>

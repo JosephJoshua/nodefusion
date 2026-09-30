@@ -1,22 +1,23 @@
 .toolbar { justify-content: start; }
-header .example-label { display: inline-block; white-space: nowrap; }
 .offset-input { flex: 1; min-width: 0; }
 input { min-height: 44px; min-width: 0; width: 12rem; padding: .5rem .8rem; font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: .3rem; }
 input[aria-invalid="true"] { border-color: oklch(48% .14 30); }
 #boundaries { display: flex; flex-wrap: wrap; gap: .5rem; }
-#block-path { display: flex; align-items: center; gap: .5rem; margin-block: 1.5rem; }
+#boundaries button { min-height: 36px; font-size: .875rem; padding: .2rem .6rem; }
+.lookup-summary { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1rem; margin: .65rem 0; }
+#capacity { color: var(--muted); font-size: .875rem; margin: 0; }
+#block-path { display: flex; align-items: center; gap: .5rem; margin-block: .5rem 1rem; }
 #block-path .node { flex: 1; min-width: 0; }
 #block-path .edge { flex: none; }
-#result { font-variant-numeric: tabular-nums; }
+#result { font-variant-numeric: tabular-nums; margin: .7rem 0; font-weight: 600; }
 #controls[hidden] { display: none; }
 @media (max-width: 600px) {
-  header .example-label { display: block; margin: -.25rem 0 .5rem; }
   .toolbar { gap: .5rem; }
   .offset-input { flex-basis: 100%; }
   .offset-input input { flex: 1; width: 0; }
-  #block-path { flex-direction: column; gap: .25rem; }
-  #block-path .node { width: min(100%, 22rem); min-height: 72px; }
-  #block-path .edge { transform: rotate(90deg); }
+  #block-path { flex-direction: column; align-items: stretch; gap: .25rem; }
+  #block-path .node { width: 100%; min-height: 48px; }
+  #block-path .edge { display: none; }
   #block-path .node span { font-size: .875rem; }
 }
 @media print { #boundaries { display: none; } }

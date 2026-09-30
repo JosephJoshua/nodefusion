@@ -14,6 +14,7 @@ async page => {
     if (width <= 720) await page.getByRole('tab', {name: '写进程', exact: true}).click();
     await page.getByRole('button', {name: '运行写进程', exact: true}).click();
     check((await page.locator('#writer-status').textContent()).includes('返回 40'), 'Rust writer resumes original request');
+    await page.locator('#writer-process .endpoint-actions').locator('summary').click();
     await page.getByRole('button', {name: '关闭写端', exact: true}).click();
     if (width <= 720) await page.getByRole('tab', {name: '读进程', exact: true}).click();
     await page.getByRole('button', {name: '运行读进程', exact: true}).click();
@@ -40,10 +41,9 @@ async page => {
       check(await page.getByRole('tab', {name: '写进程', exact: true}).getAttribute('aria-selected') === 'true', 'Process tabs support keyboard');
     }
     await page.locator('#writer-length').fill('');
-    await page.getByRole('button', {name: '发起写入', exact: true}).click();
+    await page.getByRole('button', {name: '运行写进程', exact: true}).click();
     check(await page.locator('#writer-status').textContent() === '尚未发起请求', 'Invalid request cannot mutate state');
     await page.locator('#writer-length').fill('8');
-    await page.getByRole('button', {name: '发起写入', exact: true}).click();
     await page.getByRole('button', {name: '运行写进程', exact: true}).click();
     check(await page.locator('#occupancy').textContent() === '8 / 512 字节', 'Custom requests work');
   }
@@ -59,6 +59,7 @@ async page => {
   await page.goto(base + 'diagrams/ch7-pipe.html');
   check(await page.locator('#ring').evaluate(el => el.getBoundingClientRect().top >= 0), 'Mobile shows buffer while operating');
   check(await page.getByRole('button', {name: '运行写进程', exact: true}).evaluate(el => el.getBoundingClientRect().bottom <= innerHeight), 'Mobile writer control fits with buffer without scrolling');
+  await page.getByRole('button', {name: '运行写进程', exact: true}).click();
   await page.getByRole('tab', {name: '读进程', exact: true}).click();
-  check(await page.getByRole('button', {name: '运行读进程', exact: true}).evaluate(el => el.getBoundingClientRect().bottom <= innerHeight), 'Mobile reader control fits in the same workspace');
+  check(await page.getByRole('button', {name: '运行读进程', exact: true}).evaluate(el => el.getBoundingClientRect().bottom <= innerHeight), 'Mobile reader control fits after a full-buffer write');
 }

@@ -40,12 +40,8 @@
     $('resource-value').textContent = state.resource;
     $('queue-name').textContent = '等待队列';
     $('queue-value').textContent = state.queue;
-    $('step-label').textContent = `步骤 ${step + 1} / ${list.length}`;
     $('step-title').textContent = state.title;
     $('step-description').textContent = state.description;
-    $('lock-state').textContent = state.resource;
-    $('wait-state').textContent = state.queue;
-    $('ready-state').textContent = state.ready;
     $('position').textContent = `${step + 1} / ${list.length}`;
     $('previous').disabled = step === 0;
     $('next').disabled = step === list.length - 1;
