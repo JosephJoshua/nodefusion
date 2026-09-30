@@ -40420,8 +40420,8 @@
       "trace.nfb": 171815543,
       "kernel_elf": 6838528
     },
-    "html_sha256": "05cffd65fa2e276f3a1a8d5705bc99c9ed3c020f7915e2d002bb7ef59a43d122",
-    "html_bytes": 2964336,
+    "html_sha256": "7f2cd3f35305182547c01da0ed172dbfd5e634457c0e00a267a36f08ad2e0adc",
+    "html_bytes": 2944771,
     "function_trace": {
       "kind": "return-matched observed frames",
       "raw": 293027,

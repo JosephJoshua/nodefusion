@@ -7495,8 +7495,8 @@
       "trace.nfb": 38116717,
       "kernel_elf": 158464
     },
-    "html_sha256": "c817a0aa4a0e5ee1b23804095283be18cf8f9b7061ac2564f3a6b01d0dd1214e",
-    "html_bytes": 1062846,
+    "html_sha256": "7def2c93d3a74b7547f6a7cb1dc87282648e612bfb269f8492beff5e0871cd06",
+    "html_bytes": 1043281,
     "function_trace": {
       "kind": "return-matched observed frames",
       "raw": 102693,
