@@ -8,7 +8,7 @@ from ..model.symbols import display_name
 from . import nftrace
 
 
-def observed_stacks(events, returns, elf, retained_ids=None):
+def observed_stacks(events, returns, elf, retained_ids=None, *, raw_names=False, frame_pcs=None):
     """Return entry-id -> frames and match counts, never guessing across gaps.
 
     Only adjacent observed frames with a resolved caller, compatible SP/satp,
@@ -68,7 +68,14 @@ def observed_stacks(events, returns, elf, retained_ids=None):
             frames.clear()
         frames.append(obj)
         if retained_ids is None or id(obj) in retained_ids:
-            paths[id(obj)] = tuple(label(f.entry_name or f.func or f.kind) for f in frames[-16:])
+            paths[id(obj)] = tuple((f.entry_name or f.func or f.kind) if raw_names
+                                  else label(f.entry_name or f.func or f.kind) for f in frames)
+            if frame_pcs is not None:
+                # Parent frames show their suspended call site, not their entry.
+                visible = frames
+                frame_pcs[id(obj)] = tuple(
+                    max(0, visible[k + 1].return_address - 1) if k + 1 < len(visible)
+                    else (f.pc or 0) for k, f in enumerate(visible))
         if len(frames) > 1:
             nested += 1
     return paths, {"raw": len(returns), "matched": matched,

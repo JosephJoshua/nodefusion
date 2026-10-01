@@ -358,7 +358,8 @@ def _addressable_event_names(dw, symbols) -> set[str]:
 
 
 class Analysis:
-    def __init__(self, run_dir: Path):
+    def __init__(self, run_dir: Path, *, event_only: bool = False):
+        self._event_only = event_only
         self.run_dir = Path(run_dir)
         self.notes: list[str] = []
         self.manifest = json.loads(
@@ -455,8 +456,10 @@ class Analysis:
                 f"末尾的空白未必是内核真的什么都没做。原因："
                 f"{self.manifest.get('trace_incomplete_reason') or '录制时没记下来'}")
 
+        # Archived watch entries already contain their resolved event rules.
+        # Event-only processing does not decode snapshots or probe type layouts.
         self.decoder = guest_mod.GuestDecoder(self.elf, self.layout, self.ram,
-                                              entities=self._entities())
+                                              entities=None if event_only else self._entities())
         smp = int(self.trace.meta.get("qemu.smp", "1"))
         self.decoder.ncpu = min(self.decoder.ncpu, max(1, smp))
         self.ncpu = self.decoder.ncpu
@@ -466,7 +469,7 @@ class Analysis:
                 "进程表解不出来，上下文切换事件无法归属到具体进程"
                 + (f"：{self.decoder.procs_reason}"
                    if self.decoder.procs_reason else "，而且没有给出原因。"))
-        self.tasks_exhaustive = self._tasks_exhaustive()
+        self.tasks_exhaustive = None if event_only else self._tasks_exhaustive()
 
 
     def _entities(self):
@@ -528,6 +531,8 @@ class Analysis:
         return out
 
     def rebuild_states(self) -> None:
+        if getattr(self, '_event_only', False):
+            raise ValueError('event-only analysis cannot rebuild snapshots')
         if not self.trace.snapshots:
             self.notes.append(
                 "这次运行没有任何物理内存快照，无法重建系统状态；"

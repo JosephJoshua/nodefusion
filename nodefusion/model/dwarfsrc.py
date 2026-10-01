@@ -131,7 +131,8 @@ class DwarfSource:
         self._dw = None
         self._rangelists = None
 
-    def _file_table(self, dw, cu) -> list[str]:
+    @staticmethod
+    def _file_table(dw, cu) -> list[str]:
         try:
             lp = dw.line_program_for_CU(cu)
         except Exception:

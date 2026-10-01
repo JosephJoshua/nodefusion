@@ -112,10 +112,12 @@ def smoke_report(path: Path) -> dict:
 
 
 def regenerate(run: Path, out: Path, evidence: Path, *, replace: bool = False,
-               strict: bool = False) -> dict:
+               strict: bool = False, source_roots=(), source_maps=()) -> dict:
     if not replace and (out.exists() or evidence.exists()):
         raise FileExistsError("output already exists; pass --replace to regenerate")
     analysis = analyze(run)
+    analysis.source_roots = [Path(root).resolve() for root in source_roots]
+    analysis.source_maps = list(source_maps)
     want = (analysis.manifest.get("kernel_elf_identity") or {}).get("sha256")
     actual = sha256(analysis.kernel_elf_path)
     if want and want != actual:
@@ -123,6 +125,10 @@ def regenerate(run: Path, out: Path, evidence: Path, *, replace: bool = False,
     for name in _SOURCE_FILES:
         if not (run / name).is_file():
             raise FileNotFoundError(run / name)
+    source_files = list(_SOURCE_FILES)
+    snapshot = analysis.manifest.get("source_snapshot")
+    if snapshot:
+        source_files.append(snapshot["path"])
 
     out.parent.mkdir(parents=True, exist_ok=True)
     staged = out.with_name(f".{out.name}.tmp-{os.getpid()}")
@@ -136,7 +142,7 @@ def regenerate(run: Path, out: Path, evidence: Path, *, replace: bool = False,
             "schema": "nodefusion.artifact-evidence/1",
             "run": analysis.manifest.get("run_name") or run.name,
             "kernel_kind": analysis.kernel_kind,
-            "source_sha256": {name: sha256(run / name) for name in _SOURCE_FILES},
+            "source_sha256": {name: sha256(run / name) for name in source_files},
             "kernel_elf_sha256": actual,
             "archive_bytes": {
                 "trace.nfb": (run / "trace.nfb").stat().st_size,
@@ -176,12 +182,22 @@ def main() -> int:
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--evidence", type=Path)
     parser.add_argument("--replace", action="store_true")
+    parser.add_argument("--source-root", action="append", type=Path, default=[])
+    parser.add_argument("--source-map", action="append", default=[])
     parser.add_argument("--strict", action="store_true",
                         help="exit nonzero if strict applicable coverage is incomplete")
     args = parser.parse_args()
+    maps = []
+    for mapping in args.source_map:
+        if "=" not in mapping:
+            parser.error("--source-map 使用 编译路径=本地路径")
+        old, new = mapping.split("=", 1)
+        if not old or not new:
+            parser.error("--source-map 的两个路径都不能为空")
+        maps.append((old, str(Path(new).resolve())))
     evidence = args.evidence or evidence_destination(args.out)
     report = regenerate(args.run, args.out, evidence, replace=args.replace,
-                        strict=args.strict)
+                        strict=args.strict, source_roots=args.source_root, source_maps=maps)
     coverage = report["coverage"]
     print(f"{report['run']}: {coverage['percent']:.2f}% "
           f"({len(coverage['blockers'])} blockers), "

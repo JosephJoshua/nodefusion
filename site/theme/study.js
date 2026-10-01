@@ -235,6 +235,9 @@
     }
   }
   function escape(event) {
+    // The report's detail dialog handles its own Escape before the workspace.
+    const owner = event.target?.ownerDocument;
+    if (owner && owner !== document && owner.body.classList.contains('detail-modal')) return;
     if (event.key === 'Escape' && !event.defaultPrevented && !panel.hidden) {
       event.preventDefault();
       hide();

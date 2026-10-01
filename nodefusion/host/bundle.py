@@ -5,6 +5,7 @@ import base64
 import json
 import re
 import zlib
+from itertools import chain
 from collections import Counter
 from pathlib import Path
 
@@ -508,9 +509,10 @@ def build(a: Analysis) -> dict:
     name_i = Interner()
 
     events, drop_info = _select_events(a.events)
+    frame_pcs = {}
     stack_paths, return_counts = observed_stacks(
         a.events, getattr(a.trace, "function_returns", ()), a.elf,
-        retained_ids={id(e) for e in events})
+        retained_ids={id(e) for e in events}, raw_names=True, frame_pcs=frame_pcs)
     metrics = a.metrics()
     display_cache: dict[str, str] = {}
     def display(raw):
@@ -521,7 +523,7 @@ def build(a: Analysis) -> dict:
     ev = {
         "insn": [], "cpu": [], "kind": [], "res": [], "pid": [],
         "pc": [], "func": [], "entry": [], "entry_name": [], "caller": [],
-        "stack": [],
+        "stack": [], "stack_pc": [], "caller_pc": [],
         "tick": [], "detail": [], "unknown": [],
     }
     for e in events:
@@ -531,17 +533,19 @@ def build(a: Analysis) -> dict:
         ev["res"].append(res_i(e.resource))
         ev["pid"].append(e.pid if e.pid is not None else -1)
         ev["pc"].append(e.pc or 0)
-        ev["func"].append(fn(display(e.func)) if e.func else fn(None))
+        ev["func"].append(fn(e.func))
         ev["entry"].append(1 if e.function_entry else 0)
-        ev["entry_name"].append(fn(display(e.entry_name)) if e.entry_name else -1)
+        ev["entry_name"].append(fn(e.entry_name) if e.entry_name else -1)
         caller = None
         if e.function_entry and e.return_address and a.elf is not None:
             raw, _ = a.elf.resolve_pc(e.return_address)
             if raw:
-                caller = display(raw)
+                caller = raw
         ev["caller"].append(fn(caller) if caller else -1)
+        ev["caller_pc"].append(max(0, e.return_address - 1) if caller and e.return_address else 0)
         path = stack_paths.get(id(e))
         ev["stack"].append([fn(label) for label in path] if path else None)
+        ev["stack_pc"].append(frame_pcs.get(id(e)))
         ev["tick"].append(e.tick if e.tick is not None else -1)
         ev["detail"].append(e.detail or None)
         ev["unknown"].append(e.unknown or None)
@@ -626,6 +630,14 @@ def build(a: Analysis) -> dict:
     identity = man.get("kernel_elf_identity") or {}
     archived = man.get("kernel_elf_archived") or man.get("kernel_elf")
 
+    from .sourceview import build_source, full_names, load_snapshot
+    raw_funcs = fn.items
+    readable_funcs = full_names(raw_funcs)
+    source_snapshot = load_snapshot(man, a.run_dir) if hasattr(a, "run_dir") else None
+    source = build_source(getattr(a, "kernel_elf_path", None),
+                          chain(ev["pc"], ev["caller_pc"], chain.from_iterable(frame_pcs.values())),
+                          roots=getattr(a, "source_roots", ()),
+                          maps=getattr(a, "source_maps", ()), snapshot=source_snapshot)
     return {
         "format": "nodefusion.bundle/2",
         "meta": {
@@ -666,7 +678,10 @@ def build(a: Analysis) -> dict:
         },
         "metrics": metrics,
         "dict": {"kinds": kind_i.items, "res": res_i.items,
-                 "funcs": fn.items, "names": name_i.items},
+                 "funcs": [full if display(raw) == raw else display(raw)
+                           for raw, full in zip(raw_funcs, readable_funcs)], "names": name_i.items,
+                 "raw_funcs": raw_funcs, "full_funcs": readable_funcs},
+        "source": source,
         "events": ev,
         "states": states,
         "samples": _samples(a),
@@ -674,22 +689,21 @@ def build(a: Analysis) -> dict:
 
 
 def _samples(a: Analysis) -> dict:
+    from .sourceview import full_names
     fn = Interner()
-    labels = {}
     out = {"insn": [], "cpu": [], "pc": [], "priv": [], "func": []}
     step = max(1, len(a.trace.samples) // 20000)
     for s in a.trace.samples[::step]:
         name, _ = a.elf.resolve_pc(s.pc)
-        if name:
-            if name not in labels:
-                labels[name] = display_name(name)
-            name = labels[name]
         out["insn"].append(s.insn)
         out["cpu"].append(s.cpu)
         out["pc"].append(s.pc)
         out["priv"].append(s.priv)
         out["func"].append(fn(name))
-    out["funcs"] = fn.items
+    out["raw_funcs"] = fn.items
+    out["full_funcs"] = full_names(fn.items)
+    out["funcs"] = [full if display_name(raw) == raw else display_name(raw)
+                    for raw, full in zip(fn.items, out["full_funcs"])]
     return out
 
 

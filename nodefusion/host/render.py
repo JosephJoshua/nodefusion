@@ -10,6 +10,11 @@ from .analyze import Analysis
 
 ASSETS = Path(__file__).parent / "assets"
 
+
+def report_javascript() -> str:
+    return ("'use strict';\n" + (ASSETS / "source-highlight.js").read_text(encoding="utf-8") + "\n"
+            + (ASSETS / "app.js").read_text(encoding="utf-8"))
+
 _PAGE = """<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -32,13 +37,16 @@ __CSS__
       <div class="brand-mark" aria-hidden="true">NF</div>
       <div>
         <div class="brand-name">Node<span>Fusion</span></div>
-        <div class="brand-kicker">运行观测报告</div>
+        <div class="brand-kicker">运行报告</div>
       </div>
     </div>
     <span id="outcome" class="badge"></span>
     <div class="hmeta" id="hmeta"></div>
-    <button id="quick-events" class="top-action" type="button" title="打开事件浏览器">事件浏览器</button>
-    <button id="toggle-detail" class="top-action" type="button" title="切换检查点详情">收起详情</button>
+    <form id="quick-find" role="search" aria-label="查找运行记录">
+      <input id="quick-query" type="search" aria-label="搜索事件或函数" placeholder="事件、函数、pid:2、#12345" autocomplete="off">
+      <button class="top-action" type="submit">查找</button>
+    </form>
+    <button id="toggle-detail" class="top-action" type="button" aria-expanded="true">收起详情</button>
   </header>
 
   <div class="capability" id="capability" style="display:none"></div>
@@ -57,12 +65,11 @@ __CSS__
     <div class="minimap-axis" aria-hidden="true"><span id="mini-start">0</span><span id="mini-end">—</span></div>
   </div>
 
-  <!-- 变化摘要条：只回答"相对上一个快照，这一刻有什么变了"。
-       全部是从两个快照相减得到的纯事实，不含任何对实验意图的猜测。 -->
   <div class="deltabar" id="deltabar" style="display:none"></div>
 
   <div class="main">
     <nav class="tabs" aria-label="报告章节">
+        <button id="nav-find" type="button">查找</button>
         <button data-tab="compare">对比</button>
         <button data-tab="overview" class="on">概览</button>
         <button data-tab="phys">物理内存</button>
@@ -87,12 +94,9 @@ __CSS__
       <div class="panel" id="panel-compare"></div>
     </div>
     <div class="right">
+      <div class="mobile-detail-bar"><span>详情</span><button id="close-mobile-detail" type="button" aria-label="关闭详情">返回列表</button></div>
       <div id="detail">
-        <div class="detail-empty">
-          <div class="detail-empty-icon" aria-hidden="true">⌖</div>
-          <h2>检查点详情</h2>
-          <p>选择事件、进程或物理页，查看当前时间点的关联数据。</p>
-        </div>
+        <div class="detail-empty"><h2>详情</h2><p>选择事件、进程或物理页。</p></div>
       </div>
     </div>
   </div>
@@ -118,7 +122,7 @@ def render(analyses: list[Analysis], out_path: Path, *, title: str | None = None
         raise ValueError("至少需要一次运行的分析结果")
 
     css = (ASSETS / "app.css").read_text(encoding="utf-8")
-    js = (ASSETS / "app.js").read_text(encoding="utf-8")
+    js = report_javascript()
 
     blocks = []
     for a in analyses:

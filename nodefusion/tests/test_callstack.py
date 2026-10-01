@@ -31,6 +31,18 @@ def test_nested_chain_requires_observed_return():
     assert counts == {"raw": 3, "matched": 3, "nested_entries": 2}
 
 
+def test_raw_stack_identity_and_suspended_call_site():
+    root = entry(1, 'root', 0x99, 100)
+    root.pc = 0x100
+    child = entry(2, 'child', 0x10, 80)
+    child.pc = 0x200
+    pcs = {}
+    paths, _ = observed_stacks([root, child], [ret(3, 0x10, 80)], Elf(),
+                              raw_names=True, frame_pcs=pcs)
+    assert paths[id(child)] == ('root', 'child')
+    assert pcs[id(child)] == (0xf, 0x200)
+
+
 def test_context_change_and_unmatched_return_do_not_create_chains():
     root = entry(1, "root", 0x99, 100)
     unrelated = entry(3, "child", 0x10, 80, satp=2)

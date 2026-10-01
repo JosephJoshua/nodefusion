@@ -129,6 +129,8 @@ class RunConfig:
     distro: str | None = None
     kernel_kind: str | None = None
     layout_override: Path | None = None
+    source_roots: tuple[Path, ...] = ()
+    source_maps: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass
@@ -811,6 +813,9 @@ class Recorder:
                               kind=self.profile.kind,
                               elf_path=kernel_elf_path)
         layout_mod.save(kl, self.run_dir / "kernel_layout.json")
+        from .sourceview import capture_snapshot
+        source_snapshot = capture_snapshot(kernel_elf_path, self.run_dir / "source.snapshot.zlib",
+                                           c.source_roots or (c.kernel_dir,), c.source_maps)
 
         wl, watch_source, detect_trace = select_watchlist(
             elf, kernel_elf_path, kind=self.profile.kind,
@@ -901,6 +906,7 @@ class Recorder:
             "kernel_elf_build_path": str(kernel_elf_path),
             "kernel_elf_identity": elf_ident,
             "kernel_elf_archived": str(archived) if archived else None,
+            "source_snapshot": source_snapshot,
             "lab_stage": lab_stage,
             "lab_stage_source": "命令行指定" if c.lab_stage is not None else "Makefile 默认值",
             "make_vars": c.make_vars,

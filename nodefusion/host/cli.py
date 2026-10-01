@@ -44,6 +44,18 @@ def _kv(pairs: list[str]) -> dict[str, str]:
     return out
 
 
+def _source_maps(args) -> list[tuple[str, str]]:
+    mappings = []
+    for mapping in getattr(args, "source_map", []):
+        if "=" not in mapping:
+            raise SystemExit("--source-map 使用 编译路径=本地路径")
+        old, new = mapping.split("=", 1)
+        if not old or not new:
+            raise SystemExit("--source-map 的两个路径都不能为空")
+        mappings.append((old, str(_path(new))))
+    return mappings
+
+
 def cmd_record(args) -> int:
     snap_insns = args.snap_insns
     boot_snapshots = args.boot_snapshots
@@ -70,6 +82,8 @@ def cmd_record(args) -> int:
         kernel_kind=args.kernel_kind,
         name=args.name or default_name,
         out_root=_path(args.runs),
+        source_roots=tuple(_path(root) for root in getattr(args, "source_root", [])),
+        source_maps=tuple(_source_maps(args)),
         cpus=args.cpus,
         lab_stage=args.lab_stage,
         make_vars=_kv(args.make_var),
@@ -165,6 +179,9 @@ def _write_event_stream(a, mode: str) -> None:
 def cmd_render(args) -> int:
     runs_root = _path(args.runs)
     analyses = _load(args.run, runs_root)
+    for a in analyses:
+        a.source_roots = [_path(root) for root in getattr(args, "source_root", [])]
+        a.source_maps = _source_maps(args)
 
     if args.out:
         out = _path(args.out)
@@ -430,6 +447,10 @@ def build_parser() -> argparse.ArgumentParser:
                         "文本里的 \\n 会被当成回车")
     r.add_argument("--stdin-timeout", type=float, default=120.0)
     r.add_argument("--no-render", action="store_true")
+    r.add_argument("--source-root", action="append", default=[],
+                   help="录制时归档源码的目录，可重复；默认内核目录")
+    r.add_argument("--source-map", action="append", default=[],
+                   help="源码路径映射：编译路径=本地路径，可重复")
     _add_event_stream_option(r)
     r.set_defaults(func=cmd_record)
 
@@ -438,6 +459,10 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("--runs", default=str(DEFAULT_RUNS))
     d.add_argument("-o", "--out")
     d.add_argument("--title")
+    d.add_argument("--source-root", action="append", default=[],
+                   help="嵌入源码的目录，可重复；只读取这些目录内的文件")
+    d.add_argument("--source-map", action="append", default=[],
+                   help="源码路径映射：编译路径=本地路径，可重复")
     _add_event_stream_option(d)
     d.set_defaults(func=cmd_render)
 
@@ -446,6 +471,8 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--runs", default=str(DEFAULT_RUNS))
     c.add_argument("-o", "--out")
     c.add_argument("--title")
+    c.add_argument("--source-root", action="append", default=[])
+    c.add_argument("--source-map", action="append", default=[])
     _add_event_stream_option(c)
     c.set_defaults(func=cmd_render)
 

@@ -45,6 +45,16 @@ def display_name(sym: str) -> str:
     return demangle(sym) or demangle_v0(sym, impls=True, generics=True) or sym
 
 
+def display_dwarf_name(name: str) -> str:
+    """Decode escaped Rust names that DWARF emits without a linkage prefix."""
+    readable = display_name(name)
+    if '$' in readable:
+        if readable.startswith('_$'):
+            readable = readable[1:]
+        readable = _unescape(readable).replace('..', '::')
+    return re.sub(r'::h[0-9a-f]{16}$', '', readable)
+
+
 def _demangle_legacy(sym: str) -> str | None:
     s = _LLVM_SUFFIX.sub("", sym)
     if not s.startswith("_ZN") or not s.endswith("E"):
