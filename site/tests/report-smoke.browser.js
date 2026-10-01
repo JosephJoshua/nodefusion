@@ -15,6 +15,14 @@ async (page) => {
       const entry = page.locator('.sequence-node').first();
       if (await entry.count()) {
         await entry.click();
+        const controlsFit = await page.locator('.trace-controls').evaluate(toolbar => {
+          const bounds = toolbar.getBoundingClientRect();
+          return [...toolbar.children].every(node => {
+            const rect = node.getBoundingClientRect();
+            return rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1;
+          });
+        });
+        if (!controlsFit) failures.push(`${current}: function controls are clipped`);
         if (await page.evaluate(() => innerWidth <= 850))
           await page.locator('#close-mobile-detail').click();
       }

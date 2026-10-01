@@ -69,6 +69,7 @@ __CSS__
 
   <div class="main">
     <nav class="tabs" aria-label="报告章节">
+        <button id="toggle-nav" type="button" aria-expanded="true" aria-label="收起导航" title="收起导航"><span aria-hidden="true">«</span><span class="nav-label">收起导航</span></button>
         <button id="nav-find" type="button">查找</button>
         <button data-tab="compare">对比</button>
         <button data-tab="overview" class="on">概览</button>

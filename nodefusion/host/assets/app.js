@@ -2984,6 +2984,59 @@ async function boot() {
     for (const b of document.querySelectorAll('nav.tabs button')) {
       if (b.dataset.tab) b.onclick = () => setTab(b.dataset.tab);
     }
+    const nav = $('nav.tabs');
+    const navIcons = {
+      compare: 'M5 3v18M19 3v18M2 8h6M16 16h6',
+      overview: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
+      phys: 'M5 5h14v14H5zM9 9h6v6H9zM9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3',
+      procs: 'M3 5h18M3 12h18M3 19h18M7 3v4M16 10v4M10 17v4',
+      vm: 'M3 4h8v6H3zM13 14h8v6h-8zM7 10v7h6M11 7h6v7',
+      fs: 'M3 6h7l2 2h9v12H3z',
+      events: 'M5 4h14v16H5zM8 8h8M8 12h8M8 16h5',
+      functions: 'M6 3v12h12M6 8h12M18 5v6M18 12v6M3 18h6v3H3z',
+      metrics: 'M3 3v18h18M7 17v-5M12 17V8M17 17V5',
+      console: 'M3 4h18v16H3zM6 8l4 4-4 4M13 16h5',
+    };
+    for (const button of nav.querySelectorAll('[data-tab]')) {
+      const label = button.textContent;
+      button.setAttribute('aria-label', label);
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true');
+      svg.classList.add('nav-icon');
+      const path = document.createElementNS(svg.namespaceURI, 'path');
+      path.setAttribute('d', navIcons[button.dataset.tab]); svg.appendChild(path);
+      button.replaceChildren(svg, el('span', 'nav-label', label));
+    }
+    const toggleNav = $('#toggle-nav');
+    const navTooltip = el('span', 'nav-tooltip'); navTooltip.hidden = true;
+    navTooltip.setAttribute('aria-hidden', 'true'); $('#app').appendChild(navTooltip);
+    const showNavLabel = event => {
+      const button = event.target.closest('[data-tab]');
+      if (!button || !nav.classList.contains('nav-collapsed') || innerWidth <= 850) return;
+      const rect = button.getBoundingClientRect();
+      navTooltip.textContent = button.getAttribute('aria-label');
+      navTooltip.style.left = `${nav.getBoundingClientRect().right + 8}px`;
+      navTooltip.style.top = `${rect.top}px`; navTooltip.hidden = false;
+    };
+    nav.addEventListener('mouseover', showNavLabel);
+    nav.addEventListener('focusin', showNavLabel);
+    nav.addEventListener('mouseleave', () => { navTooltip.hidden = true; });
+    nav.addEventListener('focusout', () => { navTooltip.hidden = true; });
+    const collapseNav = collapsed => {
+      navTooltip.hidden = true;
+      nav.classList.toggle('nav-collapsed', collapsed);
+      toggleNav.setAttribute('aria-expanded', String(!collapsed));
+      toggleNav.title = collapsed ? '展开导航' : '收起导航';
+      toggleNav.setAttribute('aria-label', toggleNav.title);
+      toggleNav.firstElementChild.textContent = collapsed ? '»' : '«';
+      toggleNav.lastElementChild.textContent = toggleNav.title;
+      try { localStorage.setItem('nodefusion.navCollapsed', String(collapsed)); } catch {}
+      window.dispatchEvent(new Event('resize'));
+    };
+    let collapsedNav = false;
+    try { collapsedNav = localStorage.getItem('nodefusion.navCollapsed') === 'true'; } catch {}
+    collapseNav(collapsedNav);
+    toggleNav.onclick = () => collapseNav(!nav.classList.contains('nav-collapsed'));
     $('#nav-find').onclick = () => $('#quick-query').focus();
     $('#slider').oninput = (e) => { NF.cur = Number(e.target.value); render(); };
     $('#play').onclick = play;
