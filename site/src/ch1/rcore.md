@@ -12,7 +12,7 @@
 
 [`clear_bss`](https://github.com/LearningOS/rCore-Tutorial-Code-2026A/blob/ebb82caa6bec05652a041e613c12a52fde3813f0/os/src/main.rs) 逐字节清零 `[sbss, ebss)`。`rust_main` 在访问全局状态之前调用它，随后初始化日志，输出问候语和数组 `[1, 2, 3, 4, 5]` 的求和结果。
 
-内核通过链接脚本提供的符号打印各段边界。这里使用的是符号地址，例如 `stext as usize`，而不是调用同名函数。代码、只读数据、可写数据、启动栈和 BSS 分别使用 trace、debug、info、warn、error 级别。
+内核通过链接脚本提供的符号打印各段边界，例如 `stext as usize` 取得代码段的起始地址。代码、只读数据、可写数据、启动栈和 BSS 分别使用 trace、debug、info、warn、error 级别。
 
 ## 输出与终止
 
@@ -22,6 +22,6 @@
 
 运行报告中，`rust_main` 入口的 `sp` 为 `0x80214000`，正好是启动栈顶。进入 `clear_bss` 时，`sp` 已降至 `0x80213e80`；这段空间属于主函数的调用栈。
 
-本次构建的清零区间为 `[0x80214000, 0x80215000)`，从启动栈顶开始。对照链接脚本和这两个函数入口，就能确定 `clear_bss` 清零时没有覆盖正在使用的栈。
+清零区间为 `[0x80214000, 0x80215000)`，位于启动栈上方。`clear_bss` 从这里向高地址清零，函数调用使用的栈则向低地址增长。
 
 [查看函数调用报告](../reports/rcore/ch1/2026a/rcore-2026A-ch1-verified.html) · [录制数据](../reports/rcore/ch1/2026a/recording.json)

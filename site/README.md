@@ -28,7 +28,7 @@ node site/tests/pipe.test.cjs
 ```sh
 playwright-cli --session education open http://127.0.0.1:8768/
 for suite in site-smoke navigation sections study comparison ch2 ch4 ch5 ch6 ch7 ch8 \
-             pipe report-context report-filters report-layout report-discovery report-smoke; do
+             pipe figures report-context report-filters report-layout report-discovery report-smoke; do
     playwright-cli --session education goto http://127.0.0.1:8768/
     playwright-cli --session education run-code --filename "site/tests/$suite.browser.js"
 done

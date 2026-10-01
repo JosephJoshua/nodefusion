@@ -1,39 +1,48 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 480" role="img" aria-labelledby="title desc">
-  <title id="title">Sv39 三级页表与页内偏移</title>
-  <desc id="desc">虚拟地址0x4123的索引依次为0、0、4，页内偏移0x123。三级页表的末级项指向物理页0x87fb9000，得到物理字节地址0x87fb9123。页表页与数据页分别占用物理页。</desc>
-  <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 1 1 L 9 5 L 1 9" fill="none" stroke="#5f6a65" stroke-width="1.5"/></marker></defs>
-  <rect x="1" y="1" width="878" height="478" rx="4" fill="#faf9f6" stroke="#d8d6ce"/>
-  <g font-family="system-ui, sans-serif" font-size="16" fill="#292c28">
-    <text x="28" y="35" font-size="20" font-weight="600">虚拟地址 0x4123</text>
-    <g fill="#efede6" stroke="#787e74" stroke-width="1.5" stroke-linejoin="round">
-      <path d="M29 53 L231 52 L232 109 L28 110 Z"/>
-      <path d="M233 53 L435 54 L434 110 L232 109 Z"/>
-      <path d="M436 53 L637 52 L638 109 L435 110 Z"/>
-      <path d="M639 53 L849 54 L848 110 L638 109 Z" fill="#e5eee8"/>
-    </g>
-    <text x="48" y="77">VPN[2] · 位 38:30</text><text x="48" y="99">索引 0</text>
-    <text x="252" y="77">VPN[1] · 位 29:21</text><text x="252" y="99">索引 0</text>
-    <text x="455" y="77">VPN[0] · 位 20:12</text><text x="455" y="99">索引 4</text>
-    <text x="658" y="77">页内偏移 · 位 11:0</text><text x="658" y="99">0x123</text>
-    <text x="28" y="156">satp → 根页表物理页号</text>
-    <g fill="#faf9f6" stroke="#787e74" stroke-width="1.5" stroke-linejoin="round">
-      <path d="M29 176 L219 175 L220 307 L28 308 Z"/>
-      <path d="M284 177 L476 175 L475 308 L285 309 Z"/>
-      <path d="M540 175 L732 177 L731 309 L541 307 Z"/>
-      <path d="M28 218 L220 220 M285 219 L475 219 M541 219 L731 221"/>
-    </g>
-    <text x="44" y="202" font-weight="600">根页表</text><text x="300" y="202" font-weight="600">中间页表</text><text x="556" y="202" font-weight="600">末级页表</text>
-    <text x="44" y="246">[0] 下一层页号</text><text x="44" y="276">V = 1</text>
-    <text x="300" y="246">[0] 下一层页号</text><text x="300" y="276">V = 1</text>
-    <text x="556" y="246">[4] 数据页号</text><text x="556" y="276">V / R / W / U</text>
-    <g fill="none" stroke="#5f6a65" stroke-width="1.7" marker-end="url(#arrow)">
-      <path d="M220 246 Q250 243 278 246"/><path d="M476 246 Q507 249 534 246"/>
-      <path d="M731 246 Q777 244 777 339 L731 339"/>
-      <path d="M746 115 L746 140 Q843 140 843 377 L728 377"/>
-    </g>
-    <rect x="29" y="332" width="692" height="68" rx="3" fill="#e5eee8" stroke="#787e74" stroke-width="1.5"/>
-    <text x="44" y="358" font-weight="600">物理页起始地址 0x87fb9000 + 页内偏移 0x123</text>
-    <text x="44" y="383">物理字节地址 0x87fb9123</text>
-    <text x="28" y="444">每张页表：512 项 × 8 字节 = 4 KiB　　每个数据页：4 KiB</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="488" viewBox="0 0 880 488" role="img" aria-labelledby="title desc">
+  <title id="title">Sv39 三级页表地址转换</title>
+  <desc id="desc">虚拟地址 0x4123 的三级索引为 0、0、4，页内偏移为 0x123。索引依次选择三级页表项；末级项指向物理页 0x87fb9000。物理页起始地址加上原页内偏移，得到 0x87fb9123。</desc>
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L8 5 L1 9" fill="none" stroke="context-stroke" stroke-width="1.7" stroke-linejoin="round"/></marker></defs>
+  <rect width="880" height="488" fill="#fafbf8"/>
+  <g font-family="'PingFang SC','Microsoft YaHei',sans-serif" font-size="18" fill="#243d35">
+    <text x="28" y="38" font-size="24" font-weight="600" fill="#243d35" text-anchor="start">虚拟地址 0x4123</text>
+    <rect x="28" y="65" width="206" height="97" rx="0" fill="#f5f7f2" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="44" y="94" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">VPN[2]</text>
+    <text x="44" y="122" font-size="17" font-weight="400" fill="#52675e" text-anchor="start">位 38:30</text>
+    <text x="198" y="143" font-size="20" font-weight="600" fill="#243d35" text-anchor="end">0</text>
+    <rect x="234" y="65" width="206" height="97" rx="0" fill="#f5f7f2" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="250" y="94" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">VPN[1]</text>
+    <text x="250" y="122" font-size="17" font-weight="400" fill="#52675e" text-anchor="start">位 29:21</text>
+    <text x="404" y="143" font-size="20" font-weight="600" fill="#243d35" text-anchor="end">0</text>
+    <rect x="440" y="65" width="206" height="97" rx="0" fill="#f5f7f2" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="456" y="94" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">VPN[0]</text>
+    <text x="456" y="122" font-size="17" font-weight="400" fill="#52675e" text-anchor="start">位 20:12</text>
+    <text x="610" y="143" font-size="20" font-weight="600" fill="#243d35" text-anchor="end">4</text>
+    <rect x="646" y="65" width="206" height="97" rx="0" fill="#f5eddc" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="662" y="94" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">页内偏移</text>
+    <text x="662" y="122" font-size="17" font-weight="400" fill="#52675e" text-anchor="start">位 11:0</text>
+    <text x="816" y="143" font-size="20" font-weight="600" fill="#243d35" text-anchor="end">0x123</text>
+    <rect x="28" y="225" width="202" height="120" rx="5" fill="#f5f7f2" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="44" y="257" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">根页表 · satp</text>
+    <text x="44" y="286" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">[0] 下一层页号</text>
+    <text x="44" y="313" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">V = 1</text>
+    <path d="M128 168 V213" fill="none" stroke="#52675e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)" stroke-dasharray="5 4"/>
+    <rect x="278" y="225" width="202" height="120" rx="5" fill="#f5f7f2" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="294" y="257" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">中间页表</text>
+    <text x="294" y="286" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">[0] 下一层页号</text>
+    <text x="294" y="313" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">V = 1</text>
+    <path d="M378 168 V213" fill="none" stroke="#52675e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)" stroke-dasharray="5 4"/>
+    <rect x="528" y="225" width="202" height="120" rx="5" fill="#e4f0e6" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="544" y="257" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">末级页表</text>
+    <text x="544" y="286" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">[4] 数据页号</text>
+    <text x="544" y="313" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">V、R、W、U</text>
+    <path d="M628 168 V213" fill="none" stroke="#52675e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)" stroke-dasharray="5 4"/>
+    <path d="M230 280 H266" fill="none" stroke="#52675e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+    <path d="M480 280 H516" fill="none" stroke="#52675e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+    <path d="M730 280 H757 V390 H733" fill="none" stroke="#52675e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+    <path d="M749 162 H825 V419 H733" fill="none" stroke="#80623c" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)" stroke-dasharray="5 4"/>
+    <rect x="28" y="376" width="692" height="75" rx="5" fill="#e4f0e6" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="44" y="405" font-size="23" font-weight="600" fill="#243d35" text-anchor="start">0x87fb9000 + 0x123 = 0x87fb9123</text>
+    <text x="44" y="434" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">物理页起始地址 + 原页内偏移 = 物理字节地址</text>
+    <text x="28" y="479" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">每张页表：512 项 × 8 字节 = 4 KiB；每个数据页：4 KiB。</text>
   </g>
 </svg>

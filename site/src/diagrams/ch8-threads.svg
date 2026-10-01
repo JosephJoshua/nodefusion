@@ -1,41 +1,39 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 510" role="img" aria-labelledby="title desc">
-  <title id="title">进程与线程共享关系</title>
-  <desc id="desc">进程控制块拥有地址空间、文件表与同步对象。三个线程控制块都指向这个进程，每个线程有独立的用户栈、内核栈、异常上下文与调度状态。</desc>
-  <defs>
-    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%"><feDropShadow dx="2" dy="3" stdDeviation="2" flood-color="#163a32" flood-opacity=".12"/></filter>
-    <marker id="tip" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M1 1 L8 4.5 L1 8" fill="none" stroke="#31685e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
-  </defs>
-  <rect width="920" height="510" fill="#fcfaf4"/>
-  <path d="M32 78 Q28 42 66 42 L854 43 Q891 43 888 78 L889 229 Q889 261 856 261 L65 260 Q31 260 31 225 Z" fill="#eaf3ee" stroke="#31685e" stroke-width="2.5" filter="url(#shadow)"/>
-  <text x="57" y="81" fill="#23463e" font-size="23" font-weight="700" font-family="sans-serif">进程控制块 · PID</text>
-  <text x="57" y="111" fill="#526d64" font-size="15" font-family="sans-serif">一个进程内的线程共同使用</text>
-  <g fill="#fffefa" stroke="#5c8a7b" stroke-width="2" filter="url(#shadow)">
-    <path d="M58 139 Q57 131 68 130 L292 132 Q302 132 301 141 L302 216 Q302 226 291 226 L68 225 Q58 225 58 214 Z"/>
-    <path d="M348 140 Q349 131 359 132 L572 130 Q582 131 581 142 L582 216 Q581 226 570 225 L358 226 Q347 225 348 216 Z"/>
-    <path d="M628 141 Q627 132 638 131 L852 132 Q862 132 861 142 L862 215 Q861 225 850 226 L637 225 Q628 226 628 215 Z"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="480" viewBox="0 0 880 480" role="img" aria-labelledby="title desc">
+  <title id="title">进程与线程的资源关系</title>
+  <desc id="desc">进程管理地址空间、文件描述符和同步对象。同一进程的多个线程共享这些资源，每个线程拥有独立用户栈、内核栈、异常上下文和任务上下文。包含框表示资源归属，虚线箭头表示线程引用进程。</desc>
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L8 5 L1 9" fill="none" stroke="context-stroke" stroke-width="1.7" stroke-linejoin="round"/></marker></defs>
+  <rect width="880" height="480" fill="#fafbf8"/>
+  <g font-family="'PingFang SC','Microsoft YaHei',sans-serif" font-size="18" fill="#243d35">
+    <text x="28" y="38" font-size="24" font-weight="600" fill="#243d35" text-anchor="start">同一进程中的共享资源与线程私有状态</text>
+    <rect x="28" y="70" width="824" height="170" rx="5" fill="#e4f0e6" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="46" y="103" font-size="22" font-weight="600" fill="#243d35" text-anchor="start">进程控制块 · PID</text>
+    <rect x="46" y="123" width="248" height="98" rx="5" fill="#f5f7f2" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="62" y="155" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">地址空间</text>
+    <text x="62" y="184" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">页表、全局变量、堆</text>
+    <rect x="316" y="123" width="248" height="98" rx="5" fill="#f5f7f2" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="332" y="155" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">文件描述符表</text>
+    <text x="332" y="184" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">打开的文件与管道</text>
+    <rect x="586" y="123" width="248" height="98" rx="5" fill="#f5f7f2" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="602" y="155" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">同步对象</text>
+    <text x="602" y="184" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">锁、信号量、条件变量</text>
+    <rect x="28" y="312" width="260" height="143" rx="5" fill="#f5f7f2" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="44" y="344" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">线程 · TID 0</text>
+    <text x="44" y="373" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">用户栈、内核栈</text>
+    <text x="44" y="400" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">异常上下文、任务上下文</text>
+    <text x="44" y="427" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">线程状态、退出码</text>
+    <path d="M158 312 V253" fill="none" stroke="#52675e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)" stroke-dasharray="5 4"/>
+    <rect x="310" y="312" width="260" height="143" rx="5" fill="#f5f7f2" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="326" y="344" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">线程 · TID 1</text>
+    <text x="326" y="373" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">用户栈、内核栈</text>
+    <text x="326" y="400" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">异常上下文、任务上下文</text>
+    <text x="326" y="427" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">线程状态、退出码</text>
+    <path d="M440 312 V253" fill="none" stroke="#52675e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)" stroke-dasharray="5 4"/>
+    <rect x="592" y="312" width="260" height="143" rx="5" fill="#f5f7f2" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="608" y="344" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">线程 · TID 2</text>
+    <text x="608" y="373" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">用户栈、内核栈</text>
+    <text x="608" y="400" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">异常上下文、任务上下文</text>
+    <text x="608" y="427" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">线程状态、退出码</text>
+    <path d="M722 312 V253" fill="none" stroke="#52675e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)" stroke-dasharray="5 4"/>
+    <text x="440" y="282" font-size="18" font-weight="400" fill="#52675e" text-anchor="middle">各线程引用同一进程</text>
   </g>
-  <g fill="#23463e" font-family="sans-serif" text-anchor="middle">
-    <text x="180" y="173" font-size="20" font-weight="700">地址空间</text><text x="180" y="203" font-size="15">页表 · 共享变量</text>
-    <text x="465" y="173" font-size="20" font-weight="700">文件描述符表</text><text x="465" y="203" font-size="15">同一组打开的文件</text>
-    <text x="745" y="173" font-size="20" font-weight="700">同步对象</text><text x="745" y="203" font-size="15">锁 · 信号量 · 条件变量</text>
-  </g>
-  <g fill="none" stroke="#31685e" stroke-width="2.4" stroke-linecap="round" marker-end="url(#tip)">
-    <path d="M178 311 C179 293 179 282 179 267"/>
-    <path d="M462 311 C464 293 464 282 464 267"/>
-    <path d="M744 311 C743 293 744 282 744 267"/>
-  </g>
-  <g fill="#fffefa" stroke="#557d8a" stroke-width="2.5" filter="url(#shadow)">
-    <path d="M38 321 Q38 310 51 311 L309 312 Q319 311 319 322 L321 458 Q319 472 308 472 L51 470 Q37 470 38 457 Z"/>
-    <path d="M322 322 Q322 312 335 311 L594 313 Q604 311 604 323 L604 458 Q604 470 592 471 L334 471 Q321 470 322 458 Z"/>
-    <path d="M607 322 Q607 311 619 312 L868 311 Q881 311 881 324 L881 457 Q881 470 868 470 L618 471 Q607 470 607 457 Z"/>
-  </g>
-  <g fill="#283f49" font-family="sans-serif" text-anchor="middle">
-    <text x="179" y="352" font-size="19" font-weight="700">线程 · TID 0</text>
-    <text x="463" y="352" font-size="19" font-weight="700">线程 · TID 1</text>
-    <text x="744" y="352" font-size="19" font-weight="700">线程 · TID 2</text>
-    <text x="179" y="389" font-size="16">用户栈 · 内核栈</text><text x="179" y="420" font-size="16">异常上下文 · 调度状态</text>
-    <text x="463" y="389" font-size="16">用户栈 · 内核栈</text><text x="463" y="420" font-size="16">异常上下文 · 调度状态</text>
-    <text x="744" y="389" font-size="16">用户栈 · 内核栈</text><text x="744" y="420" font-size="16">异常上下文 · 调度状态</text>
-  </g>
-  <path d="M43 488 Q308 490 584 488 L875 489" fill="none" stroke="#c8d8ce" stroke-width="1.5" stroke-dasharray="5 7"/>
 </svg>

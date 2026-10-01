@@ -6,7 +6,7 @@
 
 每个进程有 16 个文件描述符槽，槽中保存指向全局 [`filepool`](https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/df045c4455f2dacb81caf39510aed994bf49ade7/os/file.c) 的指针。文件对象保存引用数、读写权限、当前偏移和 inode 指针。两次独立打开同一文件得到两个文件对象，各有自己的偏移；`fork` 则复制指针并增加引用数，父子进程共享偏移。
 
-`inoderead`、`inodewrite` 根据本次传输的字节数推进文件对象中的偏移。`fileclose` 在最后一份引用关闭时释放文件对象对 inode 的引用。文件对象消失不等于磁盘文件被删除。
+`inoderead`、`inodewrite` 根据传输的字节数推进文件对象中的偏移。`fileclose` 在最后一份引用关闭时释放文件对象对 inode 的引用，磁盘上的目录项和文件内容继续保存。
 
 本章 `sys_read`、`sys_write` 检查描述符是否有效，并根据文件类型进入控制台或 inode 路径；代码尚未用文件对象的 `readable`、`writable` 字段限制这两个调用。`O_TRUNC` 则通过 `itrunc` 清空文件内容并回收块。
 
@@ -16,7 +16,7 @@
 
 根目录的 inode 编号是 1。每个目录项占 16 字节，前 2 字节是 inode 编号，后 14 字节是名字。`dirlookup` 按目录项遍历，`dirlink` 写入空项或追加新项。此时 `namei` 直接在根目录查找文件名，还没有逐级解析路径。
 
-内存 inode 的引用数表示当前有多少内核对象持有它。这个提交没有维护磁盘文件链接数；`linkat`、`unlinkat` 和 `fstat` 系统调用仍返回 -1。阅读 `fileclose → iput` 时，应将引用数变化与磁盘目录项分开。
+内存 inode 的引用数表示当前有多少内核对象持有它，`fileclose → iput` 会减少这个计数。本章未实现磁盘文件链接数，`linkat`、`unlinkat` 和 `fstat` 系统调用返回 -1。
 
 ## 数据块与磁盘布局
 

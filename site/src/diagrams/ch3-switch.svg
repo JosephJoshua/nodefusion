@@ -1,36 +1,34 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 470" role="img" aria-labelledby="title desc">
-  <title id="title">rCore 与 uCore 的任务切换路径</title>
-  <desc id="desc">rCore 直接从任务 A 切换到任务 B。uCore 从进程 A 切回调度器，再由调度器切换到进程 B。</desc>
-  <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M1 1 L8 5 L1 9" fill="none" stroke="#365b51" stroke-width="1.8"/></marker></defs>
-  <rect width="900" height="470" fill="#fafbf8" rx="8"/>
-  <g font-family="'PingFang SC','Microsoft YaHei',sans-serif" fill="#273c35">
-    <text x="34" y="40" font-size="22" font-weight="600">从 A 让出到 B 运行</text>
-    <text x="34" y="80" font-size="18" font-weight="600">rCore</text>
-    <g fill="none" stroke="#365b51" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M35 106 L301 105 L303 207 L36 208 Z M38 109 L299 108 L306 205"/>
-      <path d="M591 105 L861 106 L863 209 L592 208 Z M595 108 L859 103 L865 205"/>
-      <path d="M313 157 Q447 151 577 159" marker-end="url(#arrow)"/>
-      <path d="M35 307 L252 306 L253 410 L36 408 Z M38 310 L250 309 L256 407"/>
-      <path d="M341 307 L558 306 L560 410 L342 408 Z M345 310 L557 309 L562 407"/>
-      <path d="M647 307 L862 308 L864 409 L648 410 Z M651 310 L861 305 L866 407"/>
-      <path d="M263 358 Q296 352 326 359" marker-end="url(#arrow)"/>
-      <path d="M570 358 Q602 363 633 357" marker-end="url(#arrow)"/>
-    </g>
-    <text x="55" y="143" font-size="19" font-weight="600">任务 A 的内核执行流</text>
-    <text x="55" y="178" font-size="16">标记 Ready，选择 B</text>
-    <text x="385" y="133" font-size="17">__switch(A, B)</text>
-    <text x="370" y="192" font-size="15">保存 A，恢复 B</text>
-    <text x="612" y="143" font-size="19" font-weight="600">任务 B 的内核执行流</text>
-    <text x="612" y="178" font-size="16">继续处理，返回用户态</text>
-    <text x="34" y="276" font-size="18" font-weight="600">uCore</text>
-    <text x="55" y="344" font-size="19" font-weight="600">进程 A</text>
-    <text x="55" y="381" font-size="16">yield → sched</text>
-    <text x="360" y="344" font-size="19" font-weight="600">调度器</text>
-    <text x="360" y="381" font-size="16">扫描并选择 B</text>
-    <text x="668" y="344" font-size="19" font-weight="600">进程 B</text>
-    <text x="668" y="381" font-size="16">继续处理，返回用户态</text>
-    <text x="260" y="332" font-size="13">swtch</text>
-    <text x="569" y="332" font-size="13">swtch</text>
-    <text x="35" y="449" font-size="16">切换上下文保存内核继续执行的位置，用户寄存器由异常返回过程恢复。</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="396" viewBox="0 0 880 396" role="img" aria-labelledby="title desc">
+  <title id="title">rCore 与 uCore 的任务切换</title>
+  <desc id="desc">rCore 从任务 A 直接切换到任务 B。uCore 先从 A 切换到调度器，再从调度器切换到 B。切换恢复的是内核上下文，之后各自经异常返回进入用户态。</desc>
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L8 5 L1 9" fill="none" stroke="context-stroke" stroke-width="1.7" stroke-linejoin="round"/></marker></defs>
+  <rect width="880" height="396" fill="#fafbf8"/>
+  <g font-family="'PingFang SC','Microsoft YaHei',sans-serif" font-size="18" fill="#243d35">
+    <text x="28" y="38" font-size="24" font-weight="600" fill="#243d35" text-anchor="start">从 A 让出到 B 运行</text>
+    <text x="28" y="85" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">rCore：直接切换</text>
+    <rect x="28" y="103" width="286" height="85" rx="5" fill="#f5f7f2" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="44" y="135" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">任务 A</text>
+    <text x="44" y="164" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">标记 Ready，选择 B</text>
+    <rect x="566" y="103" width="286" height="85" rx="5" fill="#e4f0e6" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="582" y="135" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">任务 B</text>
+    <text x="582" y="164" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">恢复内核上下文，继续执行</text>
+    <path d="M314 147 H554" fill="none" stroke="#52675e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+    <text x="440" y="130" font-size="18" font-weight="600" fill="#243d35" text-anchor="middle">__switch(A, B)</text>
+    <text x="440" y="175" font-size="18" font-weight="400" fill="#52675e" text-anchor="middle">保存 A，恢复 B</text>
+    <text x="28" y="236" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">uCore：经过调度器</text>
+    <rect x="28" y="254" width="212" height="85" rx="5" fill="#f5f7f2" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="44" y="286" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">进程 A</text>
+    <text x="44" y="315" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">yield → sched</text>
+    <rect x="334" y="254" width="212" height="85" rx="5" fill="#f5f7f2" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="350" y="286" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">调度器</text>
+    <text x="350" y="315" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">扫描进程表，选择 B</text>
+    <rect x="640" y="254" width="212" height="85" rx="5" fill="#e4f0e6" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="656" y="286" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">进程 B</text>
+    <text x="656" y="315" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">恢复内核上下文</text>
+    <path d="M240 296 H322" fill="none" stroke="#52675e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+    <text x="281" y="282" font-size="17" font-weight="400" fill="#243d35" text-anchor="middle">swtch</text>
+    <path d="M546 296 H628" fill="none" stroke="#52675e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+    <text x="587" y="282" font-size="17" font-weight="400" fill="#243d35" text-anchor="middle">swtch</text>
+    <text x="28" y="375" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">B 继续内核调用，随后恢复用户寄存器并执行 sret。</text>
   </g>
 </svg>

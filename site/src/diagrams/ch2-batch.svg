@@ -1,35 +1,39 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
-  <title id="title">批处理装载与用户异常处理</title>
-  <desc id="desc">装载器创建用户上下文，应用执行系统调用进入内核。普通调用恢复当前上下文，退出或应用异常装载下一应用。</desc>
-  <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto"><path d="M1 1 L8 4 L1 7" fill="none" stroke="#356854" stroke-width="1.6"/></marker></defs>
-  <style>text{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;fill:#263e34;font-size:19px}.small{font-size:16px;fill:#4f6358}.box{fill:#f6f8f5;stroke:#4f6358;stroke-width:1.7;stroke-linejoin:round}.flow{fill:none;stroke:#356854;stroke-width:1.8;marker-end:url(#arrow)}.zone{fill:#edf4ee;stroke:#a6b9ab;stroke-width:1.2}</style>
-  <rect class="zone" x="22" y="30" width="914" height="172" rx="4"/>
-  <text x="44" y="60">用户态</text>
-  <rect class="zone" x="22" y="242" width="914" height="268" rx="4"/>
-  <text x="44" y="273">监督者模式</text>
-  <path class="box" d="M96 96 L383 94 L386 174 L94 176 Z M98 98 L382 97"/>
-  <text x="239" y="126" text-anchor="middle">当前应用</text>
-  <text class="small" x="239" y="153" text-anchor="middle">固定入口 0x80400000</text>
-  <path class="box" d="M576 96 L844 95 L846 174 L574 176 Z M578 98 L841 97"/>
-  <text x="710" y="127" text-anchor="middle">继续执行原应用</text>
-  <text class="small" x="710" y="154" text-anchor="middle">ecall 后的指令，a0 为返回值</text>
-  <path class="box" d="M94 303 L382 301 L386 383 L96 385 Z M98 305 L380 304"/>
-  <text x="239" y="333" text-anchor="middle">异常入口</text>
-  <text class="small" x="239" y="361" text-anchor="middle">保存用户寄存器，准备内核栈</text>
-  <path class="box" d="M574 303 L844 301 L846 383 L576 385 Z M578 305 L842 304"/>
-  <text x="710" y="333" text-anchor="middle">处理 write 等普通调用</text>
-  <text class="small" x="710" y="361" text-anchor="middle">保存的 sepc += 4，更新 a0</text>
-  <path class="box" d="M228 423 L575 421 L577 487 L226 489 Z M230 425 L573 424"/>
-  <text x="401" y="450" text-anchor="middle">装载下一应用</text>
-  <text class="small" x="401" y="476" text-anchor="middle">覆盖程序区域，建立新的用户上下文</text>
-  <path class="flow" d="M240 178 L239 298"/>
-  <text class="small" x="254" y="225">ecall / 应用异常</text>
-  <path class="flow" d="M388 343 L569 343"/>
-  <text class="small" x="422" y="327">普通系统调用</text>
-  <path class="flow" d="M710 298 L709 180"/>
-  <text class="small" x="725" y="225">恢复上下文，sret</text>
-  <path class="flow" d="M240 387 L240 416"/>
-  <text class="small" x="254" y="409">exit / 应用异常</text>
-  <path class="flow" d="M224 456 L62 455 L62 136 L88 136"/>
-  <text class="small" x="401" y="527" text-anchor="middle">批次结束：装载器检查应用数，内核结束运行</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="510" viewBox="0 0 880 510" role="img" aria-labelledby="title desc">
+  <title id="title">批处理装载与系统调用</title>
+  <desc id="desc">用户程序执行 ecall 或发生异常后进入内核。普通系统调用更新返回值并恢复原应用；退出和应用异常转到装载器，覆盖程序区域并建立下一应用的初始上下文。</desc>
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L8 5 L1 9" fill="none" stroke="context-stroke" stroke-width="1.7" stroke-linejoin="round"/></marker></defs>
+  <rect width="880" height="510" fill="#fafbf8"/>
+  <g font-family="'PingFang SC','Microsoft YaHei',sans-serif" font-size="18" fill="#243d35">
+    <text x="28" y="38" font-size="24" font-weight="600" fill="#243d35" text-anchor="start">系统调用与批次推进</text>
+    <rect x="28" y="65" width="824" height="145" rx="5" fill="#e4f0e6" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="44" y="94" font-size="18" font-weight="600" fill="#243d35" text-anchor="start">用户态</text>
+    <rect x="28" y="235" width="824" height="245" rx="5" fill="#edf0ec" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="44" y="264" font-size="18" font-weight="600" fill="#243d35" text-anchor="start">监督者模式</text>
+    <rect x="128" y="112" width="252" height="85" rx="5" fill="#e4f0e6" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="144" y="144" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">当前应用</text>
+    <text x="144" y="173" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">入口 0x80400000</text>
+    <rect x="528" y="112" width="296" height="85" rx="5" fill="#e4f0e6" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="544" y="144" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">继续执行原应用</text>
+    <text x="544" y="173" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">ecall 后的指令，a0 为结果</text>
+    <rect x="128" y="287" width="252" height="85" rx="5" fill="#f5f7f2" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="144" y="319" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">异常入口</text>
+    <text x="144" y="348" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">保存寄存器，切换内核栈</text>
+    <rect x="528" y="287" width="296" height="85" rx="5" fill="#f5f7f2" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="544" y="319" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">处理普通系统调用</text>
+    <text x="544" y="348" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">sepc += 4，写入返回值 a0</text>
+    <rect x="128" y="404" width="696" height="67" rx="5" fill="#f5eddc" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="144" y="436" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">装载下一应用</text>
+    <text x="144" y="465" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">覆盖程序区域，重新设置用户入口、栈与寄存器</text>
+    <path d="M254 197 V276" fill="none" stroke="#52675e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+    <text x="270" y="225" font-size="17" font-weight="400" fill="#52675e" text-anchor="start">ecall / 应用异常</text>
+    <path d="M380 329 H516" fill="none" stroke="#52675e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+    <text x="405" y="315" font-size="17" font-weight="400" fill="#52675e" text-anchor="start">普通调用</text>
+    <path d="M676 287 V209" fill="none" stroke="#52675e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+    <text x="692" y="231" font-size="17" font-weight="400" fill="#52675e" text-anchor="start">恢复寄存器</text>
+    <text x="692" y="255" font-size="17" font-weight="400" fill="#52675e" text-anchor="start">sret</text>
+    <path d="M254 372 V392" fill="none" stroke="#52675e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+    <text x="393" y="395" font-size="17" font-weight="400" fill="#52675e" text-anchor="start">exit / 应用异常</text>
+    <path d="M113 437 H92 V153 H116" fill="none" stroke="#52675e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+    <text x="30" y="503" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">批次结束时，装载器终止内核运行。</text>
+  </g>
 </svg>

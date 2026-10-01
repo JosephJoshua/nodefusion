@@ -32,6 +32,6 @@
 | 启动栈 | `[0x80202000, 0x80212000)` |
 | 清零区间 | `s_bss = e_bss = 0x80212000` |
 
-这次构建中 `s_bss` 与 `e_bss` 相等，`clean_bss` 的循环不会执行。进入 `main` 时 `sp = 0x80212000`，正好指向栈顶；调用 `clean_bss` 后栈指针向低地址移动。由此可以把链接脚本给出的地址与入口汇编、C 函数中的栈使用联系起来。
+`s_bss` 与 `e_bss` 相等，因此 `clean_bss` 的循环执行零次。进入 `main` 时 `sp = 0x80212000`，正好指向栈顶；调用 `clean_bss` 后，栈指针向低地址移动，为函数调用留出空间。
 
 [查看启动过程](../reports/ucoreos/ch1/2026a/ucore-2026A-ch1-verified.html) · [录制信息](../reports/ucoreos/ch1/2026a/recording.json)

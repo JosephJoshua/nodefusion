@@ -1,35 +1,41 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 480" role="img" aria-labelledby="title desc">
-  <title id="title">第一章启动过程与内存布局</title>
-  <desc id="desc">固件进入内核汇编，汇编设置启动栈并调用主函数。主函数清零普通BSS，再输出并终止。启动栈位于清零区间之前，栈向低地址增长。</desc>
-  <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M1 1 L8 5 L1 9" fill="none" stroke="#365b51" stroke-width="1.8"/></marker></defs>
-  <rect width="900" height="480" rx="8" fill="#fafbf8"/>
-  <g font-family="'PingFang SC','Microsoft YaHei',sans-serif" fill="#273c35">
-    <text x="32" y="40" font-size="22" font-weight="600">先建立栈，再进入主函数</text>
-    <g fill="none" stroke="#365b51" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M34 74 L232 76 L230 144 L35 145 Z M37 77 L230 73"/>
-      <path d="M300 74 L528 75 L530 145 L300 143 Z M303 77 L527 72"/>
-      <path d="M597 75 L863 74 L865 144 L598 146 Z M600 77 L862 72"/>
-      <path d="M242 110 Q269 107 290 109" marker-end="url(#arrow)"/>
-      <path d="M541 110 Q564 112 585 109" marker-end="url(#arrow)"/>
-      <path d="M116 207 L116 431" marker-end="url(#arrow)"/>
-      <path d="M233 205 L626 207 L625 272 L234 270 Z"/>
-      <path d="M234 272 L625 271 L627 374 L233 375 Z M236 274 L623 270"/>
-      <path d="M234 375 L627 374 L625 435 L232 436 Z"/>
-      <path d="M586 356 L586 293" marker-end="url(#arrow)"/>
-      <path d="M626 375 L640 375"/>
-    </g>
-    <text x="60" y="116" font-size="18">OpenSBI 固件</text>
-    <text x="320" y="104" font-size="18">汇编入口 0x80200000</text>
-    <text x="320" y="130" font-size="16">设置 sp，调用主函数</text>
-    <text x="620" y="103" font-size="18">Rust / C 主函数</text>
-    <text x="620" y="130" font-size="16">清零 → 输出 → 终止</text>
-    <text x="34" y="190" font-size="16">地址增加</text>
-    <text x="254" y="246" font-size="18">代码、只读数据、可写数据</text>
-    <text x="254" y="314" font-size="18">启动栈，预留 64 KiB</text>
-    <text x="254" y="345" font-size="16">函数调用时向低地址增长</text>
-    <text x="645" y="373" font-size="16">初始 sp = 栈顶</text>
-    <text x="254" y="411" font-size="18">普通 BSS 与对齐填充</text>
-    <text x="701" y="416" font-size="16">清零区间</text>
-    <text x="32" y="465" font-size="14">机制示意；各段长度与 BSS 是否为空，按具体 ELF 的链接符号核对。</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="550" viewBox="0 0 880 550" role="img" aria-labelledby="title desc">
+  <title id="title">启动过程与内存布局</title>
+  <desc id="desc">OpenSBI 将执行权交给 0x80200000。入口汇编设置启动栈，再调用主函数。内存按代码、只读数据、可写数据、启动栈、普通 BSS 排列。栈从栈顶向低地址增长，普通 BSS 从栈顶之后向高地址清零。</desc>
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L8 5 L1 9" fill="none" stroke="context-stroke" stroke-width="1.7" stroke-linejoin="round"/></marker></defs>
+  <rect width="880" height="550" fill="#fafbf8"/>
+  <g font-family="'PingFang SC','Microsoft YaHei',sans-serif" font-size="18" fill="#243d35">
+    <text x="28" y="38" font-size="24" font-weight="600" fill="#243d35" text-anchor="start">启动过程</text>
+    <text x="28" y="69" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">入口汇编准备栈，主函数初始化内核</text>
+    <rect x="28" y="96" width="250" height="85" rx="5" fill="#f5f7f2" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="44" y="128" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">OpenSBI</text>
+    <text x="44" y="157" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">进入监督者模式</text>
+    <rect x="315" y="96" width="250" height="85" rx="5" fill="#e4f0e6" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="331" y="128" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">入口 0x80200000</text>
+    <text x="331" y="157" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">sp ← boot_stack_top</text>
+    <rect x="602" y="96" width="250" height="85" rx="5" fill="#f5f7f2" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="618" y="128" font-size="20" font-weight="600" fill="#243d35" text-anchor="start">主函数</text>
+    <text x="618" y="157" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">清零 BSS → 输出 → 关机</text>
+    <path d="M278 138 H303" fill="none" stroke="#52675e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+    <path d="M565 138 H590" fill="none" stroke="#52675e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+    <text x="28" y="226" font-size="22" font-weight="600" fill="#243d35" text-anchor="start">内存布局</text>
+    <text x="30" y="264" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">低地址</text>
+    <text x="30" y="506" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">高地址</text>
+    <path d="M78 281 V475" fill="none" stroke="#52675e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+    <rect x="182" y="250" width="414" height="44" rx="0" fill="#f5f7f2" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="202" y="279" font-size="19" font-weight="600" fill="#243d35" text-anchor="start">.text  代码</text>
+    <rect x="182" y="294" width="414" height="44" rx="0" fill="#f5f7f2" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="202" y="323" font-size="19" font-weight="600" fill="#243d35" text-anchor="start">.rodata  只读数据</text>
+    <rect x="182" y="338" width="414" height="44" rx="0" fill="#f5f7f2" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="202" y="367" font-size="19" font-weight="600" fill="#243d35" text-anchor="start">.data  可写数据</text>
+    <rect x="182" y="382" width="414" height="72" rx="0" fill="#e4f0e6" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="202" y="411" font-size="19" font-weight="600" fill="#243d35" text-anchor="start">启动栈  64 KiB</text>
+    <rect x="182" y="454" width="414" height="64" rx="0" fill="#f5eddc" stroke="#8a9d92" stroke-width="1.4"/>
+    <text x="202" y="483" font-size="19" font-weight="600" fill="#243d35" text-anchor="start">普通 BSS</text>
+    <path d="M553 433 V398" fill="none" stroke="#376649" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+    <path d="M596 454 H622" fill="none" stroke="#52675e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="634" y="449" font-size="18" font-weight="600" fill="#243d35" text-anchor="start">boot_stack_top</text>
+    <text x="634" y="475" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">初始 sp</text>
+    <text x="634" y="402" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">栈向低地址增长</text>
+    <text x="634" y="511" font-size="18" font-weight="400" fill="#52675e" text-anchor="start">BSS 向高地址清零</text>
   </g>
 </svg>

@@ -333,7 +333,7 @@ python -m nodefusion.tools.crosscheck_watchsel \
   /path/to/kernel.elf nodefusion/manifests/mykernel.toml
 ```
 
-`empty_rules` 表示整条规则没有匹配对象；`no_address` 表示 DWARF 中存在函数信息，当前 ELF 没有可武装的入口地址。优化导致函数只剩内联实例时，可以针对必要规则设置 `inlined = true`，随后复查每个生成地址的语义。
+`empty_rules` 表示整条规则没有匹配对象；`no_address` 表示 DWARF 中存在函数信息，但当前 ELF 没有可设置观察点的入口地址。优化导致函数只剩内联实例时，可以针对必要规则设置 `inlined = true`，检查生成的地址是否对应目标操作。
 
 高频入口会增加轨迹体积。先录制一趟不抽样的短 workload，统计各入口的命中次数，再决定 `skip` 或 `throttle`。`throttle = N` 用于 `snapshot = "none"` 的普通观察点，每 N 次命中保留一条事件。相关计数会标为 sampled，依赖这些事件的指标也不会显示为精确值。带 `always` 或 `event` 快照的观察点使用各自的快照策略，不应用这项事件抽样。
 
@@ -497,7 +497,7 @@ python -m nodefusion.host.cli record \
   --name mykernel-fs
 ```
 
-这类运行只用于验证所选子系统。全覆盖运行仍需武装覆盖清单中适用的全部观察点。
+子系统验证启用所选观察点；完整验证启用覆盖清单中的全部适用观察点。
 
 ## 验证每一种构建
 
@@ -537,7 +537,7 @@ python -m nodefusion.host.cli audit \
   --json > /tmp/mykernel-smoke.coverage.json
 ```
 
-`audit` 退出码为零且 JSON 中 `complete` 为 true，才表示该次运行的所有适用项完整。这个结论只覆盖当前 ELF 和 workload。
+`audit` 检查本次运行的实体、关系和事件。检查通过时退出码为零，JSON 中的 `complete` 为 true。
 
 再运行报告数据、产物写入和覆盖证据测试：
 
@@ -585,7 +585,7 @@ python -m nodefusion.host.cli render \
   --event-stream always
 ```
 
-`auto` 模式会在预计文件超过 256 MiB 或磁盘余量不足时跳过 JSONL。HTML 为交互性能保留抽样事件时，bundle 中会记录原始数、保留数和抽样方法。事件总数和精确指标仍以二进制轨迹及分析结果为准。
+`auto` 模式会在预计文件超过 256 MiB 或磁盘余量不足时跳过 JSONL。HTML 抽样显示事件时，bundle 会记录原始数、保留数和抽样方法；事件总数和统计指标使用完整轨迹计算。
 
 本机已有多份运行记录时，可以执行 corpus 测试：
 
@@ -619,7 +619,7 @@ NF_CORPUS_MAX_TRACE_MIB=0 \
 - 保存的覆盖 JSON、ELF、轨迹和 HTML 校验和能够重新核对；
 - 普通测试与 corpus 测试通过。
 
-一份 manifest 覆盖多个章节时，逐章保存 audit JSON。一个面向多种 feature 或架构的内核同样逐配置保存。所有行通过后，才能把这份 manifest 视为覆盖了清单中的完整内核家族。
+一份 manifest 支持多个章节时，逐章保存 audit JSON；支持多种 feature 或架构时，逐配置保存。覆盖清单记录各构建的检查结果。
 
 ## 排查常见问题
 

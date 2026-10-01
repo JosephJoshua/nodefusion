@@ -46,6 +46,27 @@ html.js:not(.sidebar-resizing) .page-wrapper { transition: none; }
 .content p { margin-block: 1.25rem; }
 .content img { width: 100%; height: auto; }
 .content a:has(> img) { display: block; }
+.figure-link { position: relative; cursor: zoom-in; text-decoration: none; }
+.figure-zoom-label { display: block; text-align: right; font-size: .85em; line-height: 1.5; padding: .3rem 0; }
+.figure-link:focus-visible { outline: 2px solid var(--links); outline-offset: 3px; }
+.figure-viewer { width: min(1200px, 96vw); height: 92dvh; max-width: 96vw; max-height: 92dvh; padding: 0; border: 1px solid var(--table-border-color); border-radius: 6px; color: var(--fg); background: var(--bg); }
+.figure-viewer::backdrop { background: oklch(20% .015 160 / .65); }
+.figure-viewer[open] { display: flex; flex-direction: column; }
+.figure-viewer-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; padding: .8rem 1rem; border-bottom: 1px solid var(--table-border-color); }
+.figure-viewer-toolbar strong { margin-right: auto; font-size: 1.6rem; flex: 1 1 18rem; }
+.figure-viewer-toolbar button { min-height: 40px; padding: .3rem .7rem; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--table-border-color); border-radius: 4px; cursor: pointer; }
+.figure-viewer-toolbar button:hover { background: var(--theme-hover); }
+.figure-viewer-toolbar button:disabled { opacity: .5; cursor: default; }
+.figure-viewer-toolbar button:focus-visible, .figure-viewport:focus-visible { outline: 2px solid var(--links); outline-offset: -2px; }
+.figure-viewer-toolbar output { min-width: 4rem; text-align: center; font-variant-numeric: tabular-nums; }
+.figure-viewport { flex: 1; min-height: 0; overflow: auto; padding: 12px; background: oklch(96% .006 160); overscroll-behavior: contain; }
+.figure-viewport img { display: block; max-width: none; margin: auto; }
+@media (max-width: 600px) {
+  .figure-viewer-toolbar { gap: .4rem; padding: .6rem; }
+  .figure-viewer-toolbar strong { flex-basis: 100%; }
+  .figure-viewer-toolbar button { font-size: 1.4rem; }
+}
+@media print { .figure-zoom-label, .figure-viewer { display: none !important; } }
 .content table { display: block; overflow-x: auto; font-size: .95em; }
 .content th, .content td { padding: .75rem 1rem; }
 .content th { background: var(--table-header-bg); font-weight: 600; }

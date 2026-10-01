@@ -14,7 +14,7 @@
 
 线程调用 `exit` 时，`freethread` 解除该线程的用户栈和异常上下文映射，退出码保存在槽中，状态改为 `EXITED`。`waittid` 不阻塞：目标未退出时返回 -2；已退出时读取退出码、清空线程槽，使 TID 可以复用。编号无效、槽位未占用或等待自身时返回 -1。
 
-`fork` 创建子进程后只建立主线程，复制父进程主线程的异常上下文。源码没有检查调用 `fork` 的是否为主线程；理解这条路径时，应注意它固定读取 `threads[0]`。
+`fork` 创建子进程后只建立主线程，固定从父进程的 `threads[0]` 复制异常上下文。其他线程调用 `fork` 时，这条路径也会复制主线程的上下文。
 
 ## 调度、阻塞与唤醒
 
@@ -44,6 +44,6 @@
 
 课程批次以 `ch8b_usertest` 启动，包含 23 项测试。`ch8b_mut_race` 让 15 个工作线程各为共享计数器加 100，最后检查 1500。这一结果可以和阻塞锁的等待队列、解锁时的直接交接对照。
 
-报告中还能沿 `sys_thread_create → allocthread` 看新线程入队，沿 `semaphore_down`、`cond_wait` 查看线程睡眠，再由解锁或通知回到可运行状态。`waittid` 的重复调用体现了“尚未退出就返回 -2”的接口行为，而非内核把调用者放入等待队列。
+报告中还能沿 `sys_thread_create → allocthread` 看新线程入队，沿 `semaphore_down`、`cond_wait` 查看线程睡眠，再由解锁或通知回到可运行状态。目标线程尚未退出时，`waittid` 返回 -2，调用者继续运行并重试。
 
 [查看线程与同步过程](../reports/ucoreos/ch8/2026a/ucore-2026A-ch8-basic-observed.html) · [录制信息](../reports/ucoreos/ch8/2026a/recording.json)

@@ -54,7 +54,7 @@
       }
       const node = doc.createElement('div');
       node.className = 'node active';
-      node.innerHTML = '<svg viewBox="0 0 220 108" preserveAspectRatio="none" aria-hidden="true"><path d="M3 4 L216 3 L217 104 L4 103 Z M5 6 L213 5 L218 101"/></svg>';
+      node.innerHTML = '<svg viewBox="0 0 220 108" preserveAspectRatio="none" aria-hidden="true"><path d="M8 4 H212 Q216 4 216 8 V100 Q216 104 212 104 H8 Q4 104 4 100 V8 Q4 4 8 4 Z"/></svg>';
       const heading = doc.createElement('strong');
       const caption = doc.createElement('span');
       heading.textContent = title;

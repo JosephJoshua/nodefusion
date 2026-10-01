@@ -3,10 +3,10 @@
 .toolbar { justify-content: space-between; }
 .step-panel output { min-width: 3rem; text-align: center; font-variant-numeric: tabular-nums; }
 .sync-workspace { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(17rem, .8fr); gap: 1rem; margin-top: .8rem; align-items: start; }
-.scene, .step-panel { min-width: 0; border: 1.5px solid var(--line); background: #fffefa; border-radius: .55rem; padding: 1.2rem; }
+.scene, .step-panel { min-width: 0; padding: .6rem 0; }
 .scene { display: flex; flex-direction: column; justify-content: center; gap: .85rem; }
 .thread-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .65rem; }
-.thread-card, .resource-card { border: 2px solid #7496a0; border-radius: .5rem; min-height: 6.2rem; padding: .75rem; background: #f4f8f7; display: flex; flex-direction: column; justify-content: center; gap: .25rem; box-shadow: 2px 3px 0 #d8e4e0; }
+.thread-card, .resource-card { border: 1.4px solid #8a9d92; border-radius: .3rem; min-height: 6.2rem; padding: .75rem; background: #f5f7f2; display: flex; flex-direction: column; justify-content: center; gap: .25rem; }
 .thread-card strong { font-size: 1.05rem; }
 .thread-card span { color: var(--muted); line-height: 1.4; font-size: .875rem; }
 .thread-card[data-state="running"] { border-color: #2f7861; background: #e2f1e4; }
@@ -22,7 +22,7 @@
 .source { margin: .8rem 0 0; }
 @media (max-width: 760px) {
   .sync-workspace { grid-template-columns: 1fr; gap: .6rem; }
-  .scene, .step-panel { padding: .8rem; }
+  .scene, .step-panel { padding: .4rem 0; }
   .thread-card { min-height: 5rem; padding: .45rem; }
   .resource-card { min-height: 4.6rem; padding: .45rem; }
   .step-panel h2 { font-size: 1.12rem; }
@@ -35,7 +35,6 @@
   .step-panel .navigation { width: 100%; justify-content: space-between; }
   .thread-card strong { font-size: .85rem; }
   .thread-card span, .resource-card span, .resource-card strong { font-size: .75rem; }
-  .thread-card, .resource-card { box-shadow: 1px 2px 0 #d8e4e0; }
   .step-panel p { font-size: .875rem; }
   .source { font-size: .75rem; }
 }

@@ -30,8 +30,8 @@ button:hover:not(:disabled), select:hover { background: var(--selected); }
 .node strong, .node span { position: relative; }
 .node strong { font-size: 1rem; }
 .node span { font-size: .8rem; overflow-wrap: anywhere; }
-.node path { fill: var(--paper); stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-.node.active path { fill: var(--selected); stroke: var(--accent); stroke-width: 2.5; }
+.node path { fill: var(--paper); stroke: var(--muted); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.node.active path { fill: var(--selected); stroke: var(--accent); stroke-width: 1.8; }
 .edge { color: var(--muted); text-align: center; }
 .edge.active { color: var(--accent); font-weight: 700; }
 .step-copy { margin-top: .65rem; }
