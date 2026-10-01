@@ -36600,8 +36600,8 @@
       "trace.nfb": 35368417,
       "kernel_elf": 6838528
     },
-    "html_sha256": "e02a366903c0b553bb788602faf3cc9bbe9497fe49fe4959729846c55064796d",
-    "html_bytes": 1134432,
+    "html_sha256": "6201140941bc4ef33ea4a29355ec483b6a1dbce826bb2e51830a2d16bf9cf1ba",
+    "html_bytes": 1150027,
     "function_trace": {
       "kind": "return-matched observed frames",
       "raw": 88106,
