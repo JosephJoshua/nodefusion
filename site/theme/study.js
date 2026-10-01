@@ -235,9 +235,12 @@
     }
   }
   function escape(event) {
-    // The report's detail dialog handles its own Escape before the workspace.
+    // Let the embedded inspector handle Escape before its containing workspace.
     const owner = event.target?.ownerDocument;
-    if (owner && owner !== document && owner.body.classList.contains('detail-modal')) return;
+    if (owner && owner !== document) {
+      const inspector = owner.querySelector('.right');
+      if (inspector?.getClientRects().length && !inspector.querySelector('.detail-empty')) return;
+    }
     if (event.key === 'Escape' && !event.defaultPrevented && !panel.hidden) {
       event.preventDefault();
       hide();

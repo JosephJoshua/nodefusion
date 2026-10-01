@@ -32,9 +32,12 @@ async (page) => {
     });
     check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `No page overflow at ${width}`);
     const code = page.locator('#detail .source-code');
-    check(await code.evaluate(node => node.clientHeight) >= 180, `Usable code viewport at ${width}`);
+    check(await code.evaluate(node => node.clientHeight) >= (width <= 850 ? 100 : 180), `Usable code viewport at ${width}`);
     if (width <= 850) {
-      check(await page.locator('.right').evaluate(node => Math.abs(node.getBoundingClientRect().top) < 1 && node.clientHeight === innerHeight), 'Full-height mobile inspector');
+      check(await page.locator('.left').evaluate(node => !node.inert && node.clientHeight >= 120), 'List remains usable beside the inspector');
+      check(await page.locator('#detail .debug-frame-picker').isVisible(), 'Frame selection stays alongside source');
+      await page.locator('#expand-detail').click();
+      check(await page.locator('.right').evaluate(node => Math.abs(node.getBoundingClientRect().top) < 1 && node.clientHeight === innerHeight), 'Explicit expansion opens full-height inspector');
       await page.locator('#detail .detail-tabs [data-view=stack]').click();
       check(await page.locator('#detail .debug-stack').isVisible(), 'Stack gets its own view');
       await page.locator('#detail .debug-frame').first().click();
@@ -42,9 +45,22 @@ async (page) => {
       await code.evaluate(node => { node.scrollTop = node.scrollHeight; });
       check(await page.locator('#close-mobile-detail').evaluate(node => node.getBoundingClientRect().top >= 0 && node.getBoundingClientRect().bottom < 70), 'Back stays visible after code scroll');
       await page.keyboard.press('Escape');
+      check(await page.locator('.left').evaluate(node => !node.inert), 'Escape restores the dock');
+      await page.keyboard.press('Escape');
       check(!(await page.locator('.right').isVisible()), 'Escape returns to event list');
       check(!(await page.locator('.left').evaluate(node => node.inert)), 'List is usable after return');
     }
+  }
+  for (const width of [1440, 1024]) {
+    await page.setViewportSize({width, height: 720});
+    await page.reload();
+    await page.locator('#app').waitFor({state:'visible'});
+    await page.evaluate(() => {
+      const run = NF.runs[0];
+      window.nfExport.gotoEvent(run.events.pc.findIndex(pc => run.source?.locations?.[hex(pc)]?.some(loc => loc.file != null && loc.line > 0)));
+    });
+    await page.locator('#detail .detail-tabs [data-view=source]').click();
+    check(await page.locator('#detail .source-code').evaluate(node => node.clientHeight >= 120 && node.getBoundingClientRect().bottom <= innerHeight + 1), `Code stays inside laptop viewport at ${width}`);
   }
   await page.setViewportSize({width: 844, height: 390});
   await page.reload();
@@ -56,6 +72,7 @@ async (page) => {
       run.source?.locations?.[hex(pc)]?.some(loc => loc.file != null)));
   });
   await page.locator('#detail .detail-tabs [data-view=source]').click();
+  await page.locator('#expand-detail').click();
   check(await page.locator('#detail .source-code').evaluate(node => node.clientHeight) >= 100,
     'Landscape phone has a usable code viewport');
   await page.locator('#detail .source-tools-toggle').click();

@@ -1,0 +1,62 @@
+async page => {
+  const check = (value, label) => { if (!value) throw new Error(label); };
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.setViewportSize({width: 1440, height: 900});
+  await page.reload();
+  await page.locator('#app').waitFor({state: 'visible'});
+  await page.locator('nav.tabs [data-tab=functions]').click();
+  const capability = page.locator('.cap-disclosure');
+  if (await capability.count()) await capability.evaluate(node => { node.open = true; });
+  await page.locator('.function-sequence').evaluate(node => { node.scrollTop = 2000; node._paint(); });
+  const before = await page.locator('.function-sequence').evaluate(node => node.scrollTop);
+  check(before === 2000, 'Exercise a scrolled real-kernel entry list');
+  const entry = page.locator('.sequence-node').nth(6);
+  const index = await entry.getAttribute('data-event-index');
+  await entry.evaluate(node => { window.selectedEntryNode = node; node.click(); });
+  check(await page.locator('.function-sequence').evaluate(node => node.scrollTop) === before, 'Selection preserves entry-list scroll');
+  check(await page.evaluate(() => window.selectedEntryNode.isConnected), 'Selection preserves the actual selected row');
+  await page.getByRole('button', {name: '上一帧', exact: true}).click();
+  if (await capability.count()) {
+    check(await capability.evaluate(node => node.open), 'Capture information stays open across navigation');
+    await capability.evaluate(node => { node.open = false; });
+  }
+  await page.locator('nav.tabs [data-tab=metrics]').click();
+  await page.locator('nav.tabs [data-tab=functions]').click();
+  check(await page.locator('.function-sequence').evaluate(node => node.scrollTop) === before, 'Time changes and view return preserve entry position');
+  check(await page.locator('.sequence-node').count() < 101, 'Large entry list is virtualized');
+  check(await page.locator('#panel-functions').evaluate(node => node.scrollHeight <= node.clientHeight + 1), 'No nested outer scrollbar');
+  await page.locator('#function-grouping').selectOption('namespace');
+  const branch = page.locator('.function-tree [aria-expanded]').first();
+  if (await branch.getAttribute('aria-expanded') === 'false') await branch.click();
+  const label = await branch.getAttribute('title');
+  await page.getByRole('button', {name: '上一帧', exact: true}).click();
+  check(await page.locator('.function-tree [aria-expanded]').first().getAttribute('title') === label, 'Hierarchy survives redraw');
+  check(await page.locator('.function-tree [aria-expanded]').first().getAttribute('aria-expanded') === 'true', 'Expanded hierarchy survives redraw');
+  check(await page.evaluate(() => readableSymbol('_$LT$os..console..Stdout$u20$as$u20$core..fmt..Write$GT$::write_str')) === '<os::console::Stdout as core::fmt::Write>::write_str', 'Rust trait names are readable');
+  await page.locator('nav.tabs [data-tab=events]').click();
+  await page.locator('#evscroll').evaluate(node => { node.scrollTop = 5000; node._paint(); });
+  await page.evaluate(index => selectEvent(Number(index)), index);
+  await page.locator('nav.tabs [data-tab=procs]').click();
+  await page.locator('nav.tabs [data-tab=events]').click();
+  check(await page.locator('#evscroll').evaluate(node => node.scrollTop) === 5000, 'Event position survives inspection and view return');
+  await page.evaluate(() => {
+    const run = NF.runs[0];
+    const i = run.events.pc.findIndex(pc => run.source?.locations?.[hex(pc)]?.some(loc => loc.file != null && loc.line > 0));
+    if (i < 0) throw new Error('No mapped source event');
+    selectEvent(i);
+  });
+  await page.setViewportSize({width:390, height:844});
+  await page.locator('#detail .detail-tabs [data-view=source]').click();
+  check(await page.locator('.left').evaluate(node => !node.inert && node.clientHeight >= 120), 'Dock leaves list usable');
+  check(await page.locator('#detail .source-code').evaluate(node => node.clientHeight >= 100), 'Dock leaves usable source');
+  const top = await page.locator('#evscroll').evaluate(node => node.scrollTop);
+  await page.locator('#expand-detail').click();
+  check(await page.evaluate(() => document.body.classList.contains('detail-modal')), 'Only explicit expansion is modal');
+  await page.keyboard.press('Escape');
+  check(await page.locator('#evscroll').evaluate(node => node.scrollTop) === top, 'Restoring dock preserves list position');
+  await page.keyboard.press('Escape');
+  check(await page.locator('.left').evaluate(node => !node.inert), 'Closing inspector restores navigation');
+  check(!errors.length, errors.join('\n'));
+  return 'Report context and scrolling preserved';
+}

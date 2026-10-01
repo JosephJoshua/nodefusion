@@ -31,6 +31,11 @@ async (page) => {
       if (sourceEvent < 0) throw new Error('No recorded event with embedded source');
       await page.locator('#detail .detail-tabs [data-view="source"]').click();
       await page.locator('#detail .source-code').waitFor({state: 'visible'});
+      const usable = await page.locator('#detail .source-code').evaluate(node =>
+        node.clientHeight >= (innerWidth <= 850 ? 80 : 120) && node.getBoundingClientRect().bottom <= innerHeight + 1);
+      if (!usable) failures.push(`${current}: source viewport is clipped or too small`);
+      if (await page.evaluate(() => innerWidth <= 850 && (document.querySelector('.left').inert || document.querySelector('.left').clientHeight < 100)))
+        failures.push(`${current}: inspector hides the navigator`);
       if (await page.evaluate(() => innerWidth <= 850))
         await page.locator('#close-mobile-detail').click();
       if (await page.locator('#panel-events .result-nav').count() !== 1)
@@ -39,10 +44,30 @@ async (page) => {
         failures.push(`${current}: duplicate search input`);
       const info = await page.evaluate(() => window.nfExport?.info());
       if (!info || !info.outcome) failures.push(`${current}: report did not expose run information`);
+      const states = await page.evaluate(() => {
+        const tabs = [...document.querySelectorAll('nav.tabs button[data-tab]')].map(node => node.dataset.tab);
+        return tabs.map(tab => {
+          setTab(tab);
+          const panel = document.querySelector('.panel.on');
+          panel.scrollTop = Math.min(200, panel.scrollHeight - panel.clientHeight);
+          const top = panel.scrollTop;
+          render();
+          const owners = [panel, ...panel.querySelectorAll('*')].filter(node =>
+            node.scrollHeight > node.clientHeight + 2 && ['auto','scroll'].includes(getComputedStyle(node).overflowY));
+          const nested = owners.some(node => owners.some(parent => parent !== node && parent.contains(node)));
+          return {tab, same: panel.scrollTop === top, overflow: document.documentElement.scrollWidth > innerWidth + 1, nested};
+        });
+      });
+      for (const state of states) {
+        if (!state.same) failures.push(`${current}: ${state.tab} redraw lost scroll`);
+        if (state.overflow) failures.push(`${current}: ${state.tab} page overflow`);
+        if (state.nested) failures.push(`${current}: ${state.tab} nested scroll owners`);
+      }
     } catch (error) {
       failures.push(`${current}: ${error.message}`);
     }
   }
   if (failures.length) throw new Error(failures.join('\n'));
   if (catalog.reports.length !== 39) throw new Error(`Expected 39 reports, found ${catalog.reports.length}`);
+  return `All ${catalog.reports.length} reports and their views passed`;
 }

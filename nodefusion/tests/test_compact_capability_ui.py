@@ -49,7 +49,20 @@ def test_report_has_global_find_and_collapsed_secondary_filters():
 
 def test_mobile_detail_is_closable_without_scrolling_to_page_end():
     css = (ASSETS / "app.css").read_text(encoding="utf-8")
-    assert "position: fixed; z-index: 20; inset: 0" in css
+    assert ".right.inspector-expanded { position: fixed; inset: 0" in css
     assert "height: 100dvh" in css
     assert ".debugger[data-mobile-view=source] .debug-stack" in css
     assert ".right:has(.detail-empty) { display: none; }" in css
+    assert "height: var(--detail-height, 55%)" in css
+    assert ".debug-frame-picker { display: block" in css
+
+
+def test_functions_use_one_navigator_and_preserve_selection():
+    js = (ASSETS / 'app.js').read_text()
+    assert "new Option('入口顺序', 'entries')" in js
+    assert "new Option('调用路径', 'stack')" in js
+    assert 'p._refresh = () =>' in js
+    assert 'NF.functionEventIndices = filtered.map' in js
+    assert "row.onclick = () => selectEvent(event.i)" in js
+    assert 'const frameViews = new Map()' in js
+    assert 'saveScrollPositions()' in js

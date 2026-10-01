@@ -9,7 +9,7 @@ import subprocess
 import zlib
 from pathlib import Path, PureWindowsPath
 
-from ..model.symbols import display_name, display_dwarf_name
+from ..model.symbols import display_dwarf_name
 
 
 def llvm_tool(name: str) -> str | None:
@@ -32,12 +32,11 @@ def full_names(symbols: list[str]) -> list[str]:
                                     capture_output=True, check=True, timeout=60)
             names = result.stdout.splitlines()
             if len(names) == len(symbols):
-                return [re.sub(r"::h[0-9a-f]{16}$", "", name) if raw.startswith(("_ZN", "_R")) and name != raw
-                        else name if name != raw else display_name(raw)
+                return [display_dwarf_name(name if name != raw else raw)
                         for raw, name in zip(symbols, names)]
         except (OSError, subprocess.SubprocessError):
             pass
-    return [display_name(raw) for raw in symbols]
+    return [display_dwarf_name(raw) for raw in symbols]
 
 
 def resolve_file(filename: str, roots: list[Path], maps: list[tuple[str, str]]) -> Path | None:

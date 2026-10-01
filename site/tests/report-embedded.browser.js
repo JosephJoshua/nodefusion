@@ -14,8 +14,10 @@ async (page) => {
     win.nfExport.gotoEvent(i);
   });
   await report.locator('#detail [data-view=source]').click();
-  if (await report.locator('#detail .source-code').evaluate(node => node.clientHeight) < 180)
+  if (await report.locator('#detail .source-code').evaluate(node => node.clientHeight) < 80)
     throw new Error('Embedded mobile source viewport is too small');
+  if (await report.locator('.left').evaluate(node => node.inert || node.clientHeight < 100))
+    throw new Error('Embedded inspector hides the report navigator');
   await report.locator('#detail .source-code').focus();
   await page.keyboard.press('Escape');
   if (await report.locator('.right').isVisible()) throw new Error('First Escape did not close inspector');

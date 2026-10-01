@@ -66,12 +66,11 @@ async (page) => {
   await frame.locator('#panel-functions.on').waitFor();
   const selectedPath = await choices.inputValue();
   await frame.locator('#function-search').fill('walkaddr');
-  await frame.locator('#function-limit').selectOption('40');
   await frame.locator('#function-grouping').selectOption('caller');
   await frame.getByRole('button', {name: '上一帧', exact: true}).click();
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   check(await frame.locator('#function-search').inputValue() === 'walkaddr', 'Timeline change retains function search');
-  check(await frame.locator('#function-limit').inputValue() === '40', 'Timeline change retains entry limit');
+  check(await frame.locator('.trace-panel:not([hidden])').count() === 1, 'One navigator remains active');
   check(await frame.locator('#function-grouping').inputValue() === 'caller', 'Timeline change retains grouping');
   await page.getByRole('button', {name: '返回正文', exact: true}).click();
   await page.setViewportSize({width: 390, height: 844});
@@ -79,9 +78,8 @@ async (page) => {
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   check(await choices.inputValue() === selectedPath, 'Narrow screen resumes the chosen workload');
   check(await frame.locator('#function-search').inputValue() === 'walkaddr', 'Narrow screen retains its report filter');
-  check(await frame.locator('#function-limit').inputValue() === '40', 'Narrow screen retains entry limit');
   check(await frame.locator('#function-grouping').inputValue() === 'caller', 'Narrow screen retains grouping');
   await frame.locator('#function-search').fill('uvmunmap');
-  check(await frame.locator('.trace-panel').first().evaluate(el => el.getBoundingClientRect().height < 200), 'A short filtered tree does not reserve a blank screen on mobile');
+  check(await frame.locator('#panel-functions').evaluate(el => el.scrollHeight <= el.clientHeight + 1), 'Navigator has no outer scrollbar');
   await page.getByRole('button', {name: '返回正文', exact: true}).click();
 }

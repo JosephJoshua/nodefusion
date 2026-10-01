@@ -6,7 +6,7 @@ const NF = {
   playing: false,
   speed: 260,
   loop: false,
-  detailOpen: true,
+  detailOpen: false,
   tab: 'overview',
   selEvent: null,
   selPage: null,
@@ -16,6 +16,9 @@ const NF = {
   functionFocusIndex: null,
   sourceSelection: {event: null, frame: 0, inline: 0},
   advancedFiltersOpen: false,
+  scrollPositions: new Map(),
+  inspectorExpanded: false,
+  inspectorStates: new Map(),
 };
 
 
@@ -108,7 +111,25 @@ function evGet(run, i) {
 }
 
 function functionName(run, id, full = false) {
-  return (full ? run.dict.full_funcs?.[id] : null) || run.dict.funcs[id] || '';
+  return readableSymbol((full ? run.dict.full_funcs?.[id] : null) || run.dict.funcs[id] || '');
+}
+
+function readableSymbol(name) {
+  if (!name.includes('$')) return name;
+  const escapes = {SP:'@', BP:'*', RF:'&', LT:'<', GT:'>', LP:'(', RP:')', C:','};
+  return name.replace(/(^|::)_\$/g, '$1$').replace(/\$([^$]+)\$/g, (raw, code) => {
+    if (escapes[code]) return escapes[code];
+    if (!/^u[0-9a-f]+$/.test(code)) return raw;
+    const value = parseInt(code.slice(1), 16);
+    return value >= 32 && value <= 0x10ffff && !(value >= 0x7f && value < 0xa0) && !(value >= 0xd800 && value <= 0xdfff)
+      ? String.fromCodePoint(value) : raw;
+  }).replaceAll('..', '::').replace(/::h[0-9a-f]{16}$/, '');
+}
+
+function kindName(run, kind) {
+  if (!kind.startsWith('func.')) return kind;
+  const symbol = kind.slice(5);
+  return 'func.' + (run._readableFunctions?.get(symbol) || readableSymbol(symbol));
 }
 
 function compactFunction(name) {
@@ -150,12 +171,15 @@ function renderDebugger(run, i, host, navigate) {
   const label = el('strong', null, `CPU ${run.events.cpu[i]} · ${fmtInsn(run.events.insn[i])}`);
   toolbar.appendChild(label);
   if (navigate) {
+    const navigationButtons = [];
     for (const [delta, text] of [[-1, '上一事件'], [1, '下一事件']]) {
       const button = el('button', 'secondary-control', text);
       button.type = 'button'; button.disabled = !navigate.available(delta);
       button.dataset.debugNav = String(delta);
       button.onclick = () => navigate.go(delta); toolbar.appendChild(button);
+      navigationButtons.push([button, delta]);
     }
+    host._updateNavigation = () => navigationButtons.forEach(([button, delta]) => { button.disabled = !navigate.available(delta); });
   }
   host.appendChild(toolbar);
   const body = el('div', 'debug-body');
@@ -212,18 +236,43 @@ function renderDebugger(run, i, host, navigate) {
     splitter.setAttribute('aria-valuemax', String(Math.round((vertical() ? body.clientHeight : body.clientWidth) / 2)));
   });
   const buttons = [];
+  const frameViews = new Map();
+  let activeFrame = null;
+  const framePicker = el('select', 'debug-frame-picker');
+  framePicker.setAttribute('aria-label', '选择栈帧');
+  frames.forEach((frame, index) => framePicker.appendChild(new Option(`${index} · ${frame.label || frame.name}`, String(index))));
+  host.insertBefore(framePicker, body);
+  framePicker.onchange = () => {
+    selectFrame(Number(framePicker.value)); switchView('source');
+    host.dispatchEvent(new CustomEvent('source-frame-selected'));
+  };
   function selectFrame(index) {
+    if (activeFrame === index) return;
+    if (activeFrame != null) {
+      const code = $('.source-code', editor);
+      frameViews.set(activeFrame, {nodes: [...editor.childNodes], inline: NF.sourceSelection.inline, top: code?.scrollTop, left: code?.scrollLeft});
+    }
     if (NF.sourceSelection.event !== i || NF.sourceSelection.frame !== index)
       NF.sourceSelection = {event: i, frame: index, inline: -1};
     buttons.forEach((b, k) => { b.setAttribute('aria-selected', String(k === index)); b.tabIndex = k === index ? 0 : -1; });
+    activeFrame = index;
+    framePicker.value = String(index);
+    const cached = frameViews.get(index);
+    if (cached) {
+      NF.sourceSelection.inline = cached.inline; editor.replaceChildren(...cached.nodes);
+      const code = $('.source-code', editor);
+      if (code && cached.top != null) { code.scrollTop = cached.top; code.scrollLeft = cached.left; }
+      return;
+    }
     const frame = frames[index];
     editor.replaceChildren();
     const full = el('div', 'debug-symbol', frame.name || '未解析的函数'); full.title = frame.name;
     editor.appendChild(full);
     const tools = el('div', 'source-toolbar');
     const raw = run.dict.raw_funcs?.[frame.id];
+    let original = null;
     if (raw) {
-      const original = el('details', 'debug-original');
+      original = el('details', 'debug-original');
       original.appendChild(el('summary', null, '原始符号'));
       original.appendChild(el('pre', null, raw)); editor.appendChild(original);
     }
@@ -237,7 +286,7 @@ function renderDebugger(run, i, host, navigate) {
     const locationSelect = el('select'); locationSelect.setAttribute('aria-label', '源码位置与内联函数');
     locations.forEach((loc, k) => locationSelect.appendChild(new Option(`${loc.function || frame.name} · ${loc.path.split(/[\\/]/).pop()}:${loc.line}`, String(k))));
     if (locations.length > 1) tools.appendChild(locationSelect);
-    tools.appendChild(copy); editor.appendChild(tools);
+    original?.appendChild(copy); editor.appendChild(tools);
     const content = el('div', 'source-content'); editor.appendChild(content);
     function showLocation(k) {
       content.replaceChildren();
@@ -286,6 +335,7 @@ function renderDebugger(run, i, host, navigate) {
       let center = loc.line, match = -1;
       function paint(line) {
         center = Math.max(1, Math.min(lines.length, Number(line) || 1));
+        code.dataset.windowCenter = String(center);
         code.replaceChildren();
         const start = Math.max(1, center - 100), end = Math.min(lines.length, center + 150);
         if (start > 1) {
@@ -318,6 +368,7 @@ function renderDebugger(run, i, host, navigate) {
         status.textContent = match < 0 ? '没有匹配项' : `第 ${match + 1} 行`;
         if (match >= 0) paint(match + 1);
       }
+      code._paint = paint;
       find.oninput = () => { match = -1; };
       find.onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); findNext(); } };
       next.onclick = findNext;
@@ -667,6 +718,8 @@ function renderCapability() {
   const run = NF.runs[0];
   const c = run.meta.capability;
   const box = $('#capability');
+  if (box._run === run) return;
+  box._run = run;
   const items = [];
   if (!run.meta.kernel_elf_sha256) items.push('ELF 校验信息缺失');
   if (c.nftrace_records) items.push(`内核事件 ${num(c.nftrace_records)} 条`);
@@ -1371,6 +1424,11 @@ function renderEvents() {
   p.appendChild(heading);
 
   const f = el('div', 'filters event-filters');
+  const filterDisclosure = el('details', 'event-filter-disclosure');
+  filterDisclosure.open = NF.eventFiltersOpen ?? !window.matchMedia('(max-width: 850px)').matches;
+  filterDisclosure.ontoggle = () => { NF.eventFiltersOpen = filterDisclosure.open; };
+  filterDisclosure.appendChild(el('summary', null, '筛选事件'));
+  p.appendChild(filterDisclosure);
   const updateTextFilter = (key, input) => {
     const start = input.selectionStart, end = input.selectionEnd;
     NF.filters[key] = input.value;
@@ -1460,7 +1518,7 @@ function renderEvents() {
   groupWrap.appendChild(el('span', 'filter-label', '语义分组'));
   groupWrap.appendChild(groupSel);
   f.appendChild(kindWrap); f.appendChild(resWrap); f.appendChild(jump); f.appendChild(clear);
-  p.appendChild(f);
+  filterDisclosure.appendChild(f);
 
   const advanced = el('details', 'advanced-filters');
   advanced.open = NF.advancedFiltersOpen || !!(NF.filters.group || NF.filters.pid || NF.filters.cpu || NF.filters.from || NF.filters.to);
@@ -1484,7 +1542,7 @@ function renderEvents() {
   if (si >= 0) preset('当前快照', String(si ? run.states[si - 1].insn : 0), String(run.states[si].insn));
   if (run.meta.program_start_insn) preset('目标程序', String(run.meta.program_start_insn), '');
   advanced.appendChild(presets);
-  p.appendChild(advanced);
+  filterDisclosure.appendChild(advanced);
 
   const facetCounts = applyFilters();
   const info = el('div', 'result-bar');
@@ -1524,7 +1582,7 @@ function renderEvents() {
     b.onclick = () => { NF.filters.kind = NF.filters.kind === kind ? '' : kind; renderEvents(); };
     facet.appendChild(b);
   });
-  if (facet.childElementCount) p.appendChild(facet);
+  if (facet.childElementCount) filterDisclosure.appendChild(facet);
 
   const density = el('details', 'event-density');
   const bars = el('div', 'density-bars');
@@ -1548,7 +1606,7 @@ function renderEvents() {
   densityAxis.appendChild(el('span', null, '0'));
   densityAxis.appendChild(el('span', null, axisNum(totalInsn / 2)));
   densityAxis.appendChild(el('span', null, axisNum(totalInsn)));
-  density.appendChild(densityAxis); p.appendChild(density);
+  density.appendChild(densityAxis); filterDisclosure.appendChild(density);
 
   const scroll = el('div'); scroll.id = 'evscroll';
   const table = el('table'); table.className = 'event-table';
@@ -1697,10 +1755,9 @@ function selectEvent(i) {
     $('#evscroll')?._paint();
     updateResultNavigation();
   } else render();
-  if (NF.tab !== 'functions') showEventDetail(NF.runs[0], i);
-  else if (window.matchMedia('(max-width: 850px)').matches) {
-    NF.detailView = 'source'; showEventDetail(NF.runs[0], i);
-  } else requestAnimationFrame(() => {
+  if (NF.tab === 'functions') NF.detailView = 'source';
+  showEventDetail(NF.runs[0], i);
+  if (debugNav) requestAnimationFrame(() => {
     const target = debugNav ? $(`.debug-toolbar button[data-debug-nav="${debugNav}"]:not(:disabled)`)
       : $('.sequence-node[aria-current="true"]');
     target?.focus({preventScroll: true});
@@ -1710,6 +1767,7 @@ function selectEvent(i) {
 function renderFunctions() {
   const run = NF.runs[0];
   const p = $('#panel-functions');
+  if (p._run === run && p._refresh) { p._refresh(); return; }
   p.innerHTML = '';
   const heading = el('div', 'section-heading');
   const title = el('div');
@@ -1732,18 +1790,13 @@ function renderFunctions() {
     const fn = (entryName >= 0 ? run.dict.funcs[entryName] : '')
       || run.dict.funcs[run.events.func[i]] || kind.slice(5);
     const caller = callerId >= 0 ? run.dict.funcs[callerId] : '';
-    const path = run.events.stack?.[i]?.map((id) => run.dict.funcs[id]) || null;
+    const path = run.events.stack?.[i]?.map((id) => functionName(run, id, true)) || null;
     const fnId = entryName >= 0 ? entryName : run.events.func[i];
     entries.push({ i, fn: functionName(run, fnId, true) || fn, fnId, callerId,
       caller: functionName(run, callerId, true) || caller, path,
       insn: run.events.insn[i], cpu: run.events.cpu[i], pid: run.events.pid[i] });
   }
   if (!entries.length) {
-    if (NF.selEvent != null) {
-      const debuggerPane = el('div', 'debugger standalone-debugger');
-      p.appendChild(debuggerPane); renderDebugger(run, NF.selEvent, debuggerPane);
-      return;
-    }
     const empty = el('div', 'event-empty');
     empty.appendChild(el('strong', null, '没有函数入口事件'));
     const viewEvents = el('button', 'secondary-control', '查看其他事件');
@@ -1758,21 +1811,23 @@ function renderFunctions() {
   const search = el('input'); search.type = 'search'; search.placeholder = '筛选函数名'; search.id = 'function-search'; search.setAttribute('aria-label', '筛选函数名');
   const cpu = el('select'); cpu.id = 'function-cpu'; cpu.setAttribute('aria-label', '筛选 CPU'); cpu.appendChild(new Option('全部 CPU', ''));
   for (const c of [...new Set(entries.map((e) => e.cpu))].sort((a, b) => a - b)) cpu.appendChild(new Option(`CPU ${c}`, String(c)));
-  const limit = el('select'); limit.id = 'function-limit'; limit.setAttribute('aria-label', '显示条数');
-  for (const n of [40, 80, 160]) limit.appendChild(new Option(`最近 ${n} 条`, String(n)));
-  limit.value = '80';
   const grouping = el('select'); grouping.id = 'function-grouping'; grouping.setAttribute('aria-label', '函数轨迹视图');
+  grouping.appendChild(new Option('入口顺序', 'entries'));
   grouping.appendChild(new Option('调用关系', 'caller'));
   grouping.appendChild(new Option('名称层级', 'namespace'));
-  if (returns.nested_entries) grouping.appendChild(new Option('调用栈', 'stack'));
-  if (returns.nested_entries) grouping.value = 'stack';
-  else if (!entries.some((e) => e.caller)) grouping.value = 'namespace';
+  if (returns.nested_entries) grouping.appendChild(new Option('调用路径', 'stack'));
   search.value = NF.functionFilters.text;
   cpu.value = NF.functionFilters.cpu;
-  limit.value = NF.functionFilters.limit;
   if ([...grouping.options].some(option => option.value === NF.functionFilters.grouping)) grouping.value = NF.functionFilters.grouping;
   controls.appendChild(search); controls.appendChild(cpu); controls.appendChild(grouping);
-  controls.appendChild(limit); p.appendChild(controls);
+  p.appendChild(controls);
+  const locate = el('button', 'secondary-control', '定位选中事件'); locate.type = 'button';
+  locate.onclick = () => {
+    grouping.value = 'entries'; paint();
+    const position = filtered.findIndex(e => e.i === NF.selEvent);
+    if (position >= 0) { sequence.scrollTop = Math.max(0, position * 54 - sequence.clientHeight / 2); sequence._paint(); }
+  };
+  controls.appendChild(locate);
 
   const grid = el('div', 'trace-grid');
   const treePanel = el('section', 'trace-panel');
@@ -1785,21 +1840,46 @@ function renderFunctions() {
   const tree = el('div', 'function-tree'); const sequence = el('div', 'function-sequence');
   treePanel.appendChild(tree); sequencePanel.appendChild(sequence);
   grid.appendChild(treePanel); grid.appendChild(sequencePanel);
-  const workspace = el('div', 'debug-workspace');
-  const debuggerPane = el('div', 'debugger');
-  workspace.append(grid, debuggerPane); p.appendChild(workspace);
+  p.appendChild(grid);
+  const expanded = new Map();
+  const viewScroll = new Map();
+  let currentView = grouping.value;
+  let filtered = [];
+  let lastFilters = '';
+  const refreshSelection = () => {
+    for (const row of p.querySelectorAll('[data-event-index]'))
+      row.setAttribute('aria-current', String(Number(row.dataset.eventIndex) === NF.selEvent));
+  };
+  p._run = run;
+  p._refresh = () => {
+    const key = JSON.stringify(NF.functionFilters);
+    if (key !== lastFilters) {
+      search.value = NF.functionFilters.text;
+      cpu.value = NF.functionFilters.cpu;
+      grouping.value = NF.functionFilters.grouping || 'entries';
+      paint();
+    } else refreshSelection();
+  };
 
   function paint() {
-    NF.functionFilters = {text: search.value, cpu: cpu.value, limit: limit.value, grouping: grouping.value};
+    viewScroll.set(currentView, currentView === 'entries' ? sequence.scrollTop : tree.scrollTop);
+    currentView = grouping.value;
+    NF.functionFilters = {text: search.value, cpu: cpu.value, grouping: grouping.value};
+    lastFilters = JSON.stringify(NF.functionFilters);
     const q = search.value.trim().toLowerCase();
     const selectedCpu = cpu.value;
-    const filtered = entries.filter((e) => (!q || e.fn.toLowerCase().includes(q) || e.caller.toLowerCase().includes(q) || run.dict.raw_funcs?.[e.fnId]?.toLowerCase().includes(q) || (e.path || []).some((name) => name.toLowerCase().includes(q))) && (selectedCpu === '' || String(e.cpu) === selectedCpu));
+    filtered = entries.filter((e) => (!q || e.fn.toLowerCase().includes(q) || e.caller.toLowerCase().includes(q) || run.dict.raw_funcs?.[e.fnId]?.toLowerCase().includes(q) || (e.path || []).some((name) => name.toLowerCase().includes(q))) && (selectedCpu === '' || String(e.cpu) === selectedCpu));
+    NF.functionEventIndices = filtered.map(e => e.i);
+    $('#detail .debugger')?._updateNavigation?.();
+    sequencePanel.hidden = grouping.value !== 'entries';
+    treePanel.hidden = grouping.value === 'entries';
+    sequencePanel.firstChild.textContent = `入口顺序 · ${num(filtered.length)} 条`;
     const counts = new Map();
     for (const e of filtered) counts.set(e.fnId, (counts.get(e.fnId) || 0) + 1);
     tree.innerHTML = '';
     if (grouping.value === 'stack') {
-      treeTitle.textContent = '调用栈';
-      treeNote.textContent = '已匹配的入口与返回事件';
+      treeTitle.textContent = '调用路径';
+      treeNote.textContent = '选择路径查看一次调用';
       const chains = new Map();
       for (const e of filtered) {
         if (!e.path || e.path.length < 2) continue;
@@ -1815,6 +1895,7 @@ function renderFunctions() {
           row.appendChild(el('span', 'function-name', chain.path.join(' → ')));
           row.appendChild(el('span', 'function-count', num(chain.count)));
           row.onclick = () => selectEvent(chain.index);
+          row.dataset.eventIndex = chain.index;
           tree.appendChild(row);
         });
       if (!chains.size) tree.appendChild(el('div', 'trace-muted', '当前筛选中没有可匹配的嵌套帧。'));
@@ -1836,10 +1917,11 @@ function renderFunctions() {
           row.appendChild(el('span', 'function-name', `${edge.caller} → ${edge.fn}`));
           row.appendChild(el('span', 'function-count', num(edge.count)));
           row.onclick = () => selectEvent(edge.index);
+          row.dataset.eventIndex = edge.index;
           tree.appendChild(row);
         });
       if (!edges.size) tree.appendChild(el('div', 'trace-muted', '这些入口的返回地址无法定位调用方。'));
-    } else {
+    } else if (grouping.value === 'namespace') {
       treeTitle.textContent = '名称层级';
       treeNote.textContent = '按命名空间汇总入口次数';
       const root = { label: '', count: 0, children: new Map(), fn: null };
@@ -1853,31 +1935,35 @@ function renderFunctions() {
         }
         node.fn = fn;
       }
-      const paintNode = (node, depth, parent) => {
+      const paintNode = (node, depth, parent, path = '') => {
         [...node.children.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)).forEach((child) => {
           const row = el('button', 'function-row'); row.type = 'button';
           row.style.paddingLeft = `${8 + depth * 16}px`;
           row.style.setProperty('--bar', `${Math.round(child.count / Math.max(1, root.count) * 100)}%`);
-          row.title = child.fn ? `在事件浏览器中筛选 ${child.fn}` : `展开 ${child.label}`;
+          const key = path + '\0' + child.label;
+          row.title = child.fn ? child.fn : `展开 ${child.label}`;
           const marker = child.children.size ? '› ' : '  ';
           row.appendChild(el('span', 'function-name', marker + child.label));
           row.appendChild(el('span', 'function-count', num(child.count)));
           parent.appendChild(row);
           if (child.children.size) {
             const children = el('div', 'function-children');
-            children.hidden = depth > 0;
+            children.hidden = !(expanded.get(key) ?? depth === 0);
             let painted = false;
             row.setAttribute('aria-expanded', String(!children.hidden));
             row.onclick = () => {
               children.hidden = !children.hidden;
-              if (!children.hidden && !painted) { paintNode(child, depth + 1, children); painted = true; }
+              expanded.set(key, !children.hidden);
+              if (!children.hidden && !painted) { paintNode(child, depth + 1, children, key); painted = true; }
               row.setAttribute('aria-expanded', String(!children.hidden));
               row.firstChild.textContent = `${children.hidden ? '› ' : '⌄ '}${child.label}`;
             };
             parent.appendChild(children);
-            if (!children.hidden) { paintNode(child, depth + 1, children); painted = true; }
+            if (!children.hidden) { paintNode(child, depth + 1, children, key); painted = true; }
           } else if (child.fn) {
-            row.onclick = () => { NF.filters.text = child.fn; setTab('events'); };
+            const event = filtered.find(e => e.fn === child.fn);
+            row.dataset.eventIndex = event.i;
+            row.onclick = () => selectEvent(event.i);
           }
         });
       };
@@ -1886,34 +1972,51 @@ function renderFunctions() {
     }
 
     sequence.innerHTML = '';
-    const cap = Number(limit.value) || 80;
-    const focusPos = filtered.findIndex((e) => e.i === NF.functionFocusIndex);
-    const start = focusPos < 0 ? Math.max(0, filtered.length - cap)
-      : Math.max(0, Math.min(focusPos - 5, filtered.length - cap));
-    filtered.slice(start, start + cap).forEach((e, index) => {
-      if (index) sequence.appendChild(el('div', 'sequence-link'));
+    const rowHeight = 54;
+    const canvas = el('div', 'sequence-canvas');
+    canvas.style.height = `${filtered.length * rowHeight}px`;
+    const windowRows = el('div', 'sequence-window');
+    canvas.appendChild(windowRows); sequence.appendChild(canvas);
+    const paintSequence = () => {
+      const start = Math.max(0, Math.floor(sequence.scrollTop / rowHeight) - 5);
+      const stop = Math.min(filtered.length, start + Math.min(100, Math.ceil(sequence.clientHeight / rowHeight) + 12));
+      const visible = filtered.slice(start, stop);
+      const wanted = new Set(visible.map(e => String(e.i)));
+      for (const node of [...windowRows.children]) if (!wanted.has(node.dataset.eventIndex)) node.remove();
+      const existing = new Map([...windowRows.children].map(node => [node.dataset.eventIndex, node]));
+      windowRows.style.top = `${start * rowHeight}px`;
+      visible.forEach((e, index) => {
+      if (existing.has(String(e.i))) {
+        existing.get(String(e.i)).setAttribute('aria-current', String(e.i === NF.functionFocusIndex));
+        return;
+      }
       const node = el('button', 'sequence-node'); node.type = 'button'; node.title = '定位到这条入口事件';
+      node.dataset.eventIndex = e.i;
       if (e.i === NF.functionFocusIndex) node.setAttribute('aria-current', 'true');
       node.appendChild(el('span', 'sequence-index', String(start + index + 1).padStart(2, '0')));
       const name = el('span', 'sequence-function', compactFunction(e.fn)); name.title = e.fn;
       node.appendChild(name);
       node.appendChild(el('span', 'sequence-meta', `${fmtInsn(e.insn)} · CPU ${e.cpu}${e.path?.length > 1 ? ` · ${e.path.join(' → ')}` : e.caller ? ` · ${e.caller} →` : ''}`));
       node.onclick = () => selectEvent(e.i);
-      sequence.appendChild(node);
-    });
+      const next = [...windowRows.children].find(node => Number(node.dataset.eventIndex) > e.i);
+      windowRows.insertBefore(node, next || null);
+      });
+    };
+    sequence._paint = paintSequence;
+    sequence.onscroll = paintSequence;
+    sequence.scrollTop = viewScroll.get('entries') || 0;
+    paintSequence();
+    tree.scrollTop = viewScroll.get(currentView) || 0;
     if (!filtered.length) sequence.appendChild(el('div', 'trace-muted', '没有匹配的入口事件。'));
-    const found = filtered.findIndex(e => e.i === NF.functionFocusIndex);
-    const focus = Math.max(0, found);
-    if (found < 0 && !q && selectedCpu === '' && NF.selEvent != null && NF.functionFocusIndex === NF.selEvent)
-      renderDebugger(run, NF.selEvent, debuggerPane);
-    else if (filtered.length) renderDebugger(run, filtered[focus].i, debuggerPane, {
-      available: delta => focus + delta >= 0 && focus + delta < filtered.length,
-      go: delta => selectEvent(filtered[focus + delta].i),
-    });
-    else debuggerPane.replaceChildren(el('p', 'source-empty', '选择函数入口事件查看源码。'));
+    refreshSelection();
   }
   search.oninput = paint; cpu.onchange = paint; grouping.onchange = paint;
-  limit.onchange = paint; paint();
+  paint();
+  let listHeight = sequence.clientHeight;
+  new ResizeObserver(() => {
+    if (sequence.clientHeight === listHeight) return;
+    listHeight = sequence.clientHeight; sequence._paint?.();
+  }).observe(sequence);
 }
 
 
@@ -1999,7 +2102,8 @@ function renderMetrics() {
 
   const row = (k, count, cls, ...tags) => {
     const tr = el('tr', cls);
-    tr.appendChild(el('td', null, k));
+    const label = el('td', 'metric-kind', kindName(run, k)); label.title = k;
+    tr.appendChild(label);
     tr.appendChild(el('td', 'mono', count));
     const td = el('td');
     for (const tag of tags) if (tag) td.appendChild(tag);
@@ -2063,6 +2167,23 @@ function renderConsole() {
 function showEventDetail(run, i) {
   openDetail();
   const box = $('#detail');
+  if (box._run === run && box._event === i && box._switchView && $('.detail-tabs', box) && !NF.detailReturn) {
+    box._switchView(NF.detailView || 'details'); return;
+  }
+  if (box._run && box._event != null) {
+    const code = $('.source-code', box);
+    NF.inspectorStates.set(`${box._run.meta.run}:${box._event}`, {
+      selection: {...NF.sourceSelection}, top: code?.scrollTop, left: code?.scrollLeft,
+      center: code?.dataset.windowCenter,
+      find: $('.source-controls input[type=search]', box)?.value,
+      line: $('.source-controls input[type=number]', box)?.value,
+      tools: $('.source-content', box)?.classList.contains('source-tools-open'),
+    });
+    if (NF.inspectorStates.size > 32) NF.inspectorStates.delete(NF.inspectorStates.keys().next().value);
+  }
+  const saved = NF.inspectorStates.get(`${run.meta.run}:${i}`);
+  if (saved) NF.sourceSelection = {...saved.selection};
+  box._run = run; box._event = i;
   box.innerHTML = '';
   const e = evGet(run, i);
   const tabs = el('div', 'detail-tabs');
@@ -2076,16 +2197,31 @@ function showEventDetail(run, i) {
     pane.classList.toggle('source-open', value !== 'details');
     for (const button of tabs.children) button.setAttribute('aria-pressed', String(button.dataset.view === value));
     if (value !== 'details' && !debuggerHost.childElementCount) {
-      const indices = NF.detailEventIndices || (NF.tab === 'events' ? evFiltered : null);
-      const position = indices ? indices.indexOf(i) : i;
-      const target = delta => indices ? indices[position + delta] : i + delta;
+      const contextTab = NF.tab;
+      const indices = () => NF.detailEventIndices || (contextTab === 'events' ? evFiltered : contextTab === 'functions' ? NF.functionEventIndices : null);
+      const position = () => indices() ? indices().indexOf(i) : i;
+      const target = delta => indices() ? indices()[position() + delta] : i + delta;
       renderDebugger(run, i, debuggerHost, {
-        available: delta => position >= 0 && target(delta) != null && target(delta) >= 0 && target(delta) < run.events.insn.length,
+        available: delta => position() >= 0 && target(delta) != null && target(delta) >= 0 && target(delta) < run.events.insn.length,
         go: delta => { selectEvent(target(delta)); requestAnimationFrame(() => $('#detail [data-debug-nav="' + delta + '"]:not(:disabled)')?.focus({preventScroll: true})); },
+      });
+      if (saved) requestAnimationFrame(() => {
+        const code = $('.source-code', debuggerHost);
+        if (code && saved.center) code._paint?.(Number(saved.center));
+        if (code && saved.top != null) requestAnimationFrame(() => { code.scrollTop = saved.top; code.scrollLeft = saved.left; });
+        const find = $('.source-controls input[type=search]', debuggerHost);
+        const line = $('.source-controls input[type=number]', debuggerHost);
+        if (find && saved.find != null) find.value = saved.find;
+        if (line && saved.line != null) line.value = saved.line;
+        if (saved.tools) {
+          $('.source-content', debuggerHost)?.classList.add('source-tools-open');
+          $('.source-tools-toggle', debuggerHost)?.setAttribute('aria-expanded', 'true');
+        }
       });
     }
     debuggerHost.dataset.mobileView = value === 'stack' ? 'stack' : 'source';
   };
+  box._switchView = switchView;
   debuggerHost.addEventListener('source-frame-selected', () => switchView('source'));
   if (NF.detailReturn) {
     const label = `返回${NF.detailReturn.label || '资源详情'}`;
@@ -2456,11 +2592,10 @@ function renderCompare() {
 
 
 function setTab(t) {
-  if (NF.tab !== t && window.matchMedia('(max-width: 850px)').matches && NF.detailOpen)
-    toggleDetail();
+  saveScrollPositions();
   NF.tab = t;
-  $('.main').classList.toggle('debug-mode', t === 'functions');
-  $('#toggle-detail').hidden = t === 'functions';
+  $('.main').classList.remove('debug-mode');
+  $('#toggle-detail').hidden = false;
   for (const b of document.querySelectorAll('nav.tabs button')) {
     b.classList.toggle('on', b.dataset.tab === t);
     b.setAttribute('aria-current', b.dataset.tab === t ? 'page' : 'false');
@@ -2498,9 +2633,6 @@ function submitQuickFind(query) {
   } else NF.filters.text = value;
   setTab('events');
   if (insn) scrollToCurrent();
-  if (window.matchMedia('(max-width: 560px)').matches) {
-    requestAnimationFrame(() => $('#panel-events .result-bar')?.scrollIntoView({block: 'start'}));
-  }
 }
 
 function renderDelta() {
@@ -2534,7 +2666,38 @@ function renderDelta() {
     (parts.length ? '　｜　' + parts.join('　') : '');
 }
 
+function saveScrollPositions() {
+  const panel = $('#panel-' + NF.tab);
+  if (!panel?.classList.contains('on')) return;
+  const positions = [];
+  for (const node of [panel, ...panel.querySelectorAll('[id], details, .function-tree, .function-sequence, pre.console')]) {
+    const key = node.id || node.className;
+    if (node.tagName === 'DETAILS') positions.push({key, open: node.open});
+    else if (node.scrollHeight > node.clientHeight || node.scrollTop) positions.push({key, top: node.scrollTop, left: node.scrollLeft});
+  }
+  NF.scrollPositions.set(NF.tab, positions);
+}
+
+function restoreScrollPositions() {
+  const panel = $('#panel-' + NF.tab);
+  for (const state of NF.scrollPositions.get(NF.tab) || []) {
+    const node = [panel, ...panel.querySelectorAll('[id], details, .function-tree, .function-sequence, pre.console')]
+      .find(node => (node.id || node.className) === state.key);
+    if (!node) continue;
+    if (state.open !== undefined) node.open = state.open;
+    else {
+      const changed = node.scrollTop !== state.top;
+      node.scrollTop = state.top; node.scrollLeft = state.left;
+      if (changed) node._paint?.();
+    }
+  }
+}
+
 function render() {
+  saveScrollPositions();
+  const focused = document.activeElement;
+  const focusId = focused?.id;
+  const selection = focused?.selectionStart == null ? null : [focused.selectionStart, focused.selectionEnd];
   const eventScroll = NF.tab === 'events' ? $('#evscroll')?.scrollTop : null;
   renderHeader();
   renderCapability();
@@ -2546,6 +2709,12 @@ function render() {
     metrics: renderMetrics, console: renderConsole, compare: renderCompare,
   }[NF.tab];
   if (r) r();
+  restoreScrollPositions();
+  if (focusId && !focused.isConnected) {
+    const replacement = document.getElementById(focusId);
+    replacement?.focus({preventScroll: true});
+    if (selection && replacement?.setSelectionRange) replacement.setSelectionRange(...selection);
+  }
   if (eventScroll != null) {
     const scroll = $('#evscroll');
     if (scroll) { scroll.scrollTop = eventScroll; scroll._paint(); }
@@ -2554,6 +2723,7 @@ function render() {
 
 function toggleDetail() {
   NF.detailOpen = !NF.detailOpen;
+  if (!NF.detailOpen) NF.inspectorExpanded = false;
   const main = $('.main');
   if (main) main.classList.toggle('detail-collapsed', !NF.detailOpen);
   syncDetailModal();
@@ -2570,6 +2740,7 @@ function toggleDetail() {
 }
 
 function openDetail() {
+  $('#toggle-detail').disabled = false;
   if (!NF.detailOpen || !document.body.classList.contains('detail-modal')) {
     const trigger = NF.pendingDetailTrigger || document.activeElement;
     NF.detailTrigger = trigger === document.body ? null : trigger;
@@ -2579,14 +2750,20 @@ function openDetail() {
   if (window.matchMedia('(max-width: 850px)').matches) {
     // Content is filled synchronously by the caller before this runs.
     requestAnimationFrame(syncDetailModal);
-    requestAnimationFrame(() => $('#close-mobile-detail')?.focus({preventScroll: true}));
   }
 }
 
 function syncDetailModal() {
-  const active = window.matchMedia('(max-width: 850px)').matches && NF.detailOpen && !$('#detail .detail-empty');
+  const active = window.matchMedia('(max-width: 850px)').matches && NF.detailOpen && NF.inspectorExpanded && !$('#detail .detail-empty');
   document.body.classList.toggle('detail-modal', active);
-  for (const node of document.querySelectorAll('.topbar, .timebar, .minimapwrap, nav.tabs, .left')) node.inert = active;
+  $('.right').classList.toggle('inspector-expanded', active);
+  const expand = $('#expand-detail');
+  if (expand) { expand.textContent = active ? '还原' : '展开'; expand.setAttribute('aria-expanded', String(active)); }
+  const resizer = $('#detail-resizer');
+  resizer.setAttribute('aria-valuenow', String($('.right').clientHeight));
+  resizer.setAttribute('aria-valuemin', '150');
+  resizer.setAttribute('aria-valuemax', String(Math.max(150, $('.main').clientHeight - $('nav.tabs').clientHeight - 120)));
+  for (const node of document.querySelectorAll('.topbar, .capability, .timebar, .minimapwrap, #deltabar, nav.tabs, .left')) node.inert = active;
   $('.right').setAttribute('role', active ? 'dialog' : 'complementary');
   $('.right').setAttribute('aria-label', '详情');
   if (active) $('.right').setAttribute('aria-modal', 'true');
@@ -2595,6 +2772,7 @@ function syncDetailModal() {
 
 function resetResourceDetail() {
   NF.detailReturn = null; NF.detailEventIndices = null; NF.detailView = 'details';
+  const box = $('#detail'); box._run = null; box._event = null; box._switchView = null;
   $('.right').classList.remove('source-open');
   configureDetailBack();
 }
@@ -2739,6 +2917,13 @@ window.nfExport = nfExport;
 const SUPPORTED_BUNDLE_FORMATS = new Set(['nodefusion.bundle/1', 'nodefusion.bundle/2']);
 
 function prepareBundle(run) {
+  for (const key of ['funcs', 'full_funcs'])
+    if (run.dict[key]) run.dict[key] = run.dict[key].map(readableSymbol);
+  run.dict.funcs = run.dict.funcs.map((name, id) => {
+    const full = run.dict.full_funcs?.[id];
+    return full && name === run.dict.raw_funcs?.[id] && full !== name ? full : name;
+  });
+  run._readableFunctions = new Map((run.dict.raw_funcs || []).map((name, id) => [name, functionName(run, id, true)]));
   if (run.format !== 'nodefusion.bundle/1') return;
   const entries = run.events.kind.reduce((count, id) =>
     count + Number((run.dict.kinds[id] || '').startsWith('func.')), 0);
@@ -2812,8 +2997,38 @@ async function boot() {
       NF.cur = Math.round(((e.clientX - r.left) / r.width) * (NF.runs[0].meta.total_insns || 1));
       render();
     };
+    $('#expand-detail').onclick = () => {
+      NF.inspectorExpanded = !NF.inspectorExpanded;
+      syncDetailModal();
+      $('#expand-detail').focus({preventScroll: true});
+    };
+    const detailResizer = $('#detail-resizer');
+    const resizeDetail = size => {
+      const max = Math.max(160, $('.main').clientHeight - $('nav.tabs').clientHeight - 120);
+      const height = Math.max(150, Math.min(max, size));
+      $('.right').style.setProperty('--detail-height', `${height}px`);
+      detailResizer.setAttribute('aria-valuenow', String(Math.round(height)));
+      detailResizer.setAttribute('aria-valuemin', '150');
+      detailResizer.setAttribute('aria-valuemax', String(Math.round(max)));
+    };
+    detailResizer.onkeydown = e => {
+      if (!['ArrowUp', 'ArrowDown'].includes(e.key)) return;
+      e.preventDefault(); resizeDetail($('.right').clientHeight + (e.key === 'ArrowUp' ? 24 : -24));
+    };
+    detailResizer.onpointerdown = e => {
+      e.preventDefault(); detailResizer.setPointerCapture(e.pointerId);
+      const start = e.clientY, height = $('.right').clientHeight;
+      detailResizer.onpointermove = move => resizeDetail(height + start - move.clientY);
+      detailResizer.onpointerup = detailResizer.onlostpointercapture = () => { detailResizer.onpointermove = null; };
+    };
     window.addEventListener('keydown', (e) => {
       if (e.defaultPrevented) return;
+      if (e.key === 'Escape' && NF.detailOpen && !$('#detail .detail-empty')) {
+        e.preventDefault();
+        if (NF.inspectorExpanded) { NF.inspectorExpanded = false; syncDetailModal(); $('#expand-detail').focus({preventScroll: true}); }
+        else (NF.detailBack || toggleDetail)();
+        return;
+      }
       if (document.body.classList.contains('detail-modal')) {
         if (e.key === 'Escape') { e.preventDefault(); (NF.detailBack || toggleDetail)(); return; }
         if (e.key === 'Tab') {

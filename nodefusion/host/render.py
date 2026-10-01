@@ -46,7 +46,7 @@ __CSS__
       <input id="quick-query" type="search" aria-label="搜索事件或函数" placeholder="事件、函数、pid:2、#12345" autocomplete="off">
       <button class="top-action" type="submit">查找</button>
     </form>
-    <button id="toggle-detail" class="top-action" type="button" aria-expanded="true">收起详情</button>
+    <button id="toggle-detail" class="top-action" type="button" aria-expanded="false" disabled>展开详情</button>
   </header>
 
   <div class="capability" id="capability" style="display:none"></div>
@@ -94,7 +94,8 @@ __CSS__
       <div class="panel" id="panel-compare"></div>
     </div>
     <div class="right">
-      <div class="mobile-detail-bar"><span>详情</span><button id="close-mobile-detail" type="button" aria-label="关闭详情">返回列表</button></div>
+      <div id="detail-resizer" tabindex="0" role="separator" aria-label="调整详情大小" aria-orientation="horizontal"></div>
+      <div class="mobile-detail-bar"><span>详情</span><div><button id="expand-detail" type="button" aria-expanded="false">展开</button><button id="close-mobile-detail" type="button" aria-label="关闭详情">收起</button></div></div>
       <div id="detail">
         <div class="detail-empty"><h2>详情</h2><p>选择事件、进程或物理页。</p></div>
       </div>

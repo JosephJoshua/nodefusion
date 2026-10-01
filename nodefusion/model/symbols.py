@@ -27,7 +27,10 @@ def _unescape(t: str) -> str:
                     continue
                 if code.startswith("u") and len(code) > 1:
                     try:
-                        out.append(chr(int(code[1:], 16)))
+                        value = int(code[1:], 16)
+                        if value < 32 or 0x7f <= value < 0xa0 or 0xd800 <= value <= 0xdfff:
+                            raise ValueError('non-printing escape')
+                        out.append(chr(value))
                         i = j + 1
                         continue
                     except ValueError:
@@ -49,17 +52,17 @@ def display_dwarf_name(name: str) -> str:
     """Decode escaped Rust names that DWARF emits without a linkage prefix."""
     readable = display_name(name)
     if '$' in readable:
-        if readable.startswith('_$'):
-            readable = readable[1:]
+        readable = re.sub(r'(^|::)_\$', r'\1$', readable)
         readable = _unescape(readable).replace('..', '::')
     return re.sub(r'::h[0-9a-f]{16}$', '', readable)
 
 
 def _demangle_legacy(sym: str) -> str | None:
     s = _LLVM_SUFFIX.sub("", sym)
-    if not s.startswith("_ZN") or not s.endswith("E"):
+    prefix = next((p for p in ("__ZN", "_ZN", "ZN") if s.startswith(p)), None)
+    if prefix is None or not s.endswith("E"):
         return None
-    body, i, parts = s[3:-1], 0, []
+    body, i, parts = s[len(prefix):-1], 0, []
     while i < len(body):
         j = i
         while j < len(body) and body[j].isdigit():

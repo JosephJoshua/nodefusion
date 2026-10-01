@@ -14,6 +14,21 @@ from nodefusion.host.analyze import Event
 from nodefusion.tests.test_bundle_shape import _analysis, _state
 
 
+def test_partially_demangled_rust_trait_names(monkeypatch):
+    raw = '_$LT$os..console..Stdout$u20$as$u20$core..fmt..Write$GT$::write_str'
+    expected = '<os::console::Stdout as core::fmt::Write>::write_str'
+    monkeypatch.setattr(S, 'llvm_tool', lambda name: name)
+    monkeypatch.setattr(S.subprocess, 'run', lambda *args, **kwargs: NS(stdout=raw + '\n'))
+    assert S.full_names(['_ZNopaqueE']) == [expected]
+    assert S.display_dwarf_name('module::' + raw) == 'module::' + expected
+    assert S.display_dwarf_name('$u0$::$ud800$') == '$u0$::$ud800$'
+
+
+@pytest.mark.parametrize('prefix', ['_ZN', '__ZN', 'ZN'])
+def test_legacy_rust_linkage_prefixes(prefix):
+    assert S.display_dwarf_name(prefix + '2os4root17h1234567890abcdefE') == 'os::root'
+
+
 def test_identity_survives_equal_display_names():
     a = _analysis(_state())
     names = ['_ZN2os4root17h1234567890abcdefE', '_ZN2os4root17hfedcba0987654321E']

@@ -23,11 +23,10 @@ async (page) => {
     await standalone.locator('#panel-functions.on').waitFor();
     await standalone.locator('#function-search').fill('uvmunmap');
     await standalone.locator('#function-cpu').selectOption('0');
-    await standalone.locator('#function-limit').selectOption('40');
     await standalone.locator('#function-grouping').selectOption('caller');
     await standalone.setViewportSize({width: 1440, height: 600});
     await standalone.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-    check(await standalone.locator('#panel-functions').evaluate(panel => { panel.scrollTop = 100; return panel.scrollTop > 0; }), 'Exercise an actually scrolled results panel');
+    check(await standalone.locator('#panel-functions').evaluate(panel => panel.scrollHeight <= panel.clientHeight + 1), 'Results panel has no nested scrollbar');
     check(await standalone.locator('.trace-controls').evaluate(el => {
       const panel = el.closest('.panel').getBoundingClientRect();
       const bounds = el.getBoundingClientRect();
@@ -38,13 +37,13 @@ async (page) => {
     await standalone.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     check(await standalone.locator('#function-search').inputValue() === 'uvmunmap', 'Standalone redraw retains search');
     check(await standalone.locator('#function-cpu').inputValue() === '0', 'Standalone redraw retains CPU');
-    check(await standalone.locator('#function-limit').inputValue() === '40', 'Standalone redraw retains limit');
     check(await standalone.locator('#function-grouping').inputValue() === 'caller', 'Standalone redraw retains grouping');
     await standalone.getByRole('button', {name: '事件', exact: true}).click();
     await standalone.getByRole('button', {name: '函数轨迹', exact: true}).click();
     check(await standalone.locator('#function-search').inputValue() === 'uvmunmap', 'Switching report views retains search');
+    await standalone.locator('#function-grouping').selectOption('entries');
     check(await standalone.locator('.sequence-function').count() > 0, 'Real matching entries are still displayed');
-    check(await standalone.locator('.trace-panel').first().evaluate(el => el.getBoundingClientRect().height < 200), 'Small filtered result uses its content height on mobile');
+    check(await standalone.locator('.trace-panel:not([hidden])').count() === 1, 'Only one navigator is displayed');
   } finally {
     await standalone.close();
   }
