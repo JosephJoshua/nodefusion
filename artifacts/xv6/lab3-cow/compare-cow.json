@@ -1,8 +1,8 @@
 {
   "format": "nodefusion.comparison-evidence/1",
   "html": "compare-cow.html",
-  "html_sha256": "b65fd8d6b2400f39824e233313d9174c07e7f64c8b5da4e4259e94f60fb0472b",
-  "html_bytes": 3354128,
+  "html_sha256": "2a8e03677a70e1372f77a054acf7e0e126f70dd4581b8d4852304524cd5a08ce",
+  "html_bytes": 3359425,
   "runs": [
     {
       "elf": "new-inputs/cow-off.elf",

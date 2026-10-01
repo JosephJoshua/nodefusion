@@ -37510,8 +37510,8 @@
       "trace.nfb": 442555034,
       "kernel_elf": 6838528
     },
-    "html_sha256": "3f5016a6fba40802c1b7cb420ab9ea3bd8de87b928007246f787af9f9fafd119",
-    "html_bytes": 2445709,
+    "html_sha256": "30bc9b4d982ee9cbdf68a9afb1176496c1bb06392ed5b0c89c640433a778fca9",
+    "html_bytes": 2451006,
     "function_trace": {
       "kind": "return-matched observed frames",
       "raw": 1139194,

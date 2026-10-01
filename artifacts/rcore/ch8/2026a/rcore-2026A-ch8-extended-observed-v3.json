@@ -8157,8 +8157,8 @@
       "trace.nfb": 2891691505,
       "kernel_elf": 8394888
     },
-    "html_sha256": "a19c01f51fed0d37e8fc83b800e625ae57dd6eee468e68123fa0c047bb7f87f2",
-    "html_bytes": 4573053,
+    "html_sha256": "dd067e69032b33fb70930cda96a54b1e83dfa15c3dc467a5ce1e2c05fcb85f89",
+    "html_bytes": 4578350,
     "function_trace": {
       "kind": "return-matched observed frames",
       "raw": 2868096,

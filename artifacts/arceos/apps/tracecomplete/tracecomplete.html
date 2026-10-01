@@ -21,6 +21,12 @@
   --err: oklch(48% .17 25);
   --purple: oklch(47% .13 305);
   --mono: ui-monospace, "Cascadia Code", "Consolas", "DejaVu Sans Mono", monospace;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --control-height: 34px;
 }
 
 * { box-sizing: border-box; }
@@ -200,7 +206,7 @@ tr.k-absent  td { color: var(--fg3); }
 
 .dsec { margin-bottom: 14px; }
 .dsec .t { font-size: 11px; color: var(--fg3); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 5px; }
-.kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 12px; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: var(--space-1) var(--space-3); font-size: 12px; line-height: 1.5; }
 .kv .k { color: var(--fg3); white-space: nowrap; }
 .kv .v { font-family: var(--mono); word-break: break-all; }
 .delta.up { color: var(--ok); }
@@ -309,7 +315,7 @@ button { transition: background-color .16s ease-out, color .16s ease-out, border
 .badge { border-radius: 4px; white-space: nowrap; }
 .top-action, .secondary-control, .ghost-control {
   border: 1px solid var(--line); border-radius: 5px; background: var(--bg2);
-  color: var(--fg); padding: 7px 11px; cursor: pointer; white-space: nowrap;
+  color: var(--fg); min-height: var(--control-height); padding: 6px 10px; cursor: pointer; white-space: nowrap; font: inherit;
 }
 .top-action:hover, .secondary-control:hover, .ghost-control:hover { border-color: var(--accent); color: var(--accent); }
 .capability { padding: 5px 20px; }
@@ -338,14 +344,23 @@ nav.tabs {
 nav.tabs button {
   width: 100%; min-height: 36px; text-align: left; padding: 7px 11px;
   border: 1px solid transparent; border-radius: 5px; font-size: 12px; font-weight: 550;
+  display: flex; align-items: center; gap: var(--space-2); flex-shrink: 0;
 }
+.nav-icon { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+#toggle-nav { margin-bottom: var(--space-2); color: var(--fg2); border-bottom-color: var(--line); border-radius: 0; }
+#toggle-nav > :first-child { width: 18px; text-align: center; font: 20px/1 var(--mono); }
+nav.nav-collapsed { width: 56px; padding-inline: 6px; }
+nav.nav-collapsed button { justify-content: center; padding-inline: 8px; }
+nav.nav-collapsed .nav-label { display: none; }
+.nav-tooltip { position: fixed; z-index: 30; pointer-events: none; padding: 6px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg2); color: var(--fg); font-size: 12px; }
+.nav-tooltip[hidden] { display: none; }
 nav.tabs button:hover { background: var(--bg3); color: var(--fg); }
 nav.tabs button.on { background: var(--bg3); border-color: var(--line); color: var(--accent); font-weight: 700; }
 #nav-find { display: none; }
 .panel { padding: 22px 24px 30px; }
 .right { width: min(340px, 28vw); padding: 20px; background: var(--bg2); }
-.cards { gap: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin: 8px 0 18px; }
-.card { min-width: 150px; flex: 1 1 18%; padding: 14px 13px; border: 0; border-radius: 0; background: transparent; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin: var(--space-2) 0 var(--space-4); }
+.card { min-width: 0; padding: 12px; border: 0; border-radius: 0; background: transparent; }
 .card .v { font-size: 20px; color: var(--fg); font-weight: 700; }
 .run-stats { margin: 0 0 16px; border-bottom: 1px solid var(--line); }
 .run-stats > summary { cursor: pointer; padding: 5px 0 12px; font-size: 12px; color: var(--fg2); }
@@ -361,7 +376,7 @@ th { padding: 9px 10px; background: var(--bg); color: var(--fg2); font-weight: 6
 td { padding: 8px 10px; border-bottom-color: var(--line); }
 tr.clickable:hover td { background: var(--bg3); }
 tr.sel td { background: color-mix(in oklch, var(--accent) 12%, var(--bg)); }
-.section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
+.section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-4); }
 .section-heading h2 { margin: 0 0 4px; font-size: 20px; line-height: 1.2; }
 .section-subtitle { color: var(--fg2); font-size: 12px; }
 .shortcut-hint { color: var(--fg3); font-family: var(--mono); font-size: 11px; white-space: nowrap; }
@@ -369,7 +384,7 @@ tr.sel td { background: color-mix(in oklch, var(--accent) 12%, var(--bg)); }
   display: grid; grid-template-columns: repeat(2, minmax(140px, 1fr)) auto auto;
   gap: 10px; align-items: end; margin: 0 0 14px;
 }
-.filter-control { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.filter-control { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
 .filter-label { font-size: 11px; font-weight: 650; color: var(--fg2); }
 .filters input, .filters select {
   width: 100%; height: 34px; min-width: 0; padding: 6px 9px;
@@ -379,7 +394,7 @@ tr.sel td { background: color-mix(in oklch, var(--accent) 12%, var(--bg)); }
 .filter-control:focus-within .filter-label { color: var(--accent); }
 .range-control { grid-column: span 1; }
 .event-filters > button { height: 34px; }
-.advanced-filters { margin: -3px 0 14px; color: var(--fg2); }
+.advanced-filters { margin: var(--space-2) 0 var(--space-3); color: var(--fg2); }
 .advanced-filters > summary { width: max-content; cursor: pointer; font-size: 12px; }
 .advanced-filters > summary:hover { color: var(--accent); }
 .advanced-filter-fields {
@@ -441,14 +456,22 @@ tr.sel td { background: color-mix(in oklch, var(--accent) 12%, var(--bg)); }
 .detail-empty-icon { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 6px; color: var(--accent); font-size: 21px; }
 .detail-empty h2 { color: var(--fg); font-size: 14px; margin: 16px 0 5px; }
 .detail-empty p { max-width: 28ch; margin: 0; line-height: 1.55; }
-.trace-controls { display: flex; gap: 8px; margin: 0 0 16px; background: var(--bg); padding-block: 8px; border-bottom: 1px solid var(--line); }
-.trace-controls input, .trace-controls select { height: 34px; min-width: 150px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg2); color: var(--fg); }
-.trace-controls input { flex: 1; min-width: 220px; }
+.trace-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-3); background: var(--bg); padding-bottom: var(--space-3); border-bottom: 1px solid var(--line); }
+.trace-controls input, .trace-controls select { height: var(--control-height); min-width: 0; padding: 6px 9px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg2); color: var(--fg); font: inherit; }
+.trace-controls input { flex: 1 1 180px; width: 0; }
+.trace-controls select { flex: 0 1 120px; }
+.trace-controls button { margin-left: auto; }
+@container (max-width: 600px) {
+  .trace-controls { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .trace-controls input { width: 100%; grid-column: 1; grid-row: 1; }
+  .trace-controls select { width: 100%; grid-row: 2; }
+  .trace-controls button { width: 100%; margin: 0; grid-column: 2; grid-row: 1; }
+}
 .trace-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; min-height: 420px; }
 
 .right.source-open { width: min(760px, 55vw); display: flex; flex-direction: column; }
 .right.source-open #detail { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-.detail-tabs { display: flex; gap: 8px; padding-bottom: 10px; flex-shrink: 0; position: sticky; top: 0; z-index: 2; background: var(--bg2); }
+.detail-tabs { display: flex; gap: var(--space-2); padding-block: var(--space-2); flex-shrink: 0; position: sticky; top: 0; z-index: 2; background: var(--bg2); }
 .detail-tabs [data-view=stack] { display: none; }
 .detail-tabs [aria-pressed=true], .debug-mobile-views [aria-pressed=true] { border-color: var(--accent); color: var(--accent); }
 .detail-debugger { flex: 1; min-height: 0; container-type: inline-size; }
@@ -457,7 +480,7 @@ tr.sel td { background: color-mix(in oklch, var(--accent) 12%, var(--bg)); }
 .detail-debugger .debug-splitter { width: 6px; height: auto; cursor: col-resize; }
 .debug-mobile-views { display: none; }
 .debugger[hidden], .detail-info[hidden] { display: none; }
-#panel-functions { min-height: 0; }
+#panel-functions { min-height: 0; container-type: inline-size; }
 #panel-functions.on { display: flex; flex-direction: column; overflow: hidden; }
 #panel-functions > .section-heading, #panel-functions > .trace-controls { flex-shrink: 0; }
 .debugger { display: flex; flex-direction: column; min-width: 0; min-height: 0; border: 1px solid var(--line); background: var(--bg); }
@@ -655,6 +678,9 @@ tr.sel td { background: color-mix(in oklch, var(--accent) 12%, var(--bg)); }
   #app { height: 100dvh; min-height: 0; }
   .main { overflow: hidden; }
   nav.tabs { position: static; flex-shrink: 0; padding: 2px 8px; }
+  nav.nav-collapsed { width: 100%; padding-inline: 8px; }
+  nav.nav-collapsed .nav-label { display: inline; }
+  nav.tabs .nav-icon, #toggle-nav { display: none; }
   nav.tabs button { min-height: 34px; }
   .left { flex: 1; min-height: 0; overflow: hidden; }
   .panel { min-height: 0; padding: 10px; }
@@ -662,9 +688,10 @@ tr.sel td { background: color-mix(in oklch, var(--accent) 12%, var(--bg)); }
   .section-heading { margin-bottom: 6px; }
   .section-heading h2 { font-size: 15px; }
   .section-subtitle { font-size: 11px; }
-  .trace-controls { flex-wrap: nowrap; gap: 4px; margin-bottom: 6px; }
-  .trace-controls input { flex: 1; flex-basis: auto; min-width: 0; }
-  .trace-controls select { flex: 0 1 95px; }
+  .trace-controls { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-2); margin-bottom: var(--space-2); }
+  .trace-controls input { width: 100%; min-width: 0; grid-column: 1; grid-row: 1; }
+  .trace-controls select { width: 100%; grid-row: 2; }
+  .trace-controls button { width: 100%; margin: 0; grid-column: 2; grid-row: 1; }
   .trace-controls .secondary-control { padding: 4px 6px; font-size: 11px; white-space: nowrap; }
   .trace-panel-title { font-size: 12px; }
   .trace-panel-note { margin-bottom: 4px; }
@@ -770,6 +797,7 @@ tr.sel td { background: color-mix(in oklch, var(--accent) 12%, var(--bg)); }
 
   <div class="main">
     <nav class="tabs" aria-label="报告章节">
+        <button id="toggle-nav" type="button" aria-expanded="true" aria-label="收起导航" title="收起导航"><span aria-hidden="true">«</span><span class="nav-label">收起导航</span></button>
         <button id="nav-find" type="button">查找</button>
         <button data-tab="compare">对比</button>
         <button data-tab="overview" class="on">概览</button>
@@ -4224,6 +4252,59 @@ async function boot() {
     for (const b of document.querySelectorAll('nav.tabs button')) {
       if (b.dataset.tab) b.onclick = () => setTab(b.dataset.tab);
     }
+    const nav = $('nav.tabs');
+    const navIcons = {
+      compare: 'M5 3v18M19 3v18M2 8h6M16 16h6',
+      overview: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
+      phys: 'M5 5h14v14H5zM9 9h6v6H9zM9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3',
+      procs: 'M3 5h18M3 12h18M3 19h18M7 3v4M16 10v4M10 17v4',
+      vm: 'M3 4h8v6H3zM13 14h8v6h-8zM7 10v7h6M11 7h6v7',
+      fs: 'M3 6h7l2 2h9v12H3z',
+      events: 'M5 4h14v16H5zM8 8h8M8 12h8M8 16h5',
+      functions: 'M6 3v12h12M6 8h12M18 5v6M18 12v6M3 18h6v3H3z',
+      metrics: 'M3 3v18h18M7 17v-5M12 17V8M17 17V5',
+      console: 'M3 4h18v16H3zM6 8l4 4-4 4M13 16h5',
+    };
+    for (const button of nav.querySelectorAll('[data-tab]')) {
+      const label = button.textContent;
+      button.setAttribute('aria-label', label);
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true');
+      svg.classList.add('nav-icon');
+      const path = document.createElementNS(svg.namespaceURI, 'path');
+      path.setAttribute('d', navIcons[button.dataset.tab]); svg.appendChild(path);
+      button.replaceChildren(svg, el('span', 'nav-label', label));
+    }
+    const toggleNav = $('#toggle-nav');
+    const navTooltip = el('span', 'nav-tooltip'); navTooltip.hidden = true;
+    navTooltip.setAttribute('aria-hidden', 'true'); $('#app').appendChild(navTooltip);
+    const showNavLabel = event => {
+      const button = event.target.closest('[data-tab]');
+      if (!button || !nav.classList.contains('nav-collapsed') || innerWidth <= 850) return;
+      const rect = button.getBoundingClientRect();
+      navTooltip.textContent = button.getAttribute('aria-label');
+      navTooltip.style.left = `${nav.getBoundingClientRect().right + 8}px`;
+      navTooltip.style.top = `${rect.top}px`; navTooltip.hidden = false;
+    };
+    nav.addEventListener('mouseover', showNavLabel);
+    nav.addEventListener('focusin', showNavLabel);
+    nav.addEventListener('mouseleave', () => { navTooltip.hidden = true; });
+    nav.addEventListener('focusout', () => { navTooltip.hidden = true; });
+    const collapseNav = collapsed => {
+      navTooltip.hidden = true;
+      nav.classList.toggle('nav-collapsed', collapsed);
+      toggleNav.setAttribute('aria-expanded', String(!collapsed));
+      toggleNav.title = collapsed ? '展开导航' : '收起导航';
+      toggleNav.setAttribute('aria-label', toggleNav.title);
+      toggleNav.firstElementChild.textContent = collapsed ? '»' : '«';
+      toggleNav.lastElementChild.textContent = toggleNav.title;
+      try { localStorage.setItem('nodefusion.navCollapsed', String(collapsed)); } catch {}
+      window.dispatchEvent(new Event('resize'));
+    };
+    let collapsedNav = false;
+    try { collapsedNav = localStorage.getItem('nodefusion.navCollapsed') === 'true'; } catch {}
+    collapseNav(collapsedNav);
+    toggleNav.onclick = () => collapseNav(!nav.classList.contains('nav-collapsed'));
     $('#nav-find').onclick = () => $('#quick-query').focus();
     $('#slider').oninput = (e) => { NF.cur = Number(e.target.value); render(); };
     $('#play').onclick = play;
