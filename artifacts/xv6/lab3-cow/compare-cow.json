@@ -1,0 +1,48 @@
+{
+  "format": "nodefusion.comparison-evidence/1",
+  "html": "compare-cow.html",
+  "html_sha256": "b238cf3e3a3eda29b62710c86f3559c9754c6d5a05aba345ccb72e020a45fd97",
+  "html_bytes": 3338533,
+  "runs": [
+    {
+      "elf": "new-inputs/cow-off.elf",
+      "snapshot": "new-inputs/cow-off-source.zlib",
+      "run": "/home/joseph/nf/source-inspector-20261001/runs-xv6-retry/cow-off",
+      "kernel_elf_sha256": "0c8d32cafc0c7caf41a519f79b6d0081e4a082d6dbcdddeb5c2a70d680a7745e",
+      "source_sha256": {
+        "trace.nfb": "d620acc3b779f060d216a51b3e8409cd79e95f5c12c31ff917251235d3e8ff49",
+        "manifest.json": "480e44db5dae89cc7724fe1d41183b95278388f0754b057f83a9bda682156f6e",
+        "watchlist.json": "e2ed3acd8df4799c90495f8ea2b99f0d0fc74eeeff6cf7de0073740e45a60875",
+        "kernel_layout.json": "b351c3156e6014ac24bd236eadfe872658893f9a66d7cc2392e3bf79b9a0c76f",
+        "source.snapshot.zlib": "51aa349b164bb4d3e6214fd52745dce52aac10c9e2031903d00e15bf8c74df3d"
+      }
+    },
+    {
+      "elf": "new-inputs/cow-on.elf",
+      "snapshot": "new-inputs/cow-on-source.zlib",
+      "run": "/home/joseph/nf/source-inspector-20261001/runs-xv6-retry/cow-on",
+      "kernel_elf_sha256": "c72aebbecd8d3cd6ca11fb2fbca0c7993c3f025190fc100bea0eceab6ce7e8eb",
+      "source_sha256": {
+        "trace.nfb": "8a3d4f64dd0a86df5e6eb1c145d92fca4c713033c04fccddad4aa4589604032d",
+        "manifest.json": "7e016240417dd42e34e863ecad90291c4b6a842f4d9388c66857f47e6d7b4b98",
+        "watchlist.json": "eef4410674312c59a54296dfe60c7ccf0df1c68b9a7fb2143834449dd09342b6",
+        "kernel_layout.json": "b351c3156e6014ac24bd236eadfe872658893f9a66d7cc2392e3bf79b9a0c76f",
+        "source.snapshot.zlib": "51aa349b164bb4d3e6214fd52745dce52aac10c9e2031903d00e15bf8c74df3d"
+      }
+    }
+  ],
+  "source_view": [
+    {
+      "embedded_files": 25,
+      "locations": 523,
+      "snapshot_sha256": "51aa349b164bb4d3e6214fd52745dce52aac10c9e2031903d00e15bf8c74df3d",
+      "kernel_elf_sha256": "0c8d32cafc0c7caf41a519f79b6d0081e4a082d6dbcdddeb5c2a70d680a7745e"
+    },
+    {
+      "embedded_files": 25,
+      "locations": 525,
+      "snapshot_sha256": "51aa349b164bb4d3e6214fd52745dce52aac10c9e2031903d00e15bf8c74df3d",
+      "kernel_elf_sha256": "c72aebbecd8d3cd6ca11fb2fbca0c7993c3f025190fc100bea0eceab6ce7e8eb"
+    }
+  ]
+}

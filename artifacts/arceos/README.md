@@ -8,3 +8,5 @@
 
 tracecomplete 的 `manifest.json` 和 `console.log` 与报告放在同一目录。每份
 `.evidence.json` 记录输入哈希、事件数量和审计结果。
+
+报告包含与录制内核对应的源码，可从事件详情和函数轨迹查看。

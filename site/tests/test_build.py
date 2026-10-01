@@ -13,8 +13,8 @@ class SiteBuildTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
         substitutions = {
             'AUTHORING.md': ('adding-kernel.md', {'(REFERENCE.md': '(manifest-reference.md',
-                '(../../nodefusion/spec/event-stream.md)': '(https://github.com/JosephJoshua/nodefusion/blob/main/nodefusion/spec/event-stream.md)',
-                '(../../nodefusion/integrations/README.md)': '(https://github.com/JosephJoshua/nodefusion/blob/main/nodefusion/integrations/README.md)'}),
+                '(../../nodefusion/spec/event-stream.md)': '(https://github.com/LearningOS/nodefusion/blob/main/nodefusion/spec/event-stream.md)',
+                '(../../nodefusion/integrations/README.md)': '(https://github.com/LearningOS/nodefusion/blob/main/nodefusion/integrations/README.md)'}),
             'REFERENCE.md': ('manifest-reference.md', {'(AUTHORING.md': '(adding-kernel.md'}),
         }
         for source, (target, links) in substitutions.items():

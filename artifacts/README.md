@@ -6,8 +6,9 @@
 - [StarryOS](starryos/)
 - [uCoreOS](ucoreos/)
 
-HTML 可以离线打开。对应的 `.evidence.json`、视频 JSON 或 `coverage.json` 记录输入哈希、
-事件数量和审计结果。原始 `trace.nfb` 与内核 ELF 保存在录制归档中。
+HTML 可以离线打开。事件详情和函数轨迹中可以查看源码。
+对应的 JSON 文件记录输入哈希、事件数量和检查结果。
+原始 `trace.nfb`、内核 ELF 和源码快照保存在录制归档中。
 
 从归档重新生成报告：
 

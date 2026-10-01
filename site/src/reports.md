@@ -39,24 +39,8 @@
 | xv6-riscv | 写时复制 | [打开](reports/xv6/lab3-cow/lab3-cowtest-mac.html) |
 | xv6-riscv | 写时复制运行对比 | [打开](reports/xv6/lab3-cow/compare-cow.html) |
 | xv6-riscv | 延迟分配 | [打开](reports/xv6/lab3-lazy/lab3-lazy.html) |
-| rCore | 第一章：裸机启动 | [打开](reports/rcore/ch1/rcore-ch1-bare.html) |
-| rCore | 第二章：批处理 | [打开](reports/rcore/ch2/rcore-ch2-batch.html) |
-| rCore | 第三章：任务调度 | [打开](reports/rcore/ch3/rcore-ch3-sched.html) |
-| rCore | 第四章：地址空间 | [打开](reports/rcore/ch4/rcore-ch4-exact.html) |
-| rCore | 第五章：进程管理 | [打开](reports/rcore/ch5/rcore-ch5-exact.html) |
-| rCore | 第六章：文件系统 | [打开](reports/rcore/ch6/rcore-ch6-usertest.html) |
 | rCore | 第六章：文件系统分配 | [打开](reports/rcore/ch6/fs-alloc/fs-alloc.html) |
 | rCore | 第六章：内核 panic | [打开](reports/rcore/ch6/panic/panic.html) |
-| rCore | 第七章：进程通信 | [打开](reports/rcore/ch7/rcore-ch7-100pct-final.html) |
-| rCore | 第八章：线程与同步 | [打开](reports/rcore/ch8/rcore-ch8-100pct-return.html) |
-| uCore | 第一章：裸机启动 | [打开](reports/ucoreos/ch1/ucore-ch1-return-aware.html) |
-| uCore | 第二章：批处理 | [打开](reports/ucoreos/ch2/ucore-ch2-return-aware.html) |
-| uCore | 第三章：任务调度 | [打开](reports/ucoreos/ch3/ucore-ch3-return-aware.html) |
-| uCore | 第四章：地址空间 | [打开](reports/ucoreos/ch4/ucore-ch4-return-aware.html) |
-| uCore | 第五章：进程管理 | [打开](reports/ucoreos/ch5/ucore-ch5-return-aware.html) |
-| uCore | 第六章：文件系统 | [打开](reports/ucoreos/ch6/ucore-ch6-return-aware.html) |
-| uCore | 第七章：进程通信 | [打开](reports/ucoreos/ch7/ucore-ch7-return-aware.html) |
-| uCore | 第八章：线程与同步 | [打开](reports/ucoreos/ch8/ucore-ch8-return-aware.html) |
 | ArceOS | Hello World | [打开](reports/arceos/apps/arceos-helloworld/arceos-helloworld.html) |
 | ArceOS | 用户态程序 | [打开](reports/arceos/apps/arceos-userprivilege/arceos-userprivilege.html) |
 | ArceOS | 延迟映射 | [打开](reports/arceos/apps/arceos-lazymapping/arceos-lazymapping.html) |

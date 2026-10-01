@@ -6,3 +6,5 @@
 应用录制：[forkecho](apps/forkecho/starry-forkecho-ram512.html)、
 [fsprobe](apps/fsprobe/starry-fsprobe-ram512.html)。两份报告的覆盖结果与来源哈希
 在同目录的视频 JSON 的 `report` 字段。`showcase/` 下的 MP4/JSON 来自分子系统录制。
+
+三份 HTML 均包含录制时保存的源码，可从事件详情和函数轨迹查看。

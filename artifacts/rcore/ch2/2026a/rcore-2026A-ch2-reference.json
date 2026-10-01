@@ -2183,15 +2183,15 @@
       "trace.nfb": 14399187,
       "kernel_elf": 1248136
     },
-    "html_sha256": "21e27ca66a61a883162c41eb830d75cccd67108afbab5144e698d98847104339",
-    "html_bytes": 207889,
+    "html_sha256": "c6180c02dc0d9082e19fe9a604edccd3269981b744ae835153e41cb44fdf1ee1",
+    "html_bytes": 288872,
     "function_trace": {
       "kind": "return-matched observed frames",
       "raw": 2346,
       "retained": 2346,
       "returns": 193702,
-      "matched_returns": 939,
-      "nested_entries": 131
+      "matched_returns": 1008,
+      "nested_entries": 756
     },
     "event_selection": {
       "applied": false,
@@ -2325,6 +2325,12 @@
         ]
       },
       "blockers": []
+    },
+    "source_view": {
+      "run": "rcore-2026A-ch2-reference",
+      "files": 10,
+      "locations": 89,
+      "revision": "529d8bafef3dea5489c85a565d912307f6bbccb7"
     }
   },
   "original_analysis_command": [

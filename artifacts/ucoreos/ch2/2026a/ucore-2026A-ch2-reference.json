@@ -2386,8 +2386,8 @@
       "trace.nfb": 968230275,
       "kernel_elf": 67344
     },
-    "html_sha256": "c5f780a5942ea4ef5b79b1d4c0e45b06fb079e0dd35e75e3a984530b3dcec7bb",
-    "html_bytes": 1077521,
+    "html_sha256": "bc5df53775a22c7229cfb10544013f48846bb62e314ae657eec14744bb8f3270",
+    "html_bytes": 1153248,
     "function_trace": {
       "kind": "return-matched observed frames",
       "raw": 562,
@@ -2505,6 +2505,12 @@
         "layout_missing": []
       },
       "blockers": []
+    },
+    "source_view": {
+      "run": "ucore-2026A-ch2-reference",
+      "files": 10,
+      "locations": 50,
+      "revision": "729e1ad1632bb639dfe546f34765c0537b503990"
     }
   },
   "course_check": {

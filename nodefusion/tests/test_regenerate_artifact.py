@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from nodefusion.host.bundle import encode
-from scripts.finalize_artifacts import finalize, refresh_assets
+from scripts.finalize_artifacts import finalize, finalize_comparison, refresh_assets, refresh_shell
 from scripts.regenerate_artifact import sha256, smoke_report
 
 
@@ -12,10 +12,9 @@ ARTIFACTS = Path(__file__).resolve().parents[2] / "artifacts"
 
 EXPECTED_RUNS = {
     "arceos-helloworld", "arceos-lazymapping", "arceos-tracecomplete",
-    "arceos-userprivilege", "lab3-cowtest-mac", "starry-cache-semantic",
+    "arceos-userprivilege", "lab3-cowtest-mac", "boot-trace", "lab3-lazy",
+    "rcore-fs", "rcore-panic", "starry-cache-semantic",
     "starry-forkecho-ram512", "starry-fsprobe-ram512",
-    *{f"rcore-ch{n}" for n in range(1, 9)},
-    *{f"ucore-ch{n}" for n in range(1, 9)},
 }
 COURSE_RUNS = {"rcore-2026A-ch3-observed", "ucore-2026A-ch3-batch",
                "rcore-2026A-ch1-verified", "ucore-2026A-ch1-verified",
@@ -176,6 +175,7 @@ def test_finalize_demangles_and_updates_verified_evidence(tmp_path):
                    "entry_name": [1]},
         "dict": {"funcs": [raw, "map_page"]},
         "meta": {"function_entries": {"raw": 1, "retained": 1},
+                 "function_returns": {"raw": 5, "matched": 3, "nested_entries": 1},
                  "event_selection": {"retained": 1, "target_limit": 10}},
     }
     html.write_text('<div id="panel-functions"></div>'
@@ -183,12 +183,16 @@ def test_finalize_demangles_and_updates_verified_evidence(tmp_path):
                     encoding="utf-8")
     sidecar = tmp_path / "report.evidence.json"
     sidecar.write_text(json.dumps({"schema": "nodefusion.artifact-evidence/1",
+                                   "function_trace": {"returns": 5, "matched_returns": 1, "nested_entries": 0},
+                                   "observations": {"report_function_returns": {"raw": 5, "matched": 1, "nested_entries": 0}},
                                    "html_sha256": sha256(html)}), encoding="utf-8")
     assert finalize(sidecar) == 1
     assert finalize(sidecar) == 0
     record = json.loads(sidecar.read_text(encoding="utf-8"))
     assert record["html_sha256"] == sha256(html)
     assert record["event_selection"]["retained"] == 1
+    assert record['function_trace']['matched_returns'] == 3
+    assert record['observations']['report_function_returns'] == data['meta']['function_returns']
     assert smoke_report(html)["dict"]["funcs"][0].endswith("CowBackend::clone_map")
 
 
@@ -205,13 +209,55 @@ def test_refresh_assets_preserves_the_embedded_data_block():
     assert (Path(__file__).resolve().parents[1] / "host/assets/app.js").read_text() in refreshed
 
 
+def test_finalize_comparison_preserves_runs_and_updates_hash(tmp_path):
+    html = tmp_path / "comparison.html"
+    blocks = ''.join(f'<script type="application/nodefusion">{encode({"run": n})}</script>'
+                     for n in (1, 2))
+    html.write_text('<!DOCTYPE html><title>Comparison</title>' + blocks)
+    record = {"format": "nodefusion.comparison-evidence/1", "html": html.name,
+              "html_sha256": sha256(html), "runs": [{"run": "first"}, {"run": "second"}]}
+    sidecar = tmp_path / "comparison.json"
+    sidecar.write_text(json.dumps(record))
+    assert finalize_comparison(sidecar)
+    updated = json.loads(sidecar.read_text())
+    assert updated["runs"] == record["runs"]
+    assert updated["html_sha256"] == sha256(html)
+    assert updated["html_bytes"] == html.stat().st_size
+    assert blocks in html.read_text().replace('\n', '')
+    assert not finalize_comparison(sidecar)
+    html.write_text(html.read_text() + 'tampered')
+    with pytest.raises(ValueError, match="HTML hash differs"):
+        finalize_comparison(sidecar)
+
+
+def test_refresh_shell_preserves_title_and_all_embedded_runs():
+    from nodefusion.host.render import _PAGE
+
+    first = f'<script type="application/nodefusion" data-name="first">{encode({"run": 1})}</script>'
+    second = f'<script type="application/nodefusion" data-name="second">{encode({"run": 2})}</script>'
+    page = (_PAGE.replace("__TITLE__", "NodeFusion · A &amp; B")
+            .replace("__CSS__", "old css")
+            .replace("__JS__", "old js")
+            .replace("__DATA__", first + "\n" + second))
+    refreshed, changed = refresh_shell(page)
+    assert changed == 1
+    assert "<title>NodeFusion · A &amp; B</title>" in refreshed
+    assert first in refreshed and second in refreshed
+    assert "old css" not in refreshed and "old js" not in refreshed
+    assert refresh_shell(refreshed) == (refreshed, 0)
+
+
 @pytest.mark.parametrize("evidence,html", report_sidecars())
 def test_regenerated_artifact_matches_evidence(evidence, html):
     record = record_from(evidence)
     assert len(record["kernel_elf_sha256"]) == 64
-    assert set(record["source_sha256"]) == {
+    expected_inputs = {
         "trace.nfb", "manifest.json", "watchlist.json", "kernel_layout.json"
     }
+    if 'source.snapshot.zlib' in record['source_sha256']:
+        expected_inputs.add('source.snapshot.zlib')
+        assert record['source_view']['snapshot_sha256'] == record['source_sha256']['source.snapshot.zlib']
+    assert set(record["source_sha256"]) == expected_inputs
     assert all(len(value) == 64 for value in record["source_sha256"].values())
     assert html.stat().st_size == record["html_bytes"]
     assert sha256(html) == record["html_sha256"]

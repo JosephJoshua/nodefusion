@@ -48,7 +48,7 @@ jobs:
       - name: 检查章节与交互模型
         run: |
           python3 -m pip install 'pytest==9.0.2'
-          python3 -m pytest nodefusion/tests/test_education_provenance.py nodefusion/tests/test_regenerate_artifact.py nodefusion/tests/test_kernel_integrations.py site/tests -q
+          python3 -m pytest nodefusion/tests/test_education_provenance.py nodefusion/tests/test_regenerate_artifact.py nodefusion/tests/test_artifact_sources.py nodefusion/tests/test_coverage_evidence.py nodefusion/tests/test_kernel_integrations.py site/tests -q
           node site/tests/switch.test.cjs
           node site/tests/blocks.test.cjs
           node site/tests/pipe.test.cjs

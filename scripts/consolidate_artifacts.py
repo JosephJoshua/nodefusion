@@ -96,6 +96,8 @@ def consolidate(root: Path) -> None:
         stem = f"rcore-ch{chapter}-{name}"
         path = folder / f"{stem}.json"
         evidence = folder / f"{stem}.evidence.json"
+        if not path.exists() and not evidence.exists():
+            continue
         if evidence.exists():
             video_pairs.append((path, evidence))
         else:
@@ -104,7 +106,8 @@ def consolidate(root: Path) -> None:
     for chapter, stem in ((7, "rcore-ch7-100pct-final"),
                           (8, "rcore-ch8-100pct-return")):
         folder = root / "rcore" / f"ch{chapter}"
-        _report(folder / f"{stem}.evidence.json", folder / f"{stem}.html")
+        if (folder / f"{stem}.evidence.json").exists():
+            _report(folder / f"{stem}.evidence.json", folder / f"{stem}.html")
     _report(root / "starryos/showcase/starry-cache-semantic.evidence.json",
             root / "starryos/showcase/starry-cache-semantic.html")
     for app in ("forkecho", "fsprobe"):
@@ -121,6 +124,8 @@ def consolidate(root: Path) -> None:
     for chapter in range(1, 9):
         folder = root / "ucoreos" / f"ch{chapter}"
         evidence_files = list(folder.glob("ucore-*.evidence.json"))
+        if not evidence_files and not (folder / "coverage.json").exists():
+            continue
         if not evidence_files:
             report = json.loads((folder / "coverage.json").read_text(encoding="utf-8"))
             htmls = list(folder.glob("ucore-*.html"))

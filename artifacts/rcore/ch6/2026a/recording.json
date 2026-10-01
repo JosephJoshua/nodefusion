@@ -25739,8 +25739,8 @@
       "trace.nfb": 61128491,
       "kernel_elf": 5822280
     },
-    "html_sha256": "5190d987449613d46d9066a47d38b541c5a013a808114007d793ffa9ab5c06db",
-    "html_bytes": 2568575,
+    "html_sha256": "db8f73d11ef934b2ed1cff5a6bca8c608fa1f468a9d1a0e836e27f5b3cc5bff5",
+    "html_bytes": 2806722,
     "function_trace": {
       "kind": "return-matched observed frames",
       "raw": 147126,
@@ -26306,6 +26306,12 @@
         ]
       },
       "blockers": []
+    },
+    "source_view": {
+      "run": "rcore-2026A-ch6-basic-observed",
+      "files": 29,
+      "locations": 583,
+      "revision": "b47c54b5c1f3254518238b0c7450af9c187b4231"
     }
   },
   "console_sha256": "34d08435a7d307f823a6c8fb458321c30574372c9a5976a251a9a6c987ad3cc4",

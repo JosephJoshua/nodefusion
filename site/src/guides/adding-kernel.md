@@ -385,7 +385,7 @@ python -m nodefusion.tools.crosscheck_watchsel \
 严格审计按观察点核对。组内已有入口时，缺失的内联别名可以由该组覆盖；未分组的同类事件
 仍分别检查。
 
-函数入口看不到返回值，也无法确认函数最终成功。分配结果、提交完成、真实调度切换和 clone 成功后的进程/线程类别适合由 `nftrace` 记录。线协议和类型编号见 [`nodefusion/spec/event-stream.md`](https://github.com/JosephJoshua/nodefusion/blob/main/nodefusion/spec/event-stream.md)，已有补丁和应用命令见 [`nodefusion/integrations/README.md`](https://github.com/JosephJoshua/nodefusion/blob/main/nodefusion/integrations/README.md)。
+函数入口看不到返回值，也无法确认函数最终成功。分配结果、提交完成、真实调度切换和 clone 成功后的进程/线程类别适合由 `nftrace` 记录。线协议和类型编号见 [`nodefusion/spec/event-stream.md`](https://github.com/LearningOS/nodefusion/blob/main/nodefusion/spec/event-stream.md)，已有补丁和应用命令见 [`nodefusion/integrations/README.md`](https://github.com/LearningOS/nodefusion/blob/main/nodefusion/integrations/README.md)。
 
 新增 `nftrace` 事件时需要同步完成以下工作：
 

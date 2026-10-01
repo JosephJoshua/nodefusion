@@ -11,7 +11,7 @@ default-theme = "light"
 preferred-dark-theme = "light"
 additional-css = ["theme/education.css"]
 additional-js = ["theme/navigation.js", "theme/lesson.js", "theme/study.js", "theme/reports.js", "theme/figures.js"]
-git-repository-url = "https://github.com/JosephJoshua/nodefusion"
+git-repository-url = "https://github.com/LearningOS/nodefusion"
 site-url = "/nodefusion/"
 no-section-label = true
 

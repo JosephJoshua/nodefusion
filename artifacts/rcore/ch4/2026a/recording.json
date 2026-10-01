@@ -3956,8 +3956,8 @@
     },
     "report_function_returns": {
       "raw": 9452059,
-      "matched": 416114,
-      "nested_entries": 77517
+      "matched": 475403,
+      "nested_entries": 327539
     },
     "raw_analysis_sha256": "d9975df234acc601052ad85f83fb2730f8d78362d4482a684c2ae6625a68e1b6",
     "refinement_script_sha256": "faa989ed05de70017c287865eb8632f9db2fb994d1e18b0dfa5471a29f391967",
@@ -3998,15 +3998,15 @@
       "trace.nfb": 849091776,
       "kernel_elf": 3921856
     },
-    "html_sha256": "43efb757fd278a6be4e9f9175560d28093494dd685822a609cfc3f99e6383ab6",
-    "html_bytes": 2358119,
+    "html_sha256": "169659e822b7d1e013d78f4ffbd8f2cbff9386b594b8743b893bacb7863f3cd7",
+    "html_bytes": 2615314,
     "function_trace": {
       "kind": "return-matched observed frames",
       "raw": 1022876,
       "retained": 46935,
       "returns": 9452059,
-      "matched_returns": 416114,
-      "nested_entries": 77517
+      "matched_returns": 475403,
+      "nested_entries": 327539
     },
     "event_selection": {
       "applied": true,
@@ -4370,6 +4370,12 @@
         ]
       },
       "blockers": []
+    },
+    "source_view": {
+      "run": "rcore-2026A-ch4-observed",
+      "files": 19,
+      "locations": 240,
+      "revision": "ef2dfc4c23c70a1eb4c6a0b30feb694b2d09a73d"
     }
   },
   "outcome": "completed",

@@ -3,24 +3,118 @@
   "run": "arceos-helloworld",
   "kernel_kind": "arceos",
   "source_sha256": {
-    "trace.nfb": "b42c16b638925e4bad5cd8213eb5e4c4da559c329b6732813909804fa51c7bc5",
-    "manifest.json": "24dfd70ebadfb697c324bc30191321ab1ae4562d8daa65027a2a34e07850040e",
-    "watchlist.json": "9744b1f5f1e9b70b59826dfae8da31f5a483f24973b7066acc1401857f21713a",
-    "kernel_layout.json": "8b95a6e3b941c5b21f0cd23993e58a9f4ca50af715527320b50ac24220d41052"
+    "trace.nfb": "d9f9cce3acd7a88288245e6c48e7df5ccefdcef5f38aa8b1683ac89704597894",
+    "manifest.json": "6939efcd101aa46191831ae129fd48296a9145f494250782a08ce87972162e74",
+    "watchlist.json": "0561daf42c9f2bded9ac2d59052bd675dd1affeefb4f89ba55ccebf29197e509",
+    "kernel_layout.json": "aa590ac80f6e9a2f917f1715556f6b1b5f0edc6afd89ba49d855a7ce1aec66dc"
   },
-  "kernel_elf_sha256": "01703c4f29d7f572c11d33186306fbe42f4c97a1aa9410742678a348a5257e5b",
-  "html_sha256": "af3805802615cc85378ba2007b593c3460d565ab0aff22deef26ee6b1a1a6bd5",
-  "html_bytes": 139109,
+  "kernel_elf_sha256": "b907a08731a9c4863f8c605d61b7698d336374950448c5474e96830222c7b871",
+  "archive_bytes": {
+    "trace.nfb": 11788540,
+    "kernel_elf": 2632984
+  },
+  "html_sha256": "2dfc2215f4e917c08413d4d00453ad9b9d3c9befb4b6666f600c851a0d92b668",
+  "html_bytes": 616280,
   "function_trace": {
-    "kind": "function-entry sequence (no return events)",
-    "raw": 1,
-    "retained": 1
+    "kind": "return-matched observed frames",
+    "raw": 5488,
+    "retained": 5488,
+    "returns": 157568,
+    "matched_returns": 3535,
+    "nested_entries": 3689
+  },
+  "event_selection": {
+    "applied": false,
+    "policy": "kind-preserving/systematic-v5",
+    "raw": 5508,
+    "retained": 5508,
+    "dropped": 0,
+    "target_limit": 150000,
+    "minimum_spare": 25000,
+    "always_keep": "all events when the raw stream fits",
+    "priority_raw": 21,
+    "spare_raw": 5487,
+    "spare_budget": 0,
+    "stride": 1,
+    "retained_kinds": {
+      "firmware.trap": 19,
+      "func._RINvMs2_NtCsQQSXX08lmk_4spin4onceINtB6_4OnceINtNtCsiuqdfUabt0o_8heapless3vec8VecInnerNtNtCsbPgFGttUxR2_6axplat3mem13PhysMemRegionjINtNtBJ_7storage15VecStorageInnerAINtNtNtCsivw7crLiTTs_4core3mem12maybe_uninit11MaybeUninitB1l_Ej80_EEE18try_call_once_slowNCINvB2_9call_onceNCNvMs1_NtB8_4lazyINtB4t_4LazyBG_E5force0E0NtNtB2J_7convert10InfallibleECshR0ORuBUMkR_5axhal.llvm.6406422320729007274": 1,
+      "func._RINvMs2_NtCsQQSXX08lmk_4spin4onceINtB6_4OncejE18try_call_once_slowNCINvB2_9call_onceNCNvNtCshR0ORuBUMkR_5axhal3dtb4init0E0NtNtCsivw7crLiTTs_4core7convert10InfallibleEB1q_.llvm.6406422320729007274": 1,
+      "func._RINvNtNtNtNtCsivw7crLiTTs_4core5slice4sort6shared9smallsort25insertion_sort_shift_leftNtNtCsbPgFGttUxR2_6axplat3mem13PhysMemRegionNCINvMB8_SB1m_20sort_unstable_by_keyNtNtCsiXgEzJQ37ds_11memory_addr4addr8PhysAddrNCNCNvNtCshR0ORuBUMkR_5axhal3mem15ALL_MEM_REGIONS0s2_0E0EB3v_": 1,
+      "func._RNvCs1kwAQyTbAMe_3log10set_logger": 1,
+      "func._RNvCsbPgFGttUxR2_6axplat9call_main": 1,
+      "func._RNvCsbXSiznvag5n_5axlog12___print_impl": 2,
+      "func._RNvCsbXSiznvag5n_5axlog13set_max_level": 1,
+      "func._RNvCsbXSiznvag5n_5axlog4init": 1,
+      "func._RNvCsefbtjmkcAhH_9ctor_bare10call_ctors": 1,
+      "func._RNvCshR0ORuBUMkR_5axhal10init_early": 1,
+      "func._RNvMNtCsbEy5sknftZG_10uart_165504mmioNtB2_14MmioSerialPort4init": 1,
+      "func._RNvMNtCsbEy5sknftZG_10uart_165504mmioNtB2_14MmioSerialPort8send_raw": 2599,
+      "func._RNvMsa_NtCsivw7crLiTTs_4core3fmtNtB5_9Formatter12pad_integral": 144,
+      "func._RNvMsa_NtCsivw7crLiTTs_4core3fmtNtB5_9Formatter3pad": 38,
+      "func._RNvMsa_NtCsivw7crLiTTs_4core3fmtNtB5_9Formatter9write_str": 70,
+      "func._RNvMsa_NtNtNtCsivw7crLiTTs_4core3fmt3num3impm10__fmt_inner": 38,
+      "func._RNvMsf_NtNtNtCsivw7crLiTTs_4core3fmt3num3impy10__fmt_inner": 41,
+      "func._RNvNtCs8B2r2KPLoP_17compiler_builtins3mem6memcpy": 3,
+      "func._RNvNtCsbPgFGttUxR2_6axplat4time14monotonic_time": 19,
+      "func._RNvNtCsbPgFGttUxR2_6axplat6percpu12init_primary": 1,
+      "func._RNvNtCshR0ORuBUMkR_5axhal3mem14memory_regions": 1,
+      "func._RNvNtCsivw7crLiTTs_4core3fmt5write": 67,
+      "func._RNvNtCsjfL3eUHuIcg_10arceos_api5stdio22ax_console_write_bytes": 1,
+      "func._RNvNtCslxn9d4fNkod_6percpu3imp4init": 1,
+      "func._RNvNtNtCsamHmMf53Lhq_5axstd2io5stdio12___print_impl": 1,
+      "func._RNvNvMsa_NtCsivw7crLiTTs_4core3fmtNtB7_9Formatter12pad_integral12write_prefix": 144,
+      "func._RNvXCsbXSiznvag5n_5axlogNtB2_6LoggerNtNtCsivw7crLiTTs_4core3fmt5Write9write_str": 557,
+      "func._RNvXNtCsbPgFGttUxR2_6axplat3memNtB2_14MemRegionFlagsNtNtCsivw7crLiTTs_4core3fmt5Debug3fmt": 12,
+      "func._RNvXNtCsbY8tp1g2fVX_24axplat_riscv64_qemu_virt5powerNtB2_9PowerImplNtNtCsbPgFGttUxR2_6axplat5power7PowerIf10system_off": 1,
+      "func._RNvXNtNtNtCsivw7crLiTTs_4core3fmt3num3imphNtB6_7Display3fmt": 38,
+      "func._RNvXNvNtCsbK4Zs1Sn6IU_4axio5write17default_write_fmtINtB2_7AdapterNtNtNtCsamHmMf53Lhq_5axstd2io5stdio10StdoutLockENtNtCsivw7crLiTTs_4core3fmt5Write9write_strB18_": 1,
+      "func._RNvXs0_NtCs1kwAQyTbAMe_3log13___private_apiNtB5_12GlobalLoggerNtB7_3Log3log": 19,
+      "func._RNvXs1i_NtCsivw7crLiTTs_4core3fmtRNtB6_9ArgumentsNtB6_7Display3fmtCsbXSiznvag5n_5axlog": 19,
+      "func._RNvXs1i_NtCsivw7crLiTTs_4core3fmtReNtB6_7Display3fmtCsbXSiznvag5n_5axlog": 19,
+      "func._RNvXs1i_NtCsivw7crLiTTs_4core3fmtReNtB6_7Display3fmtCshkkBe45TniU_9axruntime": 18,
+      "func._RNvXs5_Cs1kwAQyTbAMe_3logNtB5_11LevelFilterNtNtNtCsivw7crLiTTs_4core3str6traits7FromStr8from_str": 1,
+      "func._RNvXs6_NtNtCsivw7crLiTTs_4core3fmt3numjNtB7_8LowerHex3fmt": 27,
+      "func._RNvXs8_NtCsivw7crLiTTs_4core3fmtNtB5_9ArgumentsNtB5_7Display3fmt": 19,
+      "func._RNvXs8_NtNtNtCsivw7crLiTTs_4core3fmt3num3impmNtB9_7Display3fmt": 38,
+      "func._RNvXsB_NtCsiXgEzJQ37ds_11memory_addr4addrNtB5_8VirtAddrNtNtCsivw7crLiTTs_4core3fmt5Debug3fmt": 2,
+      "func._RNvXs_CsbXSiznvag5n_5axlogNtB4_6LoggerNtCs1kwAQyTbAMe_3log3Log3log": 19,
+      "func._RNvXsa_NvNtCsbPgFGttUxR2_6axplat3mem1__NtB5_16InternalBitFlagsNtNtCsivw7crLiTTs_4core3fmt7Display3fmt": 12,
+      "func._RNvXsg_NtCsivw7crLiTTs_4core3fmtbNtB5_7Display3fmt": 1,
+      "func._RNvXsi_NtCsivw7crLiTTs_4core3fmteNtB5_7Display3fmt": 37,
+      "func._RNvXsi_NtNtNtCsivw7crLiTTs_4core3fmt3num3impjNtB9_7Display3fmt": 41,
+      "func._RNvXsy_NtCsiXgEzJQ37ds_11memory_addr4addrNtB5_8PhysAddrNtNtCsivw7crLiTTs_4core3fmt5Debug3fmt": 24,
+      "func._RNvYNCNvNtCshR0ORuBUMkR_5axhal3mem15ALL_MEM_REGIONS0INtNtNtCsivw7crLiTTs_4core3ops8function6FnOnceuE9call_onceB8_": 1,
+      "func._RNvYNtCsbXSiznvag5n_5axlog6LoggerNtNtCsivw7crLiTTs_4core3fmt5Write10write_charB4_": 57,
+      "func.__ConsoleIf_write_bytes": 615,
+      "func.__InitIf_init_early": 1,
+      "func.__InitIf_init_later": 1,
+      "func.__LogIf_console_write_str": 614,
+      "func.__LogIf_current_cpu_id": 19,
+      "func.__LogIf_current_task_id": 19,
+      "func.__LogIf_current_time": 19,
+      "func.__MemIf_kernel_aspace": 1,
+      "func.__MemIf_mmio_ranges": 1,
+      "func.__MemIf_phys_ram_ranges": 1,
+      "func.__MemIf_reserved_phys_ram_ranges": 2,
+      "func.__MemIf_virt_to_phys": 6,
+      "func.__PowerIf_system_off": 1,
+      "func.__TimeIf_current_ticks": 19,
+      "func.__TimeIf_ticks_to_nanos": 19,
+      "func.__axplat_main": 1,
+      "func.main": 1,
+      "func.memcpy": 3,
+      "func.memset": 1,
+      "sbi.call": 1,
+      "trap.init": 1
+    },
+    "dropped_kinds": {}
   },
   "coverage": {
     "status": "incomplete",
-    "percent": 48.19,
-    "passed": 40,
-    "total": 83,
+    "percent": 50.0,
+    "passed": 43,
+    "total": 86,
     "metrics": {
       "covered": 6,
       "applicable": 19,
@@ -54,7 +148,13 @@
       "physical_memory": 10,
       "physical_counters": 10,
       "processes": 10,
-      "resources": 0
+      "resources": 0,
+      "pre_initialization": {
+        "physical_memory": 0,
+        "physical_counters": 0,
+        "processes": 0,
+        "resources": 0
+      }
     },
     "snapshot_not_applicable": [],
     "manifest_fields": {
@@ -64,6 +164,13 @@
       "unresolved": 0
     },
     "full_watch_scope": true,
+    "function_watch_drops": 0,
+    "function_stacks_available": true,
+    "observation_points": {
+      "unresolved": [],
+      "reported_missing": 21,
+      "layout_missing": []
+    },
     "blockers": [
       {
         "check": "metrics",
@@ -95,24 +202,18 @@
       }
     ]
   },
-  "event_selection": {
-    "applied": false,
-    "policy": "kind-preserving/systematic-v3",
-    "raw": 21,
-    "retained": 21,
-    "dropped": 0,
-    "target_limit": 150000,
-    "minimum_spare": 25000,
-    "always_keep": "all events when the raw stream fits",
-    "priority_raw": 21,
-    "spare_raw": 0,
-    "spare_budget": 0,
-    "stride": 1,
-    "retained_kinds": {
-      "firmware.trap": 19,
-      "sbi.call": 1,
-      "trap.init": 1
+  "source_view": {
+    "elf_sha256": "b907a08731a9c4863f8c605d61b7698d336374950448c5474e96830222c7b871",
+    "source_archive": {
+      "path": "arceos-helloworld-source.zlib",
+      "sha256": "232986851da9b5c7035626bc5ac2e3eaa3b6db78aa48d68192098d556b7a6f6e",
+      "files": 156,
+      "bytes": 4144512,
+      "omitted": 0,
+      "captured": "verified_rebuild"
     },
-    "dropped_kinds": {}
+    "build_log_sha256": "dc7551dc2046a5046a6a7f4d186fd95b81787f65d58d3fb72d0c448ac9ea1683",
+    "embedded_files": 51,
+    "locations": 148
   }
 }
