@@ -188,6 +188,11 @@
   function updateLayout() {
     const fullscreen = !panel.hidden && (narrow.matches || panel.classList.contains('study-expanded'));
     const side = !panel.hidden && !fullscreen && wide.matches && sideBySide;
+    const directory = document.getElementById('mdbook-sidebar-toggle-anchor');
+    if (side && !document.body.classList.contains('study-side') && directory?.checked) {
+      directory.checked = false;
+      directory.dispatchEvent(new Event('change'));
+    }
     if (fullscreen) {
       panel.setAttribute('role', 'dialog');
       panel.setAttribute('aria-modal', 'true');

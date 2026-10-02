@@ -29,6 +29,7 @@
     }
   }
   const narrow = window.matchMedia('(max-width: 900px)');
+  const overlay = () => narrow.matches || document.body.classList.contains('study-side');
   const backdrop = document.createElement('button');
   backdrop.className = 'sidebar-backdrop';
   backdrop.type = 'button';
@@ -43,7 +44,7 @@
     if (returnFocus) button.focus();
   }
   function update() {
-    backdrop.hidden = !narrow.matches || !toggle.checked;
+    backdrop.hidden = !overlay() || !toggle.checked;
   }
   function resize() {
     if (narrow.matches) close(false);
@@ -53,13 +54,15 @@
   toggle.addEventListener('change', update);
   narrow.addEventListener('change', resize);
   window.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && narrow.matches && toggle.checked) {
+    if (event.key === 'Escape' && overlay() && toggle.checked) {
       close(true);
       event.preventDefault();
+      event.stopImmediatePropagation();
     }
-  });
+  }, true);
   sidebar.addEventListener('click', event => {
-    if (narrow.matches && event.target.closest('a[href]')) close(false);
+    if (overlay() && event.target.closest('a[href]')) close(false);
   });
+  new MutationObserver(update).observe(document.body, {attributes: true, attributeFilter: ['class']});
   resize();
 })();
