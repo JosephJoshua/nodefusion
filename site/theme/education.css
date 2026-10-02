@@ -1,4 +1,9 @@
 html { --sidebar-target-width: 264px; }
+.page-comments { margin-top: 4rem; padding-top: 1.6rem; border-top: 1px solid var(--table-border-color); }
+.content .page-comments h2 { margin: 0 0 1.6rem; }
+.page-comments .giscus { min-width: 0; }
+.comments-fallback { display: inline-block; margin-top: 1.2rem; font-size: .875em; }
+@media print { .page-comments { display: none !important; } }
 html.light, html:not(.js) {
   --bg: oklch(98% .004 215);
   --fg: oklch(25% .018 225);

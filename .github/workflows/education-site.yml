@@ -52,6 +52,7 @@ jobs:
           node site/tests/switch.test.cjs
           node site/tests/blocks.test.cjs
           node site/tests/pipe.test.cjs
+          node site/tests/comments.test.cjs
           node --check site/src/diagrams/sync.js
       - name: 构建网站并检查链接与报告
         run: |
