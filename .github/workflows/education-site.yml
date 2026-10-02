@@ -52,8 +52,11 @@ jobs:
           node site/tests/switch.test.cjs
           node site/tests/blocks.test.cjs
           node site/tests/pipe.test.cjs
+          node site/tests/sync.test.cjs
           node site/tests/comments.test.cjs
           node --check site/src/diagrams/sync.js
+          node --check site/src/diagrams/sync-model.js
+          node --check site/src/diagrams/explorer.js
       - name: 构建网站并检查链接与报告
         run: |
           python3 scripts/build_education_site.py \

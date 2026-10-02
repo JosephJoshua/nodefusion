@@ -60,6 +60,74 @@
   }
   let index = 0;
   let steps;
+  function executionLane(s) {
+    if (s.execution.startsWith('scheduler')) return 2;
+    if (s.execution.startsWith('B')) return s.execution.includes('用户态') ? 4 : 3;
+    return s.execution.includes('用户态') ? 0 : 1;
+  }
+  function drawExecution() {
+    const svg = get('execution-path'), el = root.DiagramExplorer.svg;
+    const focused = [...svg.querySelectorAll('[role=button]')].indexOf(doc.activeElement);
+    const width = Math.max(320, Math.min(680, svg.parentElement.clientWidth));
+    svg.setAttribute('viewBox', `0 0 ${width} 300`);
+    svg.replaceChildren();
+    const lanes = ['A 用户态', 'A 内核态', '调度器', 'B 内核态', 'B 用户态'];
+    const x = i => 100 + i * (width - 120) / (steps.length - 1), y = s => 42 + executionLane(s) * 48;
+    lanes.forEach((name, i) => {
+      svg.append(el('line', {x1: 100, x2: width - 20, y1: 42 + i * 48, y2: 42 + i * 48, class: 'plot-grid'}));
+      svg.append(el('text', {x: 88, y: 47 + i * 48, 'text-anchor': 'end', class: 'lane-label'}, name));
+    });
+    svg.append(el('text', {x: width - 20, y: 290, 'text-anchor': 'end', class: 'axis-label'}, '执行顺序 →'));
+    for (let i = 1; i < steps.length; i++) {
+      const before = steps[i - 1], after = steps[i];
+      const d = `M${x(i - 1)} ${y(before)} H${x(i)} V${y(after)}`;
+      const switching = after.count > before.count;
+      svg.append(el('path', {d, class: `execution-segment ${i <= index ? 'visited' : ''} ${switching ? 'context-switch' : ''}`}));
+    }
+    steps.forEach((s, i) => {
+      const group = el('g', {role: 'button', tabindex: 0, 'aria-label': `${i + 1}：${s.title}`, 'aria-pressed': i === index, class: `execution-stop ${i === index ? 'selected' : ''}`});
+      group.append(el('circle', {cx: x(i), cy: y(s), r: 17, class: 'stop-hit'}), el('circle', {cx: x(i), cy: y(s), r: i === index ? 7 : 4, class: 'stop-dot'}));
+      svg.append(el('text', {x: x(i), y: 270, 'text-anchor': 'middle', class: 'axis-label'}, i + 1));
+      const choose = () => { index = i; draw(); get('execution-path').querySelectorAll('[role=button]')[i].focus({preventScroll: true}); };
+      group.addEventListener('click', choose);
+      group.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); choose(); }
+        if (['ArrowLeft', 'ArrowRight'].includes(event.key)) {
+          event.preventDefault(); index = Math.max(0, Math.min(steps.length - 1, i + (event.key === 'ArrowRight' ? 1 : -1))); draw();
+          get('execution-path').querySelectorAll('[role=button]')[index].focus({preventScroll: true});
+        }
+      });
+      svg.append(group);
+    });
+    if (focused >= 0) svg.querySelectorAll('[role=button]')[focused]?.focus({preventScroll: true});
+    const s = steps[index], previous = steps[Math.max(0, index - 1)];
+    const trap = index === 1, restore = index === steps.length - 1, switching = s.count > previous.count;
+    const transfer = get('context-transfer'); transfer.replaceChildren();
+    for (const [title, registers, active, direction] of [
+      ['用户寄存器', get('kernel').value === 'rcore' ? '通用寄存器 · sepc · sstatus' : '通用寄存器 · epc', trap || restore, trap ? '保存到用户上下文' : '从用户上下文恢复'],
+      ['内核上下文', 'ra · sp · s0–s11', switching, '保存当前上下文，恢复目标上下文']
+    ]) {
+      const row = doc.createElement('div'); row.className = active ? 'context-row active' : 'context-row';
+      const heading = doc.createElement('strong'); heading.textContent = title;
+      const values = doc.createElement('code'); values.textContent = registers;
+      const action = doc.createElement('span'); action.textContent = active ? direction : '本步无保存或恢复';
+      row.append(heading, values, action); transfer.append(row);
+    }
+    const compare = get('switch-comparison'); compare.replaceChildren();
+    const target = get('scenario').value === 'alone' ? 'A' : 'B';
+    for (const [name, row, points, label] of [['rCore', 42, [90, 330], target === 'A' ? '直接返回' : '__switch'], ['uCore', 112, [90, 210, 330], 'swtch']]) {
+      compare.append(el('text', {x: 4, y: row + 5, class: 'lane-label'}, name));
+      for (let i = 1; i < points.length; i++) {
+        compare.append(el('path', {d: `M${points[i - 1] + 15} ${row} H${points[i] - 19} m-5 -4 l5 4 -5 4`, class: target === 'A' && name === 'rCore' ? 'comparison-skip' : 'comparison-edge'}));
+        compare.append(el('text', {x: (points[i - 1] + points[i]) / 2, y: row - 18, 'text-anchor': 'middle', class: 'axis-label'}, label));
+      }
+      points.forEach((x, i) => {
+        compare.append(el('circle', {cx: x, cy: row, r: 14, class: 'stop-dot'}));
+        compare.append(el('text', {x, y: row + 5, 'text-anchor': 'middle', class: 'lane-label'}, i === 0 ? 'A' : i === points.length - 1 ? target : 'S'));
+        if (i > 0 && i < points.length - 1) compare.append(el('text', {x, y: row + 31, 'text-anchor': 'middle', class: 'axis-label'}, '调度器'));
+      });
+    }
+  }
   function draw() {
     const s = steps[index];
     const alone = get('scenario').value === 'alone';
@@ -80,6 +148,18 @@
     get('progress').textContent = `${index + 1} / ${steps.length}`;
     get('previous').disabled = index === 0;
     get('next').disabled = index === steps.length - 1;
+    drawExecution();
+    root.DiagramExplorer.timeline(get('step-timeline'), steps, index, next => { index = next; draw(); });
+    const previous = steps[Math.max(0, index - 1)];
+    root.DiagramExplorer.changes(get('state-changes'), ['aState', 'bState', 'current', 'count']
+      .filter(field => previous[field] !== s[field])
+      .map(field => [{aState: 'A 状态', bState: 'B 状态', current: '当前任务', count: '切换次数'}[field], previous[field], s[field]]));
+    const scenario = get('scenario').value;
+    get('rcore-count').textContent = String(stepsFor('rcore', scenario).at(-1).count);
+    get('ucore-count').textContent = String(stepsFor('ucore', scenario).at(-1).count);
+    get('switch-insight').textContent = alone
+      ? '只剩 A 可运行时，rCore 选中自身并跳过 __switch；uCore 仍先回到调度器，再恢复 A。'
+      : '异常入口保存用户寄存器；__switch 和 swtch 保存、恢复内核上下文。';
     const url = new URL(root.location.href);
     url.searchParams.set('kernel', get('kernel').value);
     url.searchParams.set('scenario', get('scenario').value);
@@ -102,6 +182,10 @@
   get('reset').addEventListener('click', reset);
   get('previous').addEventListener('click', () => { if (index > 0) { index--; draw(); } });
   get('next').addEventListener('click', () => { if (index < steps.length - 1) { index++; draw(); } });
+  new ResizeObserver(() => {
+    const width = Math.max(320, Math.min(680, get('execution-path').parentElement.clientWidth));
+    if (get('execution-path').getAttribute('viewBox') !== `0 0 ${width} 300`) drawExecution();
+  }).observe(get('execution-path'));
   reset();
   if (Number.isInteger(initialStep) && initialStep >= 1 && initialStep <= steps.length) {
     index = initialStep - 1;

@@ -6,6 +6,7 @@
   <title>管道读写与环形缓冲区</title>
   <link rel="stylesheet" href="switch.css">
   <link rel="stylesheet" href="pipe.css">
+  <link rel="stylesheet" href="explorer.css">
 </head>
 <body>
   <main>
@@ -22,6 +23,9 @@
           <div class="meter" aria-hidden="true"><span id="used"></span></div>
           <div class="scale" aria-hidden="true"><span>0</span><span>容量</span></div>
           <div id="ring" aria-label="数组下标与未读区间"></div>
+          <div class="buffer-visual"><svg id="buffer-circle" class="buffer-circle" viewBox="0 0 240 240" role="group" tabindex="0" aria-label="读写指针与环形缓冲区"><circle class="ring-base" cx="120" cy="120" r="84"/><path id="unread-arc" class="ring-used"/><g id="ring-cells"></g><line id="read-pointer" class="read-pointer"/><line id="write-pointer" class="write-pointer"/><circle id="selected-byte" r="5"/><text x="120" y="116" text-anchor="middle" id="ring-count"></text><text class="ring-label" x="120" y="138" text-anchor="middle">未读字节</text><text class="ring-label" x="120" y="16" text-anchor="middle">下标 0</text><text class="ring-label" x="232" y="124" text-anchor="end" id="ring-quarter"></text></svg><div class="byte-inspector"><label>查看数组元素<input id="byte-index" type="number" min="0" step="1" value="0"><output id="byte-value"></output></label><details class="byte-details"><summary>邻近字节</summary><div id="pipe-bytes" class="byte-window"></div></details></div></div>
+          <div class="pointer-legend"><span id="read-index-label">读指针 head</span><span id="write-index-label">写指针 tail</span><span id="ring-unit"></span></div>
+          <div class="operation-progress"><label>写入<progress id="write-progress" max="1" value="0"></progress><output id="write-progress-label"></output></label><label>读取<progress id="read-progress" max="1" value="0"></progress><output id="read-progress-label"></output></label></div>
           <p id="positions"></p>
           <p id="result" role="status"></p>
           <details class="buffer-details"><summary>计数与数据</summary><p id="formula"></p><p id="received"></p><p id="resource"></p></details>
@@ -29,21 +33,23 @@
         <section class="processes" aria-label="读写进程" data-actor="writer">
           <div class="process-tabs" role="tablist" aria-label="选择读写进程"><button id="writer-tab" role="tab" type="button" data-actor="writer" aria-controls="writer-process" aria-selected="true">写进程</button><button id="reader-tab" role="tab" type="button" data-actor="reader" aria-controls="reader-process" aria-selected="false" tabindex="-1">读进程</button></div>
           <div id="writer-process" class="process"><h2>写进程</h2><p id="writer-status"></p>
-            <label class="request-length">请求字节数 <input id="writer-length" type="number" min="1" max="4096" step="1" value="40" required></label>
+            <label class="request-length">新请求字节数 <input id="writer-length" type="number" min="1" max="4096" step="1" value="40" required></label>
             <div class="actions"><button id="writer-run" type="button">运行写进程</button></div>
             <details class="endpoint-actions"><summary>写端</summary><button id="writer-close" type="button">关闭写端</button></details>
           </div>
           <div id="reader-process" class="process"><h2>读进程</h2><p id="reader-status"></p>
-            <label class="request-length">请求字节数 <input id="reader-length" type="number" min="1" max="4096" step="1" value="40" required></label>
+            <label class="request-length">新请求字节数 <input id="reader-length" type="number" min="1" max="4096" step="1" value="40" required></label>
             <div class="actions"><button id="reader-run" type="button">运行读进程</button></div>
             <details class="endpoint-actions"><summary>读端</summary><button id="reader-close" type="button">关闭读端</button></details>
           </div>
         </section>
       </div>
+      <section class="insight"><strong>当前读写条件</strong><p id="pipe-insight"></p></section>
+      <figure class="occupancy-figure"><figcaption>缓冲区占用 <span>横轴为操作顺序</span></figcaption><svg id="occupancy-chart" class="mechanism-svg" viewBox="0 0 640 190" role="img" aria-label="操作前后缓冲区的未读字节数"></svg></figure>
     </section>
     <details id="static-diagram" open><summary>静态图</summary><img src="ch7-pipe.svg" width="840" height="480" alt="读端与写端共享环形缓冲区。写入推进写下标，读取推进读下标；满时写进程让出，空时读进程根据写端状态等待或返回。rCore 容量为32字节，uCore 为512字节。"></details>
     <p class="source">依据第七章参考实现：<a href="https://github.com/LearningOS/rCore-Tutorial-Code-2026A/blob/c8e0313a55ed5926123d990f196061978c460aed/os/src/fs/pipe.rs">rCore pipe.rs</a> · <a href="https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/c6f384219f334280fd6a4acad2a58ad2222a9d25/os/pipe.c">uCore pipe.c</a></p>
   </main>
-  <script src="pipe.js"></script>
+  <script src="explorer.js"></script><script src="pipe.js"></script>
 </body>
 </html>

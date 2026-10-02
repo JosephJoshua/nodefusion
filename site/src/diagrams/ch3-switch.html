@@ -6,6 +6,7 @@
   <title>逐步查看任务切换</title>
   <link rel="icon" href="ch3-context.svg" type="image/svg+xml">
   <link rel="stylesheet" href="switch.css">
+  <link rel="stylesheet" href="explorer.css">
 </head>
 <body>
   <main>
@@ -22,7 +23,9 @@
       </div>
       <div class="workspace">
         <section aria-label="切换过程">
-          <div class="mechanism" aria-label="任务与调度器">
+          <figure class="execution-figure"><figcaption>处理器的执行位置 <span>横轴为执行顺序</span></figcaption><svg id="execution-path" class="mechanism-svg" viewBox="0 0 680 300" role="group" aria-label="执行位置随步骤变化"></svg></figure>
+          <div class="plot-legend"><span>进入 / 返回用户态</span><span>切换内核上下文</span></div>
+          <div class="mechanism" aria-label="任务与调度器" hidden>
             <div class="node" id="node-a">
               <svg viewBox="0 0 220 108" preserveAspectRatio="none" aria-hidden="true"><path d="M8 4 H212 Q216 4 216 8 V100 Q216 104 212 104 H8 Q4 104 4 100 V8 Q4 4 8 4 Z"/></svg>
               <strong>A</strong><span id="svg-a">运行</span>
@@ -45,15 +48,18 @@
             <button id="reset" type="button">重置</button>
           </div>
           <div class="step-copy" aria-live="polite"><h2 id="step-title">A 正在执行</h2><p id="explanation"></p></div>
+          <div id="step-timeline"></div>
+          <ul id="state-changes" class="change-list" aria-label="本步状态变化"></ul>
+          <div id="context-transfer" class="context-transfer" aria-label="寄存器保存与恢复"></div>
         </section>
-        <table>
+        <aside><table>
           <caption>执行状态</caption>
           <tbody>
             <tr><th scope="row">实际执行位置</th><td id="execution"></td></tr>
             <tr><th scope="row">当前任务</th><td id="current"></td></tr>
             <tr><th scope="row">本过程切换次数</th><td id="switch-count"></td></tr>
           </tbody>
-        </table>
+        </table><section class="insight"><strong>上下文切换路径</strong><svg id="switch-comparison" class="mechanism-svg" viewBox="0 0 360 150" role="img" aria-label="rCore 和 uCore 的上下文切换路径"></svg><p id="switch-insight"></p><dl><dt>rCore 调用 __switch</dt><dd id="rcore-count"></dd><dt>uCore 调用 swtch</dt><dd id="ucore-count"></dd></dl></section></aside>
       </div>
     </div>
     <details open>
@@ -62,6 +68,6 @@
     </details>
     <p class="source">本图依照第三章参考实现编写。<a href="../ch3/rcore.html">rCore 源码分析</a> · <a href="../ch3/ucore.html">uCore 源码分析</a></p>
   </main>
-  <script src="switch.js"></script>
+  <script src="explorer.js"></script><script src="switch.js"></script>
 </body>
 </html>

@@ -6,6 +6,7 @@
   <title>锁与条件变量</title>
   <link rel="stylesheet" href="switch.css">
   <link rel="stylesheet" href="sync.css">
+  <link rel="stylesheet" href="explorer.css">
 </head>
 <body>
   <main>
@@ -13,18 +14,26 @@
     <section id="controls" hidden aria-label="同步机制模拟">
       <div class="toolbar">
         <label>机制 <select id="scenario"><option value="mutex">阻塞锁交接</option><option value="condvar">条件变量唤醒</option><option value="semaphore">信号量许可</option></select></label>
+        <div class="mode-switch" role="group" aria-label="操作方式"><button id="guided-mode" type="button" aria-pressed="true">示例过程</button><button id="free-mode" type="button" aria-pressed="false">自由操作</button></div>
+      </div>
+      <div id="sync-lab" hidden>
+        <div class="lab-controls"><label>执行线程 <select id="lab-actor"><option>A</option><option>B</option><option>C</option></select></label><label id="permit-setting" hidden>初始许可 <select id="lab-permits"><option>0</option><option>1</option><option>2</option><option>3</option></select></label><button id="lab-undo" type="button">撤销</button><button id="lab-reset" type="button">重置</button></div>
+        <div id="lab-actions" class="lab-actions" aria-label="线程操作"></div>
+        <p id="lab-message" class="lab-message" role="status"></p>
       </div>
       <div class="sync-workspace">
         <section class="scene" aria-label="线程与同步对象">
+          <figure class="queue-figure"><figcaption id="queue-caption">线程与等待队列</figcaption><svg id="queue-diagram" class="mechanism-svg" viewBox="0 0 640 290" role="img" aria-label="线程在就绪、持锁与等待队列中的位置"></svg></figure>
           <div class="thread-row"><div id="thread-a" class="thread-card"><strong>线程 A</strong><span></span></div><div id="thread-b" class="thread-card"><strong>线程 B</strong><span></span></div><div id="thread-c" class="thread-card"><strong>线程 C</strong><span></span></div></div>
           <div class="resource-row"><div class="resource-card"><span id="resource-name"></span><strong id="resource-value"></strong></div><div class="resource-card"><span id="queue-name"></span><strong id="queue-value"></strong></div></div>
+          <div id="ready-queue" class="queue-track" aria-label="就绪线程"></div><div id="waiting-queue" class="queue-track" aria-label="等待线程"></div>
         </section>
-        <aside class="step-panel" aria-label="当前步骤"><div class="navigation"><button id="previous" type="button">上一步</button><output id="position" aria-label="步骤位置"></output><button id="next" type="button">下一步</button><button id="reset" type="button">重置</button></div><h2 id="step-title"></h2><p id="step-description" role="status"></p></aside>
+        <aside class="step-panel" aria-label="当前步骤"><div class="navigation"><button id="previous" type="button">上一步</button><output id="position" aria-label="步骤位置"></output><button id="next" type="button">下一步</button><button id="reset" type="button">重置</button></div><h2 id="step-title"></h2><p id="step-description" role="status"></p><div id="step-timeline"></div><ul id="state-changes" class="change-list" aria-label="本步状态变化"></ul><section class="insight"><strong>观察要点</strong><p id="sync-insight"></p></section></aside>
       </div>
     </section>
     <details id="static-diagram" open><summary>静态图</summary><img src="ch8-sync.svg" width="900" height="480" alt="阻塞锁解锁后把锁交给等待队首线程；条件变量通知只唤醒线程，该线程还需重新获得互斥锁"></details>
     <p class="source">依据第八章参考实现：<a href="https://github.com/LearningOS/rCore-Tutorial-Code-2026A/blob/00b2a84360710640fbde595c194a7f2447e755f2/os/src/sync/mutex.rs">rCore 锁</a> · <a href="https://github.com/LearningOS/uCore-Tutorial-Code-2026A/blob/9d4fa96b67b449bc72f6530286b5a438e9de3ce5/os/sync.c">uCore 同步对象</a></p>
   </main>
-  <script src="sync.js"></script>
+  <script src="explorer.js"></script><script src="sync-model.js"></script><script src="sync.js"></script>
 </body>
 </html>
