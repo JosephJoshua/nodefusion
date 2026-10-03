@@ -52,6 +52,29 @@ async page => {
       check(Math.abs(returnedTop - top) < 3, `Return preserves reading position at ${width}px in ${kernel}: ${top} -> ${returnedTop}`);
       await page.locator('.lesson-toolbar').getByRole('link', {name: '交互图', exact: true}).click();
       check(await frame.locator('#queue-value').textContent() === '互斥锁：A', 'Reopening keeps simulation state');
+      await frame.getByRole('button', {name: '自由操作', exact: true}).click();
+      const diagramTop = await frame.locator('#queue-diagram').evaluate(el => el.getBoundingClientRect().top);
+      if (width <= 390) {
+        check(await frame.locator('#lab-actions').evaluate(el => el.getBoundingClientRect().bottom <= innerHeight), 'Embedded condition-variable actions fit with the diagram');
+      }
+      await frame.locator('[data-operation=lock]').click();
+      await frame.locator('[data-operation=wait]').click();
+      const chooseThread = async name => {
+        const box = await frame.locator('#thread-' + name.toLowerCase()).boundingBox();
+        check(box && box.y >= 0 && box.y + box.height <= page.viewportSize().height, 'Thread is visible before pointer selection');
+        await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+        check(await frame.locator('#lab-actor').inputValue() === name, 'Pointer selection inspects the selected thread');
+      };
+      await chooseThread('B');
+      await frame.locator('[data-operation=lock]').click();
+      await frame.locator('[data-operation=signal]').click();
+      await chooseThread('A');
+      await frame.locator('[data-operation=lock]').click();
+      await frame.locator('#lab-undo').click();
+      check(Math.abs(await frame.locator('#queue-diagram').evaluate(el => el.getBoundingClientRect().top) - diagramTop) < 1, 'Embedded operations and undo preserve diagram position');
+      if (width <= 390) {
+        check(await frame.locator('#lab-actions').evaluate(el => el.getBoundingClientRect().bottom <= innerHeight), 'Embedded actions stay visible after notification');
+      }
       await page.getByRole('button', {name: '返回正文', exact: true}).click();
       await page.locator('.lesson-toolbar').getByRole('link', {name: '运行报告', exact: true}).click();
       await frame.locator('#panel-functions.on').waitFor();

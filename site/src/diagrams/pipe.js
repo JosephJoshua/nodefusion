@@ -106,8 +106,8 @@
     doc.getElementById('ring-count').textContent = `${count} / ${state.capacity}`;
     doc.getElementById('ring-quarter').textContent = String(state.capacity / 4);
     doc.getElementById('ring-unit').textContent = `每格 ${state.capacity / 32} 字节`;
-    doc.getElementById('read-index-label').textContent = state.kernel === 'rcore' ? '读指针 head' : '读下标';
-    doc.getElementById('write-index-label').textContent = state.kernel === 'rcore' ? '写指针 tail' : '写下标';
+    doc.getElementById('read-index-label').textContent = `${state.kernel === 'rcore' ? 'head' : '读下标'} = ${head}`;
+    doc.getElementById('write-index-label').textContent = `${state.kernel === 'rcore' ? 'tail' : '写下标'} = ${tail}`;
     doc.getElementById('buffer-circle').setAttribute('aria-label', `环形缓冲区：读下标 ${head}，写下标 ${tail}，未读 ${count} 字节。橙色为读指针，青色为写指针。`);
     const input = doc.getElementById('byte-index'); input.max = String(state.capacity - 1);
     if (input.valueAsNumber >= state.capacity) input.value = state.capacity - 1;
@@ -161,36 +161,26 @@
   }
   function render() {
     const count = state.released ? 0 : unread(state);
-    const head = state.readCount % state.capacity;
-    const tail = state.writeCount % state.capacity;
     doc.getElementById('occupancy').textContent = `${count} / ${state.capacity} 字节`;
-    doc.getElementById('used').style.width = `${count / state.capacity * 100}%`;
-    doc.getElementById('positions').textContent = state.released ? '' : state.kernel === 'rcore' ?
-      `head = ${head}，tail = ${tail}，status = ${count === 0 ? 'Empty' : count === state.capacity ? 'Full' : 'Normal'}` :
-      `nread = ${state.readCount}，nwrite = ${state.writeCount}；读下标 ${head}，写下标 ${tail}`;
+    const positions = doc.getElementById('positions');
+    positions.replaceChildren();
+    const counters = state.kernel === 'rcore' ?
+      [['status', count === 0 ? 'Empty' : count === state.capacity ? 'Full' : 'Normal']] :
+      [['nread', state.readCount], ['nwrite', state.writeCount]];
+    if (!state.released) for (const [name, value] of counters) {
+      const field = doc.createElement('span'); field.textContent = `${name} = ${value}`; positions.append(field);
+    }
     doc.getElementById('formula').textContent = state.kernel === 'rcore' ?
       'head 和 tail 相等时，用 status 区分空与满。' : '可读字节数 = nwrite − nread（无符号运算）；数组下标 = 计数 % 512。';
     doc.getElementById('resource').textContent = state.released ? '两端均已关闭，缓冲区已释放。' :
       `读端${state.readerOpen ? '打开' : '关闭'}；写端${state.writerOpen ? '打开' : '关闭'}。`;
-    const ranges = [];
-    for (let position = 0; position < state.capacity;) {
-      const active = count > 0 && (position - head + state.capacity) % state.capacity < count;
-      let end = position + 1;
-      while (end < state.capacity && (count > 0 && (end - head + state.capacity) % state.capacity < count) === active) end++;
-      const cell = doc.createElement('span');
-      cell.className = active ? 'range occupied' : 'range';
-      cell.style.flexGrow = String(end - position);
-      cell.textContent = end - position === 1 ? String(position) : `${position}–${end - 1}`;
-      cell.title = `${active ? '未读' : '空闲'}：${position} 到 ${end - 1}`;
-      ranges.push(cell);
-      position = end;
-    }
-    doc.getElementById('ring').replaceChildren(...ranges);
     for (const actor of ['reader', 'writer']) {
       doc.getElementById(actor + '-status').textContent = formatOperation(state[actor]);
       doc.getElementById(actor + '-run').disabled = !state[actor + 'Open'] && !pending(state[actor]);
       doc.getElementById(actor + '-close').disabled = !state[actor + 'Open'] || pending(state[actor]);
-      doc.getElementById(actor + '-length').closest('label').hidden = pending(state[actor]) || !state[actor + 'Open'];
+      const length = doc.getElementById(actor + '-length');
+      length.disabled = pending(state[actor]) || !state[actor + 'Open'];
+      if (pending(state[actor])) length.value = state[actor].length;
     }
     doc.getElementById('undo').disabled = !history.length;
     doc.getElementById('result').textContent = message;
@@ -253,6 +243,7 @@
       const selected = tab.dataset.actor === actor;
       tab.setAttribute('aria-selected', String(selected));
       tab.tabIndex = selected ? 0 : -1;
+      doc.getElementById(tab.dataset.actor + '-process').hidden = !selected;
     }
   }
   for (const tab of processTabs) {
@@ -262,7 +253,7 @@
       event.preventDefault();
       const next = processTabs[event.key === 'Home' ? 0 : event.key === 'End' ? 1 : processTabs.indexOf(tab) === 0 ? 1 : 0];
       chooseProcess(next.dataset.actor);
-      next.focus();
+      next.focus({preventScroll: true});
     });
   }
   kernel.addEventListener('change', reset);

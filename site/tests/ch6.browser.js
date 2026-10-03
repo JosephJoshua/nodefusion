@@ -29,6 +29,7 @@ async (page) => {
     await page.getByRole('link', {name: '交互图', exact: true}).click();
     const diagram = page.frameLocator('iframe[title="交互图"]');
     await diagram.getByRole('spinbutton', {name: '字节偏移'}).waitFor();
+    await diagram.getByText('索引边界', {exact: true}).click();
     await diagram.getByRole('button', {name: '二级间接起点'}).click();
     check(await diagram.getByRole('spinbutton').inputValue() === '79360', 'Boundary uses actual rCore layout');
     check((await diagram.locator('#result').textContent()).includes('逻辑块 155'), 'Double-indirect boundary gives logical block 155');
@@ -45,7 +46,8 @@ async (page) => {
     check(await diagram.locator('#block-path .node').count() === 3, 'C path has one indirect index block');
     check(await diagram.getByRole('spinbutton').getAttribute('aria-invalid') === 'false', 'Valid boundary clears input error');
     check(await page.locator('iframe[title="交互图"]').evaluate(frame => frame.contentDocument.documentElement.scrollWidth <= frame.contentWindow.innerWidth), 'Diagram reflows in embedded reading workspace');
-    await diagram.getByRole('link', {name: '返回第六章正文'}).click();
+    check(!(await diagram.locator('#return-to-lesson').isVisible()), 'Embedded index diagram uses the parent return control');
+    await page.getByRole('button', {name: '返回正文', exact: true}).click();
     check(await select.inputValue() === '数据块与磁盘布局', 'Diagram returns to mechanism section');
     const returnedY = await page.evaluate(() => scrollY);
     check(Math.abs(returnedY - y) < 2, `Diagram round trip preserves reading position at ${width}px: ${y} -> ${returnedY}`);

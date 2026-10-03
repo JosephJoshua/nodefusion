@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>锁与条件变量</title>
+  <link rel="icon" href="ch8-sync.svg" type="image/svg+xml">
   <link rel="stylesheet" href="switch.css">
   <link rel="stylesheet" href="sync.css">
   <link rel="stylesheet" href="explorer.css">
@@ -16,19 +17,22 @@
         <label>机制 <select id="scenario"><option value="mutex">阻塞锁交接</option><option value="condvar">条件变量唤醒</option><option value="semaphore">信号量许可</option></select></label>
         <div class="mode-switch" role="group" aria-label="操作方式"><button id="guided-mode" type="button" aria-pressed="true">示例过程</button><button id="free-mode" type="button" aria-pressed="false">自由操作</button></div>
       </div>
-      <div id="sync-lab" hidden>
-        <div class="lab-controls"><label>执行线程 <select id="lab-actor"><option>A</option><option>B</option><option>C</option></select></label><label id="permit-setting" hidden>初始许可 <select id="lab-permits"><option>0</option><option>1</option><option>2</option><option>3</option></select></label><button id="lab-undo" type="button">撤销</button><button id="lab-reset" type="button">重置</button></div>
-        <div id="lab-actions" class="lab-actions" aria-label="线程操作"></div>
-        <p id="lab-message" class="lab-message" role="status"></p>
-      </div>
-      <div class="sync-workspace">
-        <section class="scene" aria-label="线程与同步对象">
-          <figure class="queue-figure"><figcaption id="queue-caption">线程与等待队列</figcaption><svg id="queue-diagram" class="mechanism-svg" viewBox="0 0 640 290" role="img" aria-label="线程在就绪、持锁与等待队列中的位置"></svg></figure>
-          <div class="thread-row"><div id="thread-a" class="thread-card"><strong>线程 A</strong><span></span></div><div id="thread-b" class="thread-card"><strong>线程 B</strong><span></span></div><div id="thread-c" class="thread-card"><strong>线程 C</strong><span></span></div></div>
-          <div class="resource-row"><div class="resource-card"><span id="resource-name"></span><strong id="resource-value"></strong></div><div class="resource-card"><span id="queue-name"></span><strong id="queue-value"></strong></div></div>
-          <div id="ready-queue" class="queue-track" aria-label="就绪线程"></div><div id="waiting-queue" class="queue-track" aria-label="等待线程"></div>
+      <div class="workbench">
+        <section class="stage" aria-label="线程与同步对象">
+          <figure class="queue-figure"><figcaption>线程与等待队列 <span>点击线程查看状态</span></figcaption><svg id="queue-diagram" class="mechanism-svg" viewBox="0 0 640 290" role="group" aria-label="线程在就绪、持锁与等待队列中的位置"></svg></figure>
+          <div class="object-status"><span id="resource-name"></span><output id="resource-value"></output></div>
+          <div id="guided-transport" class="transport"><div class="navigation" aria-label="执行步骤"><button id="previous" type="button">上一步</button><button id="next" type="button">下一步</button><button id="reset" type="button">重置</button></div><div id="step-timeline"></div></div>
         </section>
-        <aside class="step-panel" aria-label="当前步骤"><div class="navigation"><button id="previous" type="button">上一步</button><output id="position" aria-label="步骤位置"></output><button id="next" type="button">下一步</button><button id="reset" type="button">重置</button></div><h2 id="step-title"></h2><p id="step-description" role="status"></p><div id="step-timeline"></div><ul id="state-changes" class="change-list" aria-label="本步状态变化"></ul><section class="insight"><strong>观察要点</strong><p id="sync-insight"></p></section></aside>
+        <aside class="inspector" aria-label="线程详情">
+          <div class="selection-tools"><label class="selection-field">线程 <select id="lab-actor"><option>A</option><option>B</option><option>C</option></select></label><div id="lab-history" class="action-group" hidden><button id="lab-undo" type="button">撤销</button><button id="lab-reset" type="button">重置</button></div></div><p id="actor-status" class="selection-status"></p>
+          <div id="sync-lab" hidden>
+            <div id="lab-actions" class="lab-actions" aria-label="线程操作"></div>
+            <p id="lab-message" class="lab-message" role="status"></p>
+            <div class="lab-controls"><label id="permit-setting" hidden>初始许可 <select id="lab-permits"><option>0</option><option>1</option><option>2</option><option>3</option></select></label></div>
+          </div>
+          <section class="step-panel" aria-label="当前步骤"><h2 id="step-title"></h2><p id="step-description" role="status"></p><ul id="state-changes" class="change-list" aria-label="本步状态变化"></ul></section>
+          <details class="secondary"><summary>等待队列与同步规则</summary><p id="queue-value"></p><p id="sync-insight"></p></details>
+        </aside>
       </div>
     </section>
     <details id="static-diagram" open><summary>静态图</summary><img src="ch8-sync.svg" width="900" height="480" alt="阻塞锁解锁后把锁交给等待队首线程；条件变量通知只唤醒线程，该线程还需重新获得互斥锁"></details>

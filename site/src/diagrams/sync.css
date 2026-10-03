@@ -1,41 +1,14 @@
-.embedded-diagram #return-to-lesson { display: none; }
-.embedded-diagram main { padding-top: .5rem; }
-.toolbar { justify-content: space-between; }
-.step-panel output { min-width: 3rem; text-align: center; font-variant-numeric: tabular-nums; }
-.sync-workspace { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(17rem, .8fr); gap: 1rem; margin-top: .8rem; align-items: start; }
-.scene, .step-panel { min-width: 0; padding: .6rem 0; }
-.scene { display: flex; flex-direction: column; justify-content: center; gap: .85rem; }
-.thread-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .65rem; }
-.thread-card, .resource-card { border: 1.4px solid #8a9d92; border-radius: .3rem; min-height: 6.2rem; padding: .75rem; background: #f5f7f2; display: flex; flex-direction: column; justify-content: center; gap: .25rem; }
-.thread-card strong { font-size: 1.05rem; }
-.thread-card span { color: var(--muted); line-height: 1.4; font-size: .875rem; }
-.thread-card[data-state="running"] { border-color: #2f7861; background: #e2f1e4; }
-.thread-card[data-state="blocked"] { border-color: #a77345; background: #f8eee0; }
-.thread-card[data-state="ready"] { border-color: #5a83a3; background: #e9f1f6; }
-.resource-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
-.resource-card { min-height: 5.6rem; border-color: #6c9c7a; background: #eef5ed; }
-.resource-card span { color: var(--muted); font-size: .85rem; }
-.resource-card strong { overflow-wrap: anywhere; font-size: 1.05rem; }
-.step-panel .navigation { margin: 0 0 .75rem; flex-wrap: wrap; }
-.step-panel h2 { margin: .15rem 0 .5rem; font-size: 1.25rem; }
-.step-panel p { margin: 0; line-height: 1.6; }
-.source { margin: .8rem 0 0; }
-@media (max-width: 760px) {
-  .sync-workspace { grid-template-columns: 1fr; gap: .6rem; }
-  .scene, .step-panel { padding: .4rem 0; }
-  .thread-card { min-height: 5rem; padding: .45rem; }
-  .resource-card { min-height: 4.6rem; padding: .45rem; }
-  .step-panel h2 { font-size: 1.12rem; }
-}
-@media (max-width: 440px) {
-  h1 { font-size: 1.3rem; }
-  .toolbar { gap: .35rem; }
-  .toolbar label { width: 100%; justify-content: space-between; }
-  .toolbar select { max-width: 70%; }
-  .step-panel .navigation { width: 100%; justify-content: space-between; }
-  .thread-card strong { font-size: .85rem; }
-  .thread-card span, .resource-card span, .resource-card strong { font-size: .75rem; }
-  .step-panel p { font-size: .875rem; }
-  .source { font-size: .75rem; }
-}
+.queue-line { stroke: var(--line); stroke-width: 1; }
+.moving-thread { cursor: pointer; transition: transform 260ms cubic-bezier(.22, 1, .36, 1); }
+.moving-thread .thread-body { fill: var(--selected); stroke: var(--accent); stroke-width: 1.5; }
+.moving-thread[data-state=blocked] .thread-body { fill: oklch(95% .025 75); stroke: var(--waiting); }
+.moving-thread[data-state=owner] .thread-body { fill: var(--accent); }
+.moving-thread[data-state=owner] text { fill: var(--paper); }
+.moving-thread text { font: 14px ui-monospace, monospace; pointer-events: none; }
+.moving-thread .thread-focus { fill: transparent; stroke: transparent; pointer-events: all; }
+.moving-thread[aria-pressed=true] .thread-focus { stroke: var(--accent); stroke-width: 1.5; }
+.moving-thread:focus { outline: none; }
+.moving-thread:focus-visible .thread-focus { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 3 2; }
+.permit-count { font: 16px ui-monospace, monospace; }
+@media (prefers-reduced-motion: reduce) { .moving-thread { transition: none; } }
 @media print { #controls { display: none; } #static-diagram > img { display: block; } }

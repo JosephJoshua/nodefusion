@@ -130,22 +130,11 @@
   }
   function draw() {
     const s = steps[index];
-    const alone = get('scenario').value === 'alone';
     get('step-title').textContent = s.title;
     get('explanation').textContent = s.explanation;
-    for (const [id, field] of [['execution', 'execution'], ['current', 'current'], ['switch-count', 'count'], ['svg-a', 'aState'], ['svg-b', 'bState']]) {
+    for (const [id, field] of [['execution', 'execution'], ['current', 'current'], ['switch-count', 'count'], ['a-state', 'aState'], ['b-state', 'bState']]) {
       get(id).textContent = String(s[field]);
     }
-    for (const node of ['a', 'scheduler', 'b']) get(`node-${node}`).classList.toggle('active', s.active === node);
-    if (alone && get('kernel').value === 'ucore') {
-      get('svg-b').textContent = s.aState;
-      if (index >= steps.length - 2) {
-        get('node-a').classList.remove('active');
-        get('node-b').classList.add('active');
-      }
-    }
-    for (const edge of ['first', 'second']) get(`edge-${edge}`).classList.toggle('active', s.edge === edge);
-    get('progress').textContent = `${index + 1} / ${steps.length}`;
     get('previous').disabled = index === 0;
     get('next').disabled = index === steps.length - 1;
     drawExecution();
@@ -157,7 +146,7 @@
     const scenario = get('scenario').value;
     get('rcore-count').textContent = String(stepsFor('rcore', scenario).at(-1).count);
     get('ucore-count').textContent = String(stepsFor('ucore', scenario).at(-1).count);
-    get('switch-insight').textContent = alone
+    get('switch-insight').textContent = scenario === 'alone'
       ? '只剩 A 可运行时，rCore 选中自身并跳过 __switch；uCore 仍先回到调度器，再恢复 A。'
       : '异常入口保存用户寄存器；__switch 和 swtch 保存、恢复内核上下文。';
     const url = new URL(root.location.href);
@@ -169,12 +158,6 @@
   function reset() {
     index = 0;
     steps = stepsFor(get('kernel').value, get('scenario').value);
-    const rcore = get('kernel').value === 'rcore';
-    get('middle-label').textContent = rcore ? '选择任务' : '调度器';
-    get('svg-middle').textContent = rcore ? 'A 的内核态' : 'idle.context';
-    const alone = get('scenario').value === 'alone';
-    get('target-label').textContent = alone ? (rcore ? '其他任务' : 'A（恢复）') : 'B';
-    get('edge-second').hidden = alone && rcore;
     draw();
   }
   get('kernel').addEventListener('change', reset);
@@ -192,5 +175,5 @@
     draw();
   }
   get('controls').hidden = false;
-  doc.querySelector('details').open = false;
+  get('static-diagram').open = false;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -3,6 +3,7 @@ async page => {
   const base = new URL('/', page.url()).href;
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
+  await page.evaluate(() => sessionStorage.removeItem('nodefusion-study-side'));
   for (const width of [320, 390, 900, 1440]) {
     await page.setViewportSize({width, height: 900});
     for (const diagram of ['ch3-switch', 'ch6-blocks', 'ch7-pipe', 'ch8-sync']) {
@@ -14,7 +15,8 @@ async page => {
     await page.locator('#scenario').selectOption('alone');
     check(await page.locator('#rcore-count').textContent() === '0', 'rCore skips a self switch');
     check(await page.locator('#ucore-count').textContent() === '2', 'uCore switches through idle');
-    await page.locator('#step-timeline button').last().click();
+    await page.getByRole('slider', {name: '执行步骤'}).focus();
+    await page.keyboard.press('End');
     check(await page.locator('#next').isDisabled(), 'Timeline selects final step');
     await page.goto(base + 'diagrams/ch6-blocks.html');
     await page.locator('#index-bands button').nth(1).click();
@@ -29,11 +31,15 @@ async page => {
     check((await page.locator('#byte-value').textContent()).includes('0x'), 'Byte inspector shows stored data');
     await page.goto(base + 'diagrams/ch8-sync.html');
     await page.locator('#scenario').selectOption('semaphore');
-    await page.locator('#step-timeline button').nth(2).click();
-    check(await page.locator('#waiting-queue .queue-token').allTextContents().then(names => names.join('') === 'AB'), 'FIFO wait order is visible');
+    await page.getByRole('slider', {name: '执行步骤'}).focus();
+    await page.keyboard.press('Home'); await page.keyboard.press('ArrowRight'); await page.keyboard.press('ArrowRight');
+    check((await page.locator('#queue-diagram').getAttribute('aria-label')).includes('等待许可：A、B'), 'FIFO wait order is visible');
     check((await page.locator('#state-changes').textContent()).includes('−2'), 'Changes track semaphore count');
-    await page.locator('#step-timeline button').nth(3).click();
-    check(await page.locator('#ready-queue .queue-token').allTextContents().then(names => names.join('') === 'A'), 'Running C is distinct from ready A');
+    await page.keyboard.press('ArrowRight');
+    await page.locator('#thread-a').click();
+    check((await page.locator('#actor-status').textContent()).includes('就绪'), 'Ready A is inspectable');
+    await page.locator('#thread-c').click();
+    check(await page.locator('#actor-status').textContent() === '运行', 'Running C is distinct from ready A');
   }
   await page.setViewportSize({width: 1440, height: 900});
   await page.goto(base + 'ch3/rcore.html');

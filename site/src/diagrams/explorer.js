@@ -9,38 +9,33 @@
     },
     timeline(host, steps, selected, change) {
       host.className = 'experiment-timeline';
-      host.setAttribute('aria-label', '选择执行步骤');
-      host.replaceChildren(...steps.map((step, index) => {
-        const button = document.createElement('button');
-        button.type = 'button'; button.textContent = String(index + 1);
-        const caption = document.createElement('span'); caption.textContent = step.title; button.append(caption);
-        button.title = step.title; button.setAttribute('aria-label', `${index + 1}：${step.title}`);
-        if (index === selected) button.setAttribute('aria-current', 'step');
-        if (index < selected) button.className = 'completed';
-        button.addEventListener('click', () => { change(index); host.querySelector('[aria-current]')?.focus({preventScroll: true}); });
-        return button;
-      }));
-      const selectedButton = host.querySelector('[aria-current]');
-      if (selectedButton) {
-        const left = selectedButton.getBoundingClientRect().left - host.getBoundingClientRect().left + host.scrollLeft;
-        if (left < host.scrollLeft) host.scrollLeft = left;
-        else if (left + selectedButton.offsetWidth > host.scrollLeft + host.clientWidth) host.scrollLeft = left + selectedButton.offsetWidth - host.clientWidth;
+      let input = host.querySelector('input');
+      if (!input) {
+        const label = document.createElement('label');
+        label.textContent = '执行步骤';
+        input = document.createElement('input');
+        input.type = 'range'; input.min = '1'; input.step = '1';
+        input.setAttribute('aria-label', '执行步骤');
+        const output = document.createElement('output');
+        const ticks = document.createElement('div'); ticks.className = 'timeline-ticks'; ticks.setAttribute('aria-hidden', 'true');
+        label.append(input, output); host.append(label, ticks);
+        input.addEventListener('input', () => host.change(Number(input.value) - 1));
       }
+      host.change = change;
+      input.max = String(steps.length); input.value = String(selected + 1);
+      input.setAttribute('aria-valuetext', `第 ${selected + 1} 步，共 ${steps.length} 步：${steps[selected].title}`);
+      host.querySelector('output').textContent = `${selected + 1} / ${steps.length}`;
+      const ticks = host.querySelector('.timeline-ticks');
+      if (ticks.childElementCount !== steps.length) {
+        ticks.replaceChildren(...steps.map((_, index) => { const tick = document.createElement('span'); tick.textContent = index + 1; return tick; }));
+      }
+      [...ticks.children].forEach((tick, index) => tick.classList.toggle('selected', index === selected));
     },
     changes(host, pairs) {
       host.replaceChildren(...pairs.map(([label, before, after]) => {
         const row = document.createElement('li');
         row.textContent = `${label}：${before} → ${after}`; return row;
       }));
-    },
-    queue(host, title, value) {
-      host.replaceChildren();
-      const label = document.createElement('span'); label.textContent = title; host.append(label);
-      const names = value.match(/[ABC]/g) || [];
-      for (const name of names) {
-        const token = document.createElement('span'); token.className = 'queue-token'; token.textContent = name; host.append(token);
-      }
-      if (!names.length) host.append(document.createTextNode('空'));
     }
   };
 })();

@@ -7,6 +7,7 @@ async page => {
   for (const width of [320, 390, 720, 900, 1440]) {
     await page.setViewportSize({width, height: width <= 390 ? 740 : 900});
     await page.goto(base + 'diagrams/ch3-switch.html');
+    const startTop = await page.locator('#execution-path').evaluate(el => el.getBoundingClientRect().top);
     await page.locator('#execution-path [role=button]').nth(4).click();
     check(await page.locator('#switch-count').textContent() === '1', 'Execution plot supports pointer selection');
     await page.locator('#execution-path [role=button]').nth(4).focus();
@@ -15,8 +16,14 @@ async page => {
     check(await page.locator('.context-row').last().getAttribute('class').then(value => value.includes('active')), 'Kernel context transfer is highlighted');
     await page.keyboard.press('ArrowRight');
     check(await page.locator('#execution').textContent() === 'B：用户态', 'Plot supports keyboard stepping');
+    check(Math.abs(await page.locator('#execution-path').evaluate(el => el.getBoundingClientRect().top) - startTop) < 1, 'Selecting steps preserves diagram position');
+    await page.getByRole('slider', {name: '执行步骤'}).focus();
+    await page.keyboard.press('Home'); await page.keyboard.press('ArrowRight');
+    check(await page.locator('#step-timeline input').evaluate(el => document.activeElement === el), 'Scrubbing preserves keyboard focus');
+    check(await page.locator('#step-title').textContent() === '系统调用进入内核', 'Scrubbing updates the selected execution step');
     check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Execution plot fits');
     await page.goto(base + 'diagrams/ch6-blocks.html');
+    await page.getByText('索引边界', {exact: true}).click();
     await page.locator('#boundaries button').last().click();
     check(await page.locator('#offset-slider').getAttribute('min') === '79360', 'Zoom follows the index region');
     await page.getByRole('button', {name: '二级间接块地址项 [1]', exact: true}).click();
@@ -31,6 +38,7 @@ async page => {
 
     await page.goto(base + 'diagrams/ch8-sync.html?scenario=condvar');
     await page.getByRole('button', {name: '自由操作', exact: true}).click();
+    const sceneTop = await page.locator('#queue-diagram').evaluate(el => el.getBoundingClientRect().top);
     await page.locator('[data-operation=lock]').click();
     await page.locator('[data-operation=wait]').click();
     await page.locator('#thread-b').click();
@@ -46,6 +54,8 @@ async page => {
     check((await page.locator('#resource-value').textContent()).includes('A 持有'), 'Unlock hands the mutex to A');
     await page.locator('#lab-undo').click();
     check((await page.locator('#resource-value').textContent()).includes('B 持有'), 'Undo restores queues and ownership');
+    check(Math.abs(await page.locator('#queue-diagram').evaluate(el => el.getBoundingClientRect().top) - sceneTop) < 1, 'Repeated operations preserve the queue diagram position');
+    check(await page.locator('.thread-card, .resource-card, .queue-track').count() === 0, 'Synchronization uses one state diagram');
     check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Synchronization experiment fits');
     if (width <= 390) {
       check(await page.locator('#lab-actions').evaluate(el => el.getBoundingClientRect().bottom <= innerHeight), 'Mobile actions fit');
@@ -82,7 +92,7 @@ async page => {
     await page.locator('#writer-run').click();
     await page.getByRole('tab', {name: '读进程', exact: true}).click();
     check(await page.locator('#reader-run').evaluate(el => el.getBoundingClientRect().bottom <= innerHeight), `${kernel} mobile reader action fits after writing`);
-    check(await page.locator('#ring').evaluate(el => el.getBoundingClientRect().top >= 0), `${kernel} buffer remains visible`);
+    check(await page.locator('#buffer-circle').evaluate(el => el.getBoundingClientRect().top >= 0 && el.getBoundingClientRect().bottom <= innerHeight), `${kernel} buffer remains fully visible`);
   }
   await page.emulateMedia({reducedMotion: 'no-preference'});
 }

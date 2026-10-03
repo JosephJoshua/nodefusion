@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>文件偏移与块索引</title>
+  <link rel="icon" href="ch6-blocks.svg" type="image/svg+xml">
   <link rel="stylesheet" href="switch.css">
   <link rel="stylesheet" href="blocks.css">
   <link rel="stylesheet" href="explorer.css">
@@ -19,14 +20,22 @@
         <label>内核 <select id="kernel"><option value="rcore">rCore</option><option value="ucore">uCore</option></select></label>
         <label class="offset-input">字节偏移 <input id="offset" type="number" min="0" step="1" value="13824" aria-describedby="capacity"></label>
       </div>
-      <div class="lookup-summary"><p id="capacity"></p><div id="boundaries" aria-label="索引边界"></div></div>
-      <div class="offset-scale"><div class="range-heading"><label for="offset-slider">移动文件偏移</label><label>缩放范围 <select id="offset-scope"><option value="all">整个文件</option><option value="0">直接索引</option><option value="1" selected>一级间接索引</option><option value="2">二级间接索引</option></select></label></div><input id="offset-slider" type="range" min="0" step="1" value="13824"><output id="offset-value"></output><div id="index-bands" class="index-bands" aria-label="文件索引区间"></div></div>
-      <p id="result" role="status"></p>
-      <div id="address-equation" class="address-equation" aria-label="字节偏移分解"></div>
-      <div class="block-stepper"><button id="previous-block" type="button">前一块</button><button id="next-block" type="button">后一块</button><span>保留块内偏移</span></div>
-      <figure class="index-figure"><figcaption>索引查找路径 <span>点击地址项或字节</span></figcaption><div id="block-path" aria-label="索引查找路径"></div></figure>
-      <div class="block-offset" aria-label="数据块内偏移"><span id="byte-offset-label"></span><i id="byte-marker" class="byte-marker" aria-hidden="true"></i></div>
-      <section class="insight"><strong id="lookup-cost"></strong><p id="lookup-insight"></p></section>
+      <div class="workbench">
+        <section class="stage" aria-label="索引查找">
+          <figure class="index-figure"><figcaption>索引查找路径 <span>点击地址项或字节</span></figcaption><div id="index-bands" class="index-bands" aria-label="文件索引区间"></div><div id="block-path" aria-label="索引查找路径"></div></figure>
+          <div class="block-offset" aria-label="数据块内偏移"><span id="byte-offset-label"></span><i id="byte-marker" class="byte-marker" aria-hidden="true"></i></div>
+          <div class="offset-scale"><label for="offset-slider">文件偏移</label><input id="offset-slider" type="range" min="0" step="1" value="13824"><output id="offset-value"></output></div>
+          <div class="block-stepper"><button id="previous-block" type="button">前一块</button><button id="next-block" type="button">后一块</button><span>保留块内偏移</span></div>
+        </section>
+        <aside class="inspector" aria-label="偏移计算">
+          <h2>偏移计算</h2><p id="result" role="status"></p>
+          <div id="address-equation" class="address-equation" aria-label="字节偏移分解"></div>
+          <p id="lookup-cost" class="selection-status"></p>
+          <label class="selection-field">缩放范围 <select id="offset-scope"><option value="all">整个文件</option><option value="0">直接索引</option><option value="1" selected>一级间接索引</option><option value="2">二级间接索引</option></select></label>
+          <details class="secondary"><summary>索引边界</summary><p id="capacity"></p><div id="boundaries" aria-label="索引边界"></div></details>
+          <details class="secondary"><summary>索引布局</summary><p id="lookup-insight"></p></details>
+        </aside>
+      </div>
     </section>
     <details id="static-diagram" open>
       <summary>静态图</summary>

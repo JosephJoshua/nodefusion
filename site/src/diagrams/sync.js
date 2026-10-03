@@ -34,10 +34,11 @@
   let lastDiagram;
   function queueDiagram(state, owner, queues) {
     const svg = $('queue-diagram'), el = DiagramExplorer.svg;
+    const focused = svg.contains(document.activeElement) ? document.activeElement.id : null;
     lastDiagram = {state, owner, queues};
     const width = Math.max(320, Math.min(640, svg.parentElement.clientWidth)), compact = width < 450;
     const rowHeight = compact ? 46 : 58, first = compact ? 120 : 160, spacing = compact ? 62 : 86;
-    const rows = [{label: '运行 / 就绪', names: ['A', 'B', 'C'].filter((_, i) => ['ready', 'running'].includes(state.states[i]) && owner !== 'ABC'[i])},
+    const rows = [{label: free ? '可运行' : '运行 / 就绪', names: ['A', 'B', 'C'].filter((_, i) => ['ready', 'running'].includes(state.states[i]) && owner !== 'ABC'[i])},
       {label: scenario.value === 'semaphore' ? '信号量计数' : '持锁', names: owner ? [owner] : []}, ...queues];
     svg.setAttribute('viewBox', `0 0 ${width} ${rows.length * rowHeight + 28}`);
     const signature = width + ':' + rows.map(row => row.label).join('|');
@@ -48,10 +49,24 @@
         svg.append(el('line', {x1: compact ? 104 : 116, x2: width - 20, y1: 40 + i * rowHeight, y2: 40 + i * rowHeight, class: 'queue-line'}));
       });
       for (const name of ['A', 'B', 'C']) {
-        const token = el('g', {class: 'moving-thread', 'data-actor': name});
+        const token = el('g', {id: 'thread-' + name.toLowerCase(), class: 'moving-thread', 'data-actor': name, role: 'button', tabindex: 0});
         token.style.transition = 'none';
         requestAnimationFrame(() => requestAnimationFrame(() => { token.style.transition = ''; }));
-        token.append(el('circle', {r: 20}), el('text', {y: 5, 'text-anchor': 'middle'}, name), el('title', {}, `线程 ${name}`)); svg.append(token);
+        token.append(el('circle', {r: 23, class: 'thread-focus'}), el('circle', {r: 19, class: 'thread-body'}), el('text', {y: 5, 'text-anchor': 'middle'}, name), el('title', {}, `线程 ${name}`));
+        const choose = () => { $('lab-actor').value = name; render(); $('thread-' + name.toLowerCase())?.focus({preventScroll: true}); };
+        token.addEventListener('pointerdown', event => { if (event.button === 0) event.preventDefault(); });
+        token.addEventListener('click', choose);
+        token.addEventListener('keydown', event => {
+          if (['Enter', ' '].includes(event.key)) { event.preventDefault(); event.stopPropagation(); choose(); }
+          if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+            event.preventDefault(); event.stopPropagation();
+            const visible = [...svg.querySelectorAll('[role=button]')].filter(thread => thread.style.display !== 'none');
+            const index = visible.indexOf(token);
+            const next = event.key === 'Home' ? 0 : event.key === 'End' ? visible.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + visible.length) % visible.length;
+            visible[next].focus({preventScroll: true});
+          }
+        });
+        svg.append(token);
       }
       const count = el('text', {x: first, y: 45 + rowHeight, class: 'permit-count', id: 'diagram-permits'}); svg.append(count);
       svg.append(el('text', {x: width - 20, y: rows.length * rowHeight + 14, 'text-anchor': 'end', class: 'axis-label'}, '等待队列：左侧为队首'));
@@ -59,7 +74,9 @@
     for (const name of ['A', 'B', 'C']) {
       const token = svg.querySelector(`[data-actor=${name}]`);
       const row = rows.findIndex(row => row.names.includes(name));
-      token.hidden = row < 0; token.style.display = row < 0 ? 'none' : '';
+      token.style.display = row < 0 ? 'none' : '';
+      token.setAttribute('aria-pressed', String($('lab-actor').value === name));
+      token.setAttribute('aria-label', `线程 ${name}：${state.threads['ABC'.indexOf(name)]}`);
       if (row >= 0) {
         token.style.transform = `translate(${first + rows[row].names.indexOf(name) * spacing}px, ${40 + row * rowHeight}px)`;
         token.dataset.state = row > 1 ? 'blocked' : row === 1 ? 'owner' : 'ready';
@@ -68,6 +85,7 @@
     }
     $('diagram-permits').textContent = scenario.value === 'semaphore' ? state.resource : '';
     svg.setAttribute('aria-label', rows.map(row => `${row.label}：${row.names.join('、') || (row.label === '信号量计数' ? state.resource : '空')}`).join('；'));
+    if (focused) $(focused)?.focus({preventScroll: true});
   }
   function renderLab() {
     const actor = $('lab-actor').value, model = experiment;
@@ -75,6 +93,7 @@
     $('lab-message').textContent = allBlocked ? '三个线程均已阻塞，没有线程继续执行。可撤销上一步或重置。' :
       model.threads[actor].blocked ? `${actor} 正在${ {lock: '等待锁', condition: '等待条件变量通知', permit: '等待许可'}[model.threads[actor].blocked] }。选择其他可运行线程继续操作。` : model.message;
     $('permit-setting').hidden = scenario.value !== 'semaphore';
+    $('permit-setting').parentElement.hidden = scenario.value !== 'semaphore';
     $('lab-undo').disabled = !history.length;
     const operations = scenario.value === 'semaphore' ? [['down', 'down：获取许可'], ['up', 'up：增加许可']] :
       [['lock', model.threads[actor].reacquire ? '继续 wait：重新加锁' : 'lock：申请锁'], ['unlock', 'unlock：释放锁'],
@@ -103,33 +122,23 @@
   function render() {
     const list = scenarios[scenario.value];
     const state = free ? renderLab() : list[step];
+    if (state.states['ABC'.indexOf($('lab-actor').value)] === 'idle') $('lab-actor').value = 'A';
     $('sync-lab').hidden = !free;
+    $('lab-history').hidden = !free;
     $('controls').dataset.mode = free ? 'free' : 'guided';
     document.querySelector('.step-panel').hidden = free;
+    $('guided-transport').hidden = free;
     $('guided-mode').setAttribute('aria-pressed', String(!free)); $('free-mode').setAttribute('aria-pressed', String(free));
-    ['a', 'b', 'c'].forEach((name, index) => {
-      const card = $('thread-' + name);
-      card.dataset.state = state.states[index];
-      card.querySelector('span').textContent = state.threads[index];
-      if (free) {
-        card.setAttribute('role', 'button'); card.tabIndex = 0;
-        card.setAttribute('aria-pressed', String($('lab-actor').value === name.toUpperCase()));
-        card.setAttribute('aria-label', `选择线程 ${name.toUpperCase()}：${state.threads[index]}`);
-      } else { card.removeAttribute('role'); card.removeAttribute('tabindex'); card.removeAttribute('aria-pressed'); card.removeAttribute('aria-label'); }
-    });
+    $('actor-status').textContent = state.threads['ABC'.indexOf($('lab-actor').value)];
+    [...$('lab-actor').options].forEach((option, index) => { option.disabled = state.states[index] === 'idle'; });
     $('resource-name').textContent = scenario.value === 'semaphore' ? '信号量' : '互斥锁';
     $('resource-value').textContent = state.resource;
-    $('queue-name').textContent = '等待队列';
     $('queue-value').textContent = state.queue;
-    $('step-title').textContent = state.title;
-    $('step-description').textContent = state.description;
-    $('position').textContent = `${step + 1} / ${list.length}`;
+    $('step-title').textContent = state.title || '';
+    $('step-description').textContent = state.description || '';
     $('previous').disabled = step === 0;
     $('next').disabled = step === list.length - 1;
     DiagramExplorer.timeline($('step-timeline'), list, step, index => { step = index; render(); });
-    const ready = state.states.flatMap((status, index) => status === 'ready' ? ['ABC'[index]] : []).join('、');
-    DiagramExplorer.queue($('ready-queue'), '就绪', ready);
-    DiagramExplorer.queue($('waiting-queue'), '等待', state.queue);
     const owner = free ? state.owner : state.resource.match(/^([ABC]) 持有/)?.[1];
     const waiting = state.queue.match(/[ABC]/g) || [];
     queueDiagram(state, owner, free ? state.queues : [{label: scenario.value === 'semaphore' ? '等待许可' : '等待锁', names: state.queue.includes('条件变量') ? [] : waiting},
@@ -150,12 +159,6 @@
   $('free-mode').addEventListener('click', () => { free = true; render(); });
   $('guided-mode').addEventListener('click', () => { free = false; render(); });
   $('lab-actor').addEventListener('change', render);
-  for (const name of ['a', 'b', 'c']) {
-    const card = $('thread-' + name);
-    const choose = () => { if (free) { $('lab-actor').value = name.toUpperCase(); render(); } };
-    card.addEventListener('click', choose);
-    card.addEventListener('keydown', event => { if (free && ['Enter', ' '].includes(event.key)) { event.preventDefault(); choose(); } });
-  }
   $('lab-permits').addEventListener('change', () => { resetLab(); render(); });
   $('lab-reset').addEventListener('click', () => { resetLab(); render(); });
   $('lab-undo').addEventListener('click', () => { if (history.length) { experiment = history.pop(); render(); } });

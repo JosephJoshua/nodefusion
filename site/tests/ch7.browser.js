@@ -37,7 +37,7 @@ async page => {
       check(await frame.getByRole('combobox', {name: '内核', exact: true}).inputValue() === kernel, 'Diagram opens the current implementation');
       check(!(await frame.locator('#return-to-lesson').isVisible()), 'Embedded diagram uses the persistent parent return control');
       if (width <= 390) {
-        check(await frame.locator('#ring').evaluate(el => el.getBoundingClientRect().top >= 0), 'Buffer remains visible while operating');
+        check(await frame.locator('#buffer-circle').evaluate(el => el.getBoundingClientRect().top >= 0), 'Buffer remains visible while operating');
         check(await frame.getByRole('button', {name: '运行写进程', exact: true}).evaluate(el => el.getBoundingClientRect().bottom <= innerHeight), `Embedded writer fits at ${width}px`);
       }
       await frame.getByRole('button', {name: '运行写进程', exact: true}).click();
@@ -48,8 +48,11 @@ async page => {
       if (width <= 390) {
         check(await frame.getByRole('button', {name: '运行读进程', exact: true}).evaluate(el => el.getBoundingClientRect().bottom <= innerHeight), 'Embedded reader fits with buffer visible');
       }
+      const actionTop = await frame.locator('#reader-run').evaluate(el => el.getBoundingClientRect().top);
       await frame.getByRole('button', {name: '运行读进程', exact: true}).click();
       check(await frame.locator('#occupancy').textContent() === `0 / ${capacity} 字节`, 'Reader consumes the available bytes');
+      check(Math.abs(await frame.locator('#reader-run').evaluate(el => el.getBoundingClientRect().top) - actionTop) < 1, 'Progress updates preserve the reader action position');
+      check(await frame.locator('#read-index-label').textContent() === `${kernel === 'rcore' ? 'head' : '读下标'} = 0`, 'Diagram labels show the actual wrapped read index');
       await page.getByRole('button', {name: '返回正文', exact: true}).click();
       check(await select.inputValue() === '读写与调度', 'Return preserves the selected mechanism');
       const returnedTop = await heading.evaluate(el => el.getBoundingClientRect().top);
